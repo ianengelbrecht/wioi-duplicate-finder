@@ -1,0 +1,37 @@
+# Node.js & Frontend dependencies
+node_modules/
+dist/
+build/
+.svelte-kit/
+package/
+
+# Environment configurations and logs
+.env
+.env.*
+!.env.example
+*.log
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Rust & Cargo build outputs
+src-tauri/target/
+src-tauri/gen/schemas/
+Cargo.lock
+
+# Tauri Resource Bundler & Local SQLite databases
+src-tauri/resources/*.db
+src-tauri/resources/*.db-journal
+duplicate-finder-data/
+
+# IDE and Editor configs
+.vscode/
+.idea/
+*.suo
+*.user
+*.sublime-project
+*.sublime-workspace
+
+# Operating System metadata
+.DS_Store
+Thumbs.db
+desktop.ini
