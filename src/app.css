@@ -1,6 +1,6 @@
-@import "tailwindcss";
-
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+@import "tailwindcss";
 
 @layer base {
   :root {
@@ -30,4 +30,8 @@
 
 ::-webkit-scrollbar-thumb {
   @apply bg-slate-300 hover:bg-slate-400 transition-colors rounded-none;
+}
+
+button:not(:disabled), [role="button"]:not(:disabled) {
+  cursor: pointer;
 }

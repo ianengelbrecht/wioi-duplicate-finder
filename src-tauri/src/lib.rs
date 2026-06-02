@@ -9,7 +9,7 @@ use std::fs;
 mod parser;
 mod db;
 
-use parser::normalize_taxon_name;
+use parser::{normalize_taxon_name, normalize_collector_search};
 use db::{get_db_path, init_database, hash_password};
 
 // -------------------------------------------------------------
@@ -155,6 +155,11 @@ fn search_reference(app: AppHandle, filters: serde_json::Value) -> Result<Vec<se
     let has_state_province = !state_province.is_empty();
     let has_date = year.is_some() || month.is_some() || day.is_some();
     
+    // Constraint: family search must be accompanied by collector
+    if has_family && !has_recorded_by {
+        return Err("Family search must be accompanied by a Collector name.".to_string());
+    }
+
     let other_fields_present = has_record_number || has_locality || has_scientific_name || has_family || has_country || has_state_province;
     
     // Constraint: collector must be accompanied by at least one other field
@@ -172,31 +177,31 @@ fn search_reference(app: AppHandle, filters: serde_json::Value) -> Result<Vec<se
     }
     
     let mut sql = String::from(
-        "SELECT id, recordedBy, recordNumber, locality, locationNotes, verbatimLocality, 
-                scientificName, family, genus, specificEpithet, infraSpecificEpithet, 
-                country, stateProvince, year, month, day 
-         FROM parsed_gbif WHERE 1=1"
+        "SELECT recordedBy, recordNumber, locality, locationRemarks, verbatimLocality, 
+                scientificName, family, country, stateProvince, year, month, day 
+         FROM gbif WHERE 1=1"
     );
     let mut params_vec: Vec<serde_json::Value> = Vec::new();
     
     if has_recorded_by {
-        sql.push_str(" AND recordedBy LIKE ?");
-        params_vec.push(json!(format!("%{}%", recorded_by)));
+        let normalized = normalize_collector_search(recorded_by);
+        sql.push_str(" AND normalizedRecordedBy LIKE ? COLLATE NOCASE");
+        params_vec.push(json!(format!("{}%", normalized)));
     }
     if has_record_number {
-        sql.push_str(" AND recordNumber LIKE ?");
-        params_vec.push(json!(format!("{}%", record_number)));
+        sql.push_str(" AND recordNumber = ?");
+        params_vec.push(json!(record_number));
     }
     if has_family {
-        sql.push_str(" AND family LIKE ?");
+        sql.push_str(" AND family LIKE ? COLLATE NOCASE");
         params_vec.push(json!(format!("{}%", family)));
     }
     if has_country {
-        sql.push_str(" AND country LIKE ?");
+        sql.push_str(" AND country LIKE ? COLLATE NOCASE");
         params_vec.push(json!(format!("{}%", country)));
     }
     if has_state_province {
-        sql.push_str(" AND stateProvince LIKE ?");
+        sql.push_str(" AND stateProvince LIKE ? COLLATE NOCASE");
         params_vec.push(json!(format!("{}%", state_province)));
     }
     if let Some(y) = year {
@@ -212,7 +217,7 @@ fn search_reference(app: AppHandle, filters: serde_json::Value) -> Result<Vec<se
         params_vec.push(json!(d));
     }
     
-    // Locality FTS5 Search (multi-term prefix match across locality, locationNotes, verbatimLocality)
+    // Locality FTS5 Search (multi-term prefix match across locality, locationRemarks, verbatimLocality)
     if has_locality {
         let terms: Vec<&str> = locality.split_whitespace().collect();
         if !terms.is_empty() {
@@ -221,14 +226,14 @@ fn search_reference(app: AppHandle, filters: serde_json::Value) -> Result<Vec<se
                 let clean_term = term.trim_matches(|c: char| c.is_ascii_punctuation());
                 if !clean_term.is_empty() {
                     match_clauses.push(format!(
-                        "(locality:{term}* OR locationNotes:{term}* OR verbatimLocality:{term}*)",
+                        "(locality:{term}* OR locationRemarks:{term}* OR verbatimLocality:{term}*)",
                         term = clean_term
                     ));
                 }
             }
             if !match_clauses.is_empty() {
                 let fts_query = match_clauses.join(" AND ");
-                sql.push_str(" AND id IN (SELECT rowid FROM parsed_gbif_fts WHERE parsed_gbif_fts MATCH ?)");
+                sql.push_str(" AND gbifID IN (SELECT rowid FROM gbif_fts WHERE gbif_fts MATCH ?)");
                 params_vec.push(json!(fts_query));
             }
         }
@@ -246,7 +251,7 @@ fn search_reference(app: AppHandle, filters: serde_json::Value) -> Result<Vec<se
                 }
                 fts_query.push_str(&format!("{}*", term));
             }
-            sql.push_str(" AND id IN (SELECT rowid FROM parsed_gbif_fts WHERE parsed_gbif_fts MATCH ?)");
+            sql.push_str(" AND gbifID IN (SELECT rowid FROM gbif_fts WHERE gbif_fts MATCH ?)");
             params_vec.push(json!(fts_query));
         }
     }
@@ -269,25 +274,21 @@ fn search_reference(app: AppHandle, filters: serde_json::Value) -> Result<Vec<se
     let ref_params: Vec<&dyn rusqlite::ToSql> = rusql_params.iter().map(|b| b.as_ref()).collect();
     
     let rows = stmt.query_map(&ref_params[..], |row| {
-        let id: i32 = row.get(0)?;
-        let recorded_by: Option<String> = row.get(1)?;
-        let record_number: Option<String> = row.get(2)?;
-        let locality: Option<String> = row.get(3)?;
-        let location_notes: Option<String> = row.get(4)?;
-        let verbatim_locality: Option<String> = row.get(5)?;
-        let scientific_name: Option<String> = row.get(6)?;
-        let family: Option<String> = row.get(7)?;
-        let genus: Option<String> = row.get(8)?;
-        let specific_epithet: Option<String> = row.get(9)?;
-        let infra_specific_epithet: Option<String> = row.get(10)?;
-        let country: Option<String> = row.get(11)?;
-        let state_province: Option<String> = row.get(12)?;
-        let year: Option<i32> = row.get(13)?;
-        let month: Option<i32> = row.get(14)?;
-        let day: Option<i32> = row.get(15)?;
+        let recorded_by: Option<String> = row.get(0)?;
+        let record_number: Option<String> = row.get(1)?;
+        let locality: Option<String> = row.get(2)?;
+        let location_notes: Option<String> = row.get(3)?;
+        let verbatim_locality: Option<String> = row.get(4)?;
+        let scientific_name: Option<String> = row.get(5)?;
+        let family: Option<String> = row.get(6)?;
+        let country: Option<String> = row.get(7)?;
+        let state_province: Option<String> = row.get(8)?;
+        let year: Option<i32> = row.get(9)?;
+        let month: Option<i32> = row.get(10)?;
+        let day: Option<i32> = row.get(11)?;
         
         Ok(json!({
-            "id": id,
+            "id": serde_json::Value::Null,
             "recordedBy": recorded_by.unwrap_or_default(),
             "recordNumber": record_number.unwrap_or_default(),
             "locality": locality.unwrap_or_default(),
@@ -295,9 +296,9 @@ fn search_reference(app: AppHandle, filters: serde_json::Value) -> Result<Vec<se
             "verbatimLocality": verbatim_locality.unwrap_or_default(),
             "scientificName": scientific_name.unwrap_or_default(),
             "family": family.unwrap_or_default(),
-            "genus": genus.unwrap_or_default(),
-            "specificEpithet": specific_epithet.unwrap_or_default(),
-            "infraSpecificEpithet": infra_specific_epithet.unwrap_or_default(),
+            "genus": "",
+            "specificEpithet": "",
+            "infraSpecificEpithet": "",
             "country": country.unwrap_or_default(),
             "stateProvince": state_province.unwrap_or_default(),
             "year": year,
@@ -324,30 +325,48 @@ fn autocomplete_scientific_name(app: AppHandle, query: String) -> Result<Vec<ser
         return Ok(Vec::new());
     }
     
-    let normalized = normalize_taxon_name(q_clean);
+    let terms: Vec<&str> = q_clean.split_whitespace().collect();
+    if terms.is_empty() {
+        return Ok(Vec::new());
+    }
+    
+    let mut fts_query = String::new();
+    for (i, term) in terms.iter().enumerate() {
+        let clean = term.trim_matches(|c: char| c.is_ascii_punctuation());
+        if !clean.is_empty() {
+            if i > 0 {
+                fts_query.push_str(" AND ");
+            }
+            fts_query.push_str(&format!("{}*", clean));
+        }
+    }
+    
     let mut stmt = conn
         .prepare(
-            "SELECT scientific_name, family, genus, species, authors, rank 
+            "SELECT plant_name_id, taxon_name, family, genus, species, taxon_authors, taxon_rank 
              FROM wcvp_taxonomy 
-             WHERE normalized_name LIKE ?1 OR scientific_name LIKE ?2 
+             WHERE rowid IN (SELECT rowid FROM wcvp_taxonomy_fts WHERE wcvp_taxonomy_fts MATCH ?1) 
              LIMIT 15"
         )
         .map_err(|e| e.to_string())?;
         
-    let rows = stmt.query_map(params![format!("{}%", normalized), format!("{}%", q_clean)], |row| {
-        let name: String = row.get(0)?;
-        let family: String = row.get(1)?;
-        let genus: String = row.get(2)?;
-        let species: String = row.get(3)?;
-        let authors: String = row.get(4)?;
-        let rank: String = row.get(5)?;
+    let rows = stmt.query_map(params![fts_query], |row| {
+        let id: String = row.get(0)?;
+        let name: String = row.get(1)?;
+        let family: Option<String> = row.get(2)?;
+        let genus: Option<String> = row.get(3)?;
+        let species: Option<String> = row.get(4)?;
+        let authors: Option<String> = row.get(5)?;
+        let rank: Option<String> = row.get(6)?;
+        
         Ok(json!({
+            "taxonID": id,
             "scientificName": name,
-            "family": family,
-            "genus": genus,
-            "specificEpithet": species,
-            "authors": authors,
-            "rank": rank
+            "family": family.unwrap_or_default(),
+            "genus": genus.unwrap_or_default(),
+            "specificEpithet": species.unwrap_or_default(),
+            "authors": authors.unwrap_or_default(),
+            "rank": rank.unwrap_or_default()
         }))
     }).map_err(|e| e.to_string())?;
     
@@ -368,18 +387,21 @@ fn autocomplete_recorded_by(app: AppHandle, query: String) -> Result<Vec<String>
         return Ok(Vec::new());
     }
     
-    // Search both parsed_gbif and captured_records for unique collector names starting with query
+    let normalized = normalize_collector_search(q_clean);
+    
+    // We aggregate unique collector names from recordedBy, using normalizedRecordedBy for lookup.
+    // The user must only ever see values from recordedBy.
     let mut stmt = conn
         .prepare(
-            "SELECT DISTINCT recordedBy FROM (
-                SELECT recordedBy FROM parsed_gbif WHERE recordedBy LIKE ?1
+            "SELECT DISTINCT collector FROM (
+                SELECT recordedBy AS collector FROM gbif WHERE normalizedRecordedBy LIKE ?1 COLLATE NOCASE
                 UNION
-                SELECT recordedBy FROM captured_records WHERE recordedBy LIKE ?1
-             ) WHERE recordedBy IS NOT NULL AND recordedBy != '' LIMIT 10"
+                SELECT recordedBy AS collector FROM captured_records WHERE recordedBy LIKE ?2 COLLATE NOCASE
+             ) WHERE collector IS NOT NULL AND collector != '' LIMIT 10"
         )
         .map_err(|e| e.to_string())?;
         
-    let rows = stmt.query_map(params![format!("%{}%", q_clean)], |row| {
+    let rows = stmt.query_map(params![format!("{}%", normalized), format!("{}%", q_clean)], |row| {
         let name: String = row.get(0)?;
         Ok(name)
     }).map_err(|e| e.to_string())?;
@@ -404,7 +426,7 @@ fn autocomplete_locality(app: AppHandle, query: String) -> Result<Vec<String>, S
     let mut stmt = conn
         .prepare(
             "SELECT DISTINCT locality FROM (
-                SELECT locality FROM parsed_gbif WHERE locality LIKE ?1
+                SELECT locality FROM gbif WHERE locality LIKE ?1
                 UNION
                 SELECT locality FROM captured_records WHERE locality LIKE ?1
              ) WHERE locality IS NOT NULL AND locality != '' LIMIT 10"
@@ -431,36 +453,62 @@ fn save_captured_record(app: AppHandle, record: serde_json::Value) -> Result<ser
     let id = record.get("id").and_then(|v| v.as_i64());
     let session_id = record.get("sessionId").and_then(|v| v.as_i64()).ok_or("Session ID is required.")?;
     
-    let recorded_by = record.get("recordedBy").and_then(|v| v.as_str()).unwrap_or("").trim();
+    let collection_code = record.get("collectionCode").and_then(|v| v.as_str()).unwrap_or("").trim();
+    let catalog_number = record.get("catalogNumber").and_then(|v| v.as_str()).unwrap_or("").trim();
+    let duplicates = record.get("duplicates").and_then(|v| v.as_i64());
     let record_number = record.get("recordNumber").and_then(|v| v.as_str()).unwrap_or("").trim();
-    let locality = record.get("locality").and_then(|v| v.as_str()).unwrap_or("").trim();
-    let location_notes = record.get("locationNotes").and_then(|v| v.as_str()).unwrap_or("").trim();
-    let verbatim_locality = record.get("verbatimLocality").and_then(|v| v.as_str()).unwrap_or("").trim();
-    let scientific_name = record.get("scientificName").and_then(|v| v.as_str()).unwrap_or("").trim();
-    
-    let family = record.get("family").and_then(|v| v.as_str()).unwrap_or("").trim();
-    let genus = record.get("genus").and_then(|v| v.as_str()).unwrap_or("").trim();
-    let specific_epithet = record.get("specificEpithet").and_then(|v| v.as_str()).unwrap_or("").trim();
-    let infra_specific_epithet = record.get("infraSpecificEpithet").and_then(|v| v.as_str()).unwrap_or("").trim();
-    let country = record.get("country").and_then(|v| v.as_str()).unwrap_or("").trim();
-    let state_province = record.get("stateProvince").and_then(|v| v.as_str()).unwrap_or("").trim();
+    let recorded_by = record.get("recordedBy").and_then(|v| v.as_str()).unwrap_or("").trim();
+    let verbatim_event_date = record.get("verbatimEventDate").and_then(|v| v.as_str()).unwrap_or("").trim();
     
     let year = record.get("year").and_then(|v| v.as_i64());
     let month = record.get("month").and_then(|v| v.as_i64());
     let day = record.get("day").and_then(|v| v.as_i64());
     
+    let country = record.get("country").and_then(|v| v.as_str()).unwrap_or("").trim();
+    let state_province = record.get("stateProvince").and_then(|v| v.as_str()).unwrap_or("").trim();
+    let county = record.get("county").and_then(|v| v.as_str()).unwrap_or("").trim();
+    let municipality = record.get("municipality").and_then(|v| v.as_str()).unwrap_or("").trim();
+    
+    let locality = record.get("locality").and_then(|v| v.as_str()).unwrap_or("").trim();
+    let location_remarks = record.get("locationNotes").and_then(|v| v.as_str()).unwrap_or("").trim(); // UI locationNotes -> locationRemarks
+    
+    let verbatim_coordinates = record.get("verbatimCoordinates").and_then(|v| v.as_str()).unwrap_or("").trim();
+    let verbatim_elevation = record.get("verbatimElevation").and_then(|v| v.as_str()).unwrap_or("").trim();
+    
+    let habitat = record.get("habitat").and_then(|v| v.as_str()).unwrap_or("").trim();
+    let occurrence_remarks = record.get("occurrenceRemarks").and_then(|v| v.as_str()).unwrap_or("").trim();
+    
+    let type_status = record.get("typeStatus").and_then(|v| v.as_str()).unwrap_or("").trim();
+    let id_qualifier = record.get("identificationQualifier").and_then(|v| v.as_str()).unwrap_or("").trim();
+    
+    let scientific_name = record.get("scientificName").and_then(|v| v.as_str()).unwrap_or("").trim();
+    let identified_by = record.get("identifiedBy").and_then(|v| v.as_str()).unwrap_or("").trim();
+    
+    let year_identified = record.get("yearIdentified").and_then(|v| v.as_i64());
+    let month_identified = record.get("monthIdentified").and_then(|v| v.as_i64());
+    let day_identified = record.get("dayIdentified").and_then(|v| v.as_i64());
+    
+    let id_remarks = record.get("identificationRemarks").and_then(|v| v.as_str()).unwrap_or("").trim();
+    let taxon_id = record.get("taxonID").and_then(|v| v.as_str()).unwrap_or("").trim();
+    
     if let Some(existing_id) = id {
         // Update existing record
         conn.execute(
             "UPDATE captured_records SET 
-                recordedBy=?1, recordNumber=?2, locality=?3, locationNotes=?4, verbatimLocality=?5,
-                scientificName=?6, family=?7, genus=?8, specificEpithet=?9, infraSpecificEpithet=?10,
-                country=?11, stateProvince=?12, year=?13, month=?14, day=?15, updated_at=CURRENT_TIMESTAMP
-             WHERE id = ?16 AND session_id = ?17",
+                collectionCode=?1, catalogNumber=?2, duplicates=?3, recordNumber=?4, recordedBy=?5,
+                verbatimEventDate=?6, year=?7, month=?8, day=?9, country=?10,
+                stateProvince=?11, county=?12, municipality=?13, locality=?14, locationRemarks=?15,
+                verbatimCoordinates=?16, verbatimElevation=?17, habitat=?18, occurrenceRemarks=?19, typeStatus=?20,
+                identificationQualifier=?21, scientificName=?22, identifiedBy=?23, yearIdentified=?24, monthIdentified=?25,
+                dayIdentified=?26, identificationRemarks=?27, taxonID=?28
+             WHERE id = ?29 AND session_id = ?30",
             params![
-                recorded_by, record_number, locality, location_notes, verbatim_locality,
-                scientific_name, family, genus, specific_epithet, infra_specific_epithet,
-                country, state_province, year, month, day, existing_id, session_id
+                collection_code, catalog_number, duplicates, record_number, recorded_by,
+                verbatim_event_date, year, month, day, country,
+                state_province, county, municipality, locality, location_remarks,
+                verbatim_coordinates, verbatim_elevation, habitat, occurrence_remarks, type_status,
+                id_qualifier, scientific_name, identified_by, year_identified, month_identified,
+                day_identified, id_remarks, taxon_id, existing_id, session_id
             ]
         ).map_err(|e| e.to_string())?;
         
@@ -469,14 +517,18 @@ fn save_captured_record(app: AppHandle, record: serde_json::Value) -> Result<ser
         // Insert new record
         conn.execute(
             "INSERT INTO captured_records (
-                session_id, recordedBy, recordNumber, locality, locationNotes, verbatimLocality,
-                scientificName, family, genus, specificEpithet, infraSpecificEpithet,
-                country, stateProvince, year, month, day
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+                session_id, collectionCode, catalogNumber, duplicates, recordNumber, recordedBy,
+                verbatimEventDate, year, month, day, country, stateProvince, county, municipality,
+                locality, locationRemarks, verbatimCoordinates, verbatimElevation, habitat, occurrenceRemarks,
+                typeStatus, identificationQualifier, scientificName, identifiedBy, yearIdentified,
+                monthIdentified, dayIdentified, identificationRemarks, taxonID
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29)",
             params![
-                session_id, recorded_by, record_number, locality, location_notes, verbatim_locality,
-                scientific_name, family, genus, specific_epithet, infra_specific_epithet,
-                country, state_province, year, month, day
+                session_id, collection_code, catalog_number, duplicates, record_number, recorded_by,
+                verbatim_event_date, year, month, day, country, state_province, county, municipality,
+                locality, location_remarks, verbatim_coordinates, verbatim_elevation, habitat, occurrence_remarks,
+                type_status, id_qualifier, scientific_name, identified_by, year_identified,
+                month_identified, day_identified, id_remarks, taxon_id
             ]
         ).map_err(|e| e.to_string())?;
         
@@ -492,9 +544,11 @@ fn get_captured_records(app: AppHandle, session_id: i32) -> Result<Vec<serde_jso
     
     let mut stmt = conn
         .prepare(
-            "SELECT id, recordedBy, recordNumber, locality, locationNotes, verbatimLocality, 
-                    scientificName, family, genus, specificEpithet, infraSpecificEpithet, 
-                    country, stateProvince, year, month, day 
+            "SELECT id, collectionCode, catalogNumber, duplicates, recordNumber, recordedBy, 
+                    verbatimEventDate, year, month, day, country, stateProvince, county, municipality, 
+                    locality, locationRemarks, verbatimCoordinates, verbatimElevation, habitat, occurrenceRemarks, 
+                    typeStatus, identificationQualifier, scientificName, identifiedBy, yearIdentified, 
+                    monthIdentified, dayIdentified, identificationRemarks, taxonID 
              FROM captured_records 
              WHERE session_id = ?1 
              ORDER BY id DESC"
@@ -503,40 +557,66 @@ fn get_captured_records(app: AppHandle, session_id: i32) -> Result<Vec<serde_jso
         
     let rows = stmt.query_map(params![session_id], |row| {
         let id: i32 = row.get(0)?;
-        let recorded_by: Option<String> = row.get(1)?;
-        let record_number: Option<String> = row.get(2)?;
-        let locality: Option<String> = row.get(3)?;
-        let location_notes: Option<String> = row.get(4)?;
-        let verbatim_locality: Option<String> = row.get(5)?;
-        let scientific_name: Option<String> = row.get(6)?;
-        let family: Option<String> = row.get(7)?;
-        let genus: Option<String> = row.get(8)?;
-        let specific_epithet: Option<String> = row.get(9)?;
-        let infra_specific_epithet: Option<String> = row.get(10)?;
-        let country: Option<String> = row.get(11)?;
-        let state_province: Option<String> = row.get(12)?;
-        let year: Option<i32> = row.get(13)?;
-        let month: Option<i32> = row.get(14)?;
-        let day: Option<i32> = row.get(15)?;
+        let collection_code: Option<String> = row.get(1)?;
+        let catalog_number: Option<String> = row.get(2)?;
+        let duplicates: Option<i32> = row.get(3)?;
+        let record_number: Option<String> = row.get(4)?;
+        let recorded_by: Option<String> = row.get(5)?;
+        let verbatim_event_date: Option<String> = row.get(6)?;
+        let year: Option<i32> = row.get(7)?;
+        let month: Option<i32> = row.get(8)?;
+        let day: Option<i32> = row.get(9)?;
+        let country: Option<String> = row.get(10)?;
+        let state_province: Option<String> = row.get(11)?;
+        let county: Option<String> = row.get(12)?;
+        let municipality: Option<String> = row.get(13)?;
+        let locality: Option<String> = row.get(14)?;
+        let location_notes: Option<String> = row.get(15)?;
+        let verbatim_coordinates: Option<String> = row.get(16)?;
+        let verbatim_elevation: Option<String> = row.get(17)?;
+        let habitat: Option<String> = row.get(18)?;
+        let occurrence_remarks: Option<String> = row.get(19)?;
+        let type_status: Option<String> = row.get(20)?;
+        let id_qualifier: Option<String> = row.get(21)?;
+        let scientific_name: Option<String> = row.get(22)?;
+        let identified_by: Option<String> = row.get(23)?;
+        let year_identified: Option<i32> = row.get(24)?;
+        let month_identified: Option<i32> = row.get(25)?;
+        let day_identified: Option<i32> = row.get(26)?;
+        let id_remarks: Option<String> = row.get(27)?;
+        let taxon_id: Option<String> = row.get(28)?;
         
         Ok(json!({
             "id": id,
             "sessionId": session_id,
-            "recordedBy": recorded_by.unwrap_or_default(),
+            "collectionCode": collection_code.unwrap_or_default(),
+            "catalogNumber": catalog_number.unwrap_or_default(),
+            "duplicates": duplicates,
             "recordNumber": record_number.unwrap_or_default(),
-            "locality": locality.unwrap_or_default(),
-            "locationNotes": location_notes.unwrap_or_default(),
-            "verbatimLocality": verbatim_locality.unwrap_or_default(),
-            "scientificName": scientific_name.unwrap_or_default(),
-            "family": family.unwrap_or_default(),
-            "genus": genus.unwrap_or_default(),
-            "specificEpithet": specific_epithet.unwrap_or_default(),
-            "infraSpecificEpithet": infra_specific_epithet.unwrap_or_default(),
-            "country": country.unwrap_or_default(),
-            "stateProvince": state_province.unwrap_or_default(),
+            "recordedBy": recorded_by.unwrap_or_default(),
+            "verbatimEventDate": verbatim_event_date.unwrap_or_default(),
             "year": year,
             "month": month,
             "day": day,
+            "country": country.unwrap_or_default(),
+            "stateProvince": state_province.unwrap_or_default(),
+            "county": county.unwrap_or_default(),
+            "municipality": municipality.unwrap_or_default(),
+            "locality": locality.unwrap_or_default(),
+            "locationNotes": location_notes.unwrap_or_default(), // locationRemarks mapped to locationNotes
+            "verbatimCoordinates": verbatim_coordinates.unwrap_or_default(),
+            "verbatimElevation": verbatim_elevation.unwrap_or_default(),
+            "habitat": habitat.unwrap_or_default(),
+            "occurrenceRemarks": occurrence_remarks.unwrap_or_default(),
+            "typeStatus": type_status.unwrap_or_default(),
+            "identificationQualifier": id_qualifier.unwrap_or_default(),
+            "scientificName": scientific_name.unwrap_or_default(),
+            "identifiedBy": identified_by.unwrap_or_default(),
+            "yearIdentified": year_identified,
+            "monthIdentified": month_identified,
+            "dayIdentified": day_identified,
+            "identificationRemarks": id_remarks.unwrap_or_default(),
+            "taxonID": taxon_id.unwrap_or_default(),
         }))
     }).map_err(|e| e.to_string())?;
     
@@ -557,6 +637,23 @@ fn delete_captured_record(app: AppHandle, id: i32) -> Result<(), String> {
         
     Ok(())
 }
+
+#[tauri::command]
+fn delete_session(app: AppHandle, id: i32) -> Result<(), String> {
+    let db_path = get_db_path(&app);
+    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+    
+    // Explicitly delete all captured records belonging to this session first
+    conn.execute("DELETE FROM captured_records WHERE session_id = ?1", params![id])
+        .map_err(|e| e.to_string())?;
+        
+    // Delete the session itself
+    conn.execute("DELETE FROM sessions WHERE id = ?1", params![id])
+        .map_err(|e| e.to_string())?;
+        
+    Ok(())
+}
+
 
 #[tauri::command]
 fn save_export_settings(app: AppHandle, user_id: i32, format: String, mappings: String) -> Result<(), String> {
@@ -600,16 +697,29 @@ fn get_export_settings(app: AppHandle, user_id: i32) -> Result<serde_json::Value
 }
 
 #[tauri::command]
+fn select_export_path(default_name: String) -> Option<String> {
+    let file = rfd::FileDialog::new()
+        .set_file_name(&default_name)
+        .add_filter("CSV File", &["csv"])
+        .save_file();
+        
+    file.map(|p| p.to_string_lossy().to_string())
+}
+
+#[tauri::command]
 fn export_session_csv(app: AppHandle, session_id: i32, filepath: String) -> Result<String, String> {
     let db_path = get_db_path(&app);
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
     
-    // 1. Fetch captured records
+    // We select every column exactly as defined in the database
     let mut stmt = conn
         .prepare(
-            "SELECT recordedBy, recordNumber, locality, locationNotes, verbatimLocality, 
-                    scientificName, family, genus, specificEpithet, infraSpecificEpithet, 
-                    country, stateProvince, year, month, day 
+            "SELECT id, session_id, collectionCode, catalogNumber, duplicates, recordNumber, 
+                    recordedBy, verbatimEventDate, year, month, day, country, stateProvince, 
+                    county, municipality, locality, locationRemarks, verbatimCoordinates, 
+                    verbatimElevation, habitat, occurrenceRemarks, typeStatus, identificationQualifier, 
+                    scientificName, identifiedBy, yearIdentified, monthIdentified, dayIdentified, 
+                    identificationRemarks, taxonID, created_at, modified_at 
              FROM captured_records 
              WHERE session_id = ?1 
              ORDER BY id ASC"
@@ -617,38 +727,72 @@ fn export_session_csv(app: AppHandle, session_id: i32, filepath: String) -> Resu
         .map_err(|e| e.to_string())?;
         
     let rows = stmt.query_map(params![session_id], |row| {
-        let recorded_by: Option<String> = row.get(0)?;
-        let record_number: Option<String> = row.get(1)?;
-        let locality: Option<String> = row.get(2)?;
-        let location_notes: Option<String> = row.get(3)?;
-        let verbatim_locality: Option<String> = row.get(4)?;
-        let scientific_name: Option<String> = row.get(5)?;
-        let family: Option<String> = row.get(6)?;
-        let genus: Option<String> = row.get(7)?;
-        let specific_epithet: Option<String> = row.get(8)?;
-        let infra_specific_epithet: Option<String> = row.get(9)?;
-        let country: Option<String> = row.get(10)?;
-        let state_province: Option<String> = row.get(11)?;
-        let year: Option<i32> = row.get(12)?;
-        let month: Option<i32> = row.get(13)?;
-        let day: Option<i32> = row.get(14)?;
+        let id: Option<i32> = row.get(0)?;
+        let session_id: Option<i32> = row.get(1)?;
+        let collection_code: Option<String> = row.get(2)?;
+        let catalog_number: Option<String> = row.get(3)?;
+        let duplicates: Option<i32> = row.get(4)?;
+        let record_number: Option<String> = row.get(5)?;
+        let recorded_by: Option<String> = row.get(6)?;
+        let verbatim_event_date: Option<String> = row.get(7)?;
+        let year: Option<i32> = row.get(8)?;
+        let month: Option<i32> = row.get(9)?;
+        let day: Option<i32> = row.get(10)?;
+        let country: Option<String> = row.get(11)?;
+        let state_province: Option<String> = row.get(12)?;
+        let county: Option<String> = row.get(13)?;
+        let municipality: Option<String> = row.get(14)?;
+        let locality: Option<String> = row.get(15)?;
+        let location_remarks: Option<String> = row.get(16)?;
+        let verbatim_coordinates: Option<String> = row.get(17)?;
+        let verbatim_elevation: Option<String> = row.get(18)?;
+        let habitat: Option<String> = row.get(19)?;
+        let occurrence_remarks: Option<String> = row.get(20)?;
+        let type_status: Option<String> = row.get(21)?;
+        let id_qualifier: Option<String> = row.get(22)?;
+        let scientific_name: Option<String> = row.get(23)?;
+        let identified_by: Option<String> = row.get(24)?;
+        let year_identified: Option<i32> = row.get(25)?;
+        let month_identified: Option<i32> = row.get(26)?;
+        let day_identified: Option<i32> = row.get(27)?;
+        let id_remarks: Option<String> = row.get(28)?;
+        let taxon_id: Option<String> = row.get(29)?;
+        let created_at: Option<String> = row.get(30)?;
+        let modified_at: Option<String> = row.get(31)?;
         
         Ok(vec![
-            recorded_by.unwrap_or_default(),
+            id.map(|x| x.to_string()).unwrap_or_default(),
+            session_id.map(|x| x.to_string()).unwrap_or_default(),
+            collection_code.unwrap_or_default(),
+            catalog_number.unwrap_or_default(),
+            duplicates.map(|x| x.to_string()).unwrap_or_default(),
             record_number.unwrap_or_default(),
-            locality.unwrap_or_default(),
-            location_notes.unwrap_or_default(),
-            verbatim_locality.unwrap_or_default(),
-            scientific_name.unwrap_or_default(),
-            family.unwrap_or_default(),
-            genus.unwrap_or_default(),
-            specific_epithet.unwrap_or_default(),
-            infra_specific_epithet.unwrap_or_default(),
+            recorded_by.unwrap_or_default(),
+            verbatim_event_date.unwrap_or_default(),
+            year.map(|x| x.to_string()).unwrap_or_default(),
+            month.map(|x| x.to_string()).unwrap_or_default(),
+            day.map(|x| x.to_string()).unwrap_or_default(),
             country.unwrap_or_default(),
             state_province.unwrap_or_default(),
-            year.map(|y| y.to_string()).unwrap_or_default(),
-            month.map(|m| m.to_string()).unwrap_or_default(),
-            day.map(|d| d.to_string()).unwrap_or_default(),
+            county.unwrap_or_default(),
+            municipality.unwrap_or_default(),
+            locality.unwrap_or_default(),
+            location_remarks.unwrap_or_default(),
+            verbatim_coordinates.unwrap_or_default(),
+            verbatim_elevation.unwrap_or_default(),
+            habitat.unwrap_or_default(),
+            occurrence_remarks.unwrap_or_default(),
+            type_status.unwrap_or_default(),
+            id_qualifier.unwrap_or_default(),
+            scientific_name.unwrap_or_default(),
+            identified_by.unwrap_or_default(),
+            year_identified.map(|x| x.to_string()).unwrap_or_default(),
+            month_identified.map(|x| x.to_string()).unwrap_or_default(),
+            day_identified.map(|x| x.to_string()).unwrap_or_default(),
+            id_remarks.unwrap_or_default(),
+            taxon_id.unwrap_or_default(),
+            created_at.unwrap_or_default(),
+            modified_at.unwrap_or_default(),
         ])
     }).map_err(|e| e.to_string())?;
     
@@ -661,61 +805,19 @@ fn export_session_csv(app: AppHandle, session_id: i32, filepath: String) -> Resu
         return Err("No records to export in this session.".to_string());
     }
     
-    // Standard headers
-    let dwc_headers = vec![
-        "recordedBy", "recordNumber", "locality", "locationNotes", "verbatimLocality",
-        "scientificName", "family", "genus", "specificEpithet", "infraSpecificEpithet",
-        "country", "stateProvince", "year", "month", "day"
+    let headers = vec![
+        "id", "session_id", "collectionCode", "catalogNumber", "duplicates", "recordNumber",
+        "recordedBy", "verbatimEventDate", "year", "month", "day", "country", "stateProvince",
+        "county", "municipality", "locality", "locationRemarks", "verbatimCoordinates",
+        "verbatimElevation", "habitat", "occurrenceRemarks", "typeStatus", "identificationQualifier",
+        "scientificName", "identifiedBy", "yearIdentified", "monthIdentified", "dayIdentified",
+        "identificationRemarks", "taxonID", "created_at", "modified_at"
     ];
     
-    // We'll read export settings to check if headers need mapping (e.g. BRAHMS format)
-    // Fetch session's user_id first
-    let user_id: i32 = conn.query_row(
-        "SELECT user_id FROM sessions WHERE id = ?1",
-        params![session_id],
-        |r| r.get(0)
-    ).map_err(|e| e.to_string())?;
-    
-    let mut mapped_headers: Vec<String> = dwc_headers.iter().map(|h| h.to_string()).collect();
-    
-    let mut stmt_settings = conn
-        .prepare("SELECT format, mappings FROM export_settings WHERE user_id = ?1")
-        .map_err(|e| e.to_string())?;
-        
-    let mut rows_settings = stmt_settings
-        .query_map(params![user_id], |row| {
-            let format: String = row.get(0)?;
-            let mappings_str: String = row.get(1)?;
-            Ok((format, mappings_str))
-        })
-        .map_err(|e| e.to_string())?;
-        
-    if let Some(r_set) = rows_settings.next() {
-        let (format, mappings_str) = r_set.map_err(|e| e.to_string())?;
-        if format == "BRAHMS" {
-            // Apply a pre-defined BRAHMS mapping example
-            mapped_headers = vec![
-                "COLLECTOR", "NUMBER", "LOCALITY", "LOC_NOTES", "VERB_LOC",
-                "TAXON", "FAMILY", "GENUS", "SPECIES", "INFRA_SP",
-                "COUNTRY", "PROVINCE", "YEAR", "MONTH", "DAY"
-            ].iter().map(|h| h.to_string()).collect();
-        } else if let Ok(custom_maps) = serde_json::from_str::<serde_json::Value>(&mappings_str) {
-            // If custom header mappings exist in JSON (e.g., {"recordedBy": "COLLECTOR_NAME"})
-            for (i, header) in dwc_headers.iter().enumerate() {
-                if let Some(mapped) = custom_maps.get(*header).and_then(|v| v.as_str()) {
-                    if !mapped.trim().is_empty() {
-                        mapped_headers[i] = mapped.to_string();
-                    }
-                }
-            }
-        }
-    }
-    
-    // Build CSV content
     let mut csv_content = String::new();
     
     // Header
-    let escaped_headers: Vec<String> = mapped_headers.iter().map(|h| format!("\"{}\"", h.replace("\"", "\"\""))).collect();
+    let escaped_headers: Vec<String> = headers.iter().map(|h| format!("\"{}\"", h.replace("\"", "\"\""))).collect();
     csv_content.push_str(&escaped_headers.join(","));
     csv_content.push('\n');
     
@@ -726,7 +828,6 @@ fn export_session_csv(app: AppHandle, session_id: i32, filepath: String) -> Resu
         csv_content.push('\n');
     }
     
-    // Save to file
     fs::write(&filepath, csv_content).map_err(|e| e.to_string())?;
     
     Ok(format!("Successfully exported {} records to {}", escaped_headers.len(), filepath))
@@ -759,6 +860,8 @@ pub fn run() {
             save_captured_record,
             get_captured_records,
             delete_captured_record,
+            delete_session,
+            select_export_path,
             save_export_settings,
             get_export_settings,
             export_session_csv

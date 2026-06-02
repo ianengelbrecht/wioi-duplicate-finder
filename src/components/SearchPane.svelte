@@ -90,6 +90,26 @@
     searchMessage = "";
   }
 
+  // ISO8601 formatting for partial dates (e.g. YYYY, YYYY-MM, YYYY-MM-DD)
+  /**
+   * @param {number|string|null} year
+   * @param {number|string|null} month
+   * @param {number|string|null} day
+   */
+  function formatISO8601Date(year, month, day) {
+    if (!year) return "N/A";
+    let dateStr = String(year);
+    if (month) {
+      let m = String(month).padStart(2, "0");
+      dateStr += `-${m}`;
+      if (day) {
+        let d = String(day).padStart(2, "0");
+        dateStr += `-${d}`;
+      }
+    }
+    return dateStr;
+  }
+
   // Keyboard shortcut listener (Ctrl+Enter to trigger search)
   function handleGlobalKeyDown(/** @type {any} */ e) {
     if (e.key === "Enter" && e.ctrlKey) {
@@ -117,124 +137,120 @@
 
   <!-- Search Filter Form -->
   <div class="p-4 border-b border-slate-300 bg-slate-50">
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-      <!-- Scientific Name -->
-      <div class="md:col-span-2">
-        <label for="search-scientificName" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Scientific Name (Epithets sequence)</label>
-        <input
-          id="search-scientificName"
-          type="text"
-          placeholder="e.g. Abel man"
-          bind:value={filters.scientificName}
-          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
-        />
-      </div>
-
-      <!-- Locality -->
-      <div class="md:col-span-2">
-        <label for="search-locality" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Locality (Multi-word prefix)</label>
-        <input
-          id="search-locality"
-          type="text"
-          placeholder="e.g. Kes Bloem"
-          bind:value={filters.locality}
-          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
-        />
-      </div>
-
-      <!-- Collector Name -->
-      <div>
-        <label for="search-recordedBy" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Collector</label>
-        <input
-          id="search-recordedBy"
-          type="text"
-          placeholder="e.g. John Smith"
-          bind:value={filters.recordedBy}
-          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
-        />
-      </div>
-
-      <!-- Collector Number -->
-      <div>
-        <label for="search-recordNumber" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Collector No.</label>
-        <input
-          id="search-recordNumber"
-          type="text"
-          placeholder="e.g. 1042"
-          bind:value={filters.recordNumber}
-          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
-        />
-      </div>
-
-      <!-- Family -->
-      <div>
-        <label for="search-family" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Family</label>
-        <input
-          id="search-family"
-          type="text"
-          placeholder="e.g. Malvaceae"
-          bind:value={filters.family}
-          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
-        />
-      </div>
-
-      <!-- Country -->
-      <div>
-        <label for="search-country" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Country</label>
-        <input
-          id="search-country"
-          type="text"
-          placeholder="e.g. South Africa"
-          bind:value={filters.country}
-          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
-        />
-      </div>
-
-      <!-- State/Province -->
-      <div>
-        <label for="search-stateProvince" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">State / Province</label>
-        <input
-          id="search-stateProvince"
-          type="text"
-          placeholder="e.g. Free State"
-          bind:value={filters.stateProvince}
-          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
-        />
-      </div>
-
-      <!-- Date Fields -->
-      <div class="md:col-span-3 grid grid-cols-3 gap-2">
-        <div>
-          <label for="search-year" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Year</label>
+    <div class="flex flex-col gap-3">
+      <!-- Row 1: Collector, Collector No, Year, Month, Day (narrow date inputs) -->
+      <div class="grid grid-cols-12 gap-3">
+        <div class="col-span-3">
+          <label for="search-recordedBy" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Collector</label>
           <input
-            id="search-year"
-            type="number"
-            placeholder="YYYY"
-            bind:value={filters.year}
+            id="search-recordedBy"
+            type="text"
+            placeholder="Partial search ex. Raza"
+            bind:value={filters.recordedBy}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
         </div>
-        <div>
-          <label for="search-month" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Month</label>
+        <div class="col-span-2">
+          <label for="search-recordNumber" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Collector No.</label>
           <input
-            id="search-month"
-            type="number"
-            placeholder="MM"
-            min="1"
-            max="12"
-            bind:value={filters.month}
+            id="search-recordNumber"
+            type="text"
+            placeholder="ex. 1042"
+            bind:value={filters.recordNumber}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
         </div>
-        <div>
-          <label for="search-day" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Day</label>
+        <div class="col-span-4 flex gap-2">
+          <div class="flex-1">
+            <label for="search-year" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Year</label>
+            <input
+              id="search-year"
+              type="number"
+              placeholder="YYYY"
+              bind:value={filters.year}
+              class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+            />
+          </div>
+          <div class="flex-1">
+            <label for="search-month" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Month</label>
+            <input
+              id="search-month"
+              type="number"
+              placeholder="MM"
+              min="1"
+              max="12"
+              bind:value={filters.month}
+              class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+            />
+          </div>
+          <div class="flex-1">
+            <label for="search-day" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Day</label>
+            <input
+              id="search-day"
+              type="number"
+              placeholder="DD"
+              min="1"
+              max="31"
+              bind:value={filters.day}
+              class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 2: Family, Scientific Name -->
+      <div class="grid grid-cols-12 gap-3">
+        <div class="col-span-12 sm:col-span-4">
+          <label for="search-family" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Family</label>
           <input
-            id="search-day"
-            type="number"
-            placeholder="DD"
-            min="1"
-            max="31"
-            bind:value={filters.day}
+            id="search-family"
+            type="text"
+            placeholder="e.g. Malvaceae"
+            bind:value={filters.family}
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          />
+        </div>
+        <div class="col-span-12 sm:col-span-8">
+          <label for="search-scientificName" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Scientific Name</label>
+          <input
+            id="search-scientificName"
+            type="text"
+            placeholder="Partial search ex. ab man"
+            bind:value={filters.scientificName}
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          />
+        </div>
+      </div>
+
+      <!-- Row 3: Country, State Province (Admin Div 1), Locality -->
+      <div class="grid grid-cols-12 gap-3">
+        <div class="col-span-12 sm:col-span-3">
+          <label for="search-country" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Country</label>
+          <input
+            id="search-country"
+            type="text"
+            placeholder="Partial ex. Mad"
+            bind:value={filters.country}
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          />
+        </div>
+        <div class="col-span-12 sm:col-span-3">
+          <label for="search-stateProvince" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Admin Div 1</label>
+          <input
+            id="search-stateProvince"
+            type="text"
+            placeholder="Partial ex. Itas"
+            bind:value={filters.stateProvince}
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          />
+        </div>
+        <div class="col-span-12 sm:col-span-6">
+          <label for="search-locality" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Locality</label>
+          <input
+            id="search-locality"
+            type="text"
+            placeholder="Partial ex. Anta ré"
+            bind:value={filters.locality}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
         </div>
@@ -301,7 +317,7 @@
               <th class="p-3">Collector</th>
               <th class="p-3">Taxon Name</th>
               <th class="p-3">Locality</th>
-              <th class="p-3">Geom</th>
+              <th class="p-3">Geo</th>
               <th class="p-3">Date</th>
             </tr>
           </thead>
@@ -345,11 +361,7 @@
                 
                 <!-- Date -->
                 <td class="p-3 text-slate-600 whitespace-nowrap">
-                  {#if rec.year}
-                    {rec.year}-{rec.month || '?'}-{rec.day || '?'}
-                  {:else}
-                    N/A
-                  {/if}
+                  {formatISO8601Date(rec.year, rec.month, rec.day)}
                 </td>
               </tr>
             {/each}

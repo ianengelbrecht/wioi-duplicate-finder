@@ -84,4 +84,28 @@ mod tests {
             ""
         );
     }
+
+    #[test]
+    fn test_normalize_collector_search() {
+        assert_eq!(normalize_collector_search("Müller"), "MULLER");
+        assert_eq!(normalize_collector_search("José René"), "JOSE RENE");
+        assert_eq!(normalize_collector_search("smith"), "SMITH");
+    }
+}
+
+/// Strips accents/diacritics and converts to uppercase for collector search normalization.
+pub fn normalize_collector_search(s: &str) -> String {
+    s.chars()
+        .map(|c| match c {
+            'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'Å' => 'A',
+            'è' | 'é' | 'ê' | 'ë' | 'È' | 'É' | 'Ê' | 'Ë' => 'E',
+            'ì' | 'í' | 'î' | 'ï' | 'Ì' | 'Í' | 'Î' | 'Ï' => 'I',
+            'ò' | 'ó' | 'ô' | 'õ' | 'ö' | 'ø' | 'Ò' | 'Ó' | 'Ô' | 'Õ' | 'Ö' | 'Ø' => 'O',
+            'ù' | 'ú' | 'û' | 'ü' | 'Ù' | 'Ú' | 'Û' | 'Ü' => 'U',
+            'ñ' | 'Ñ' => 'N',
+            'ç' | 'Ç' => 'C',
+            'ý' | 'ÿ' | 'Ý' | 'Ÿ' => 'Y',
+            _ => c.to_ascii_uppercase(),
+        })
+        .collect()
 }

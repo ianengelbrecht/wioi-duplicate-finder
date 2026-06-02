@@ -4,27 +4,39 @@
 
   let {
     sessionId = null,
+    collectionCode = "WIOI",
     activeRecord = $bindable(null), // The selected record to edit (or empty for new)
     onSaveSuccess = () => {}
   } = $props();
 
   let form = $state({
     id: null,
+    collectionCode: "",
+    catalogNumber: "",
+    duplicates: "",
     recordedBy: "",
     recordNumber: "",
-    locality: "",
-    locationNotes: "",
-    verbatimLocality: "",
-    scientificName: "",
-    family: "",
-    genus: "",
-    specificEpithet: "",
-    infraSpecificEpithet: "",
-    country: "",
-    stateProvince: "",
+    verbatimEventDate: "",
     year: "",
     month: "",
-    day: ""
+    day: "",
+    country: "",
+    stateProvince: "", // Label Admin 2
+    county: "",        // Label Admin 3
+    municipality: "",  // Label Admin 4
+    locality: "",
+    verbatimCoordinates: "",
+    locationNotes: "", // Mapped to locationRemarks
+    verbatimLocality: "",
+    identificationQualifier: "", // cf., aff., nr.
+    scientificName: "",
+    taxonID: "",
+    typeStatus: "",
+    identifiedBy: "",
+    yearIdentified: "",
+    monthIdentified: "",
+    dayIdentified: "",
+    identificationRemarks: ""
   });
 
   let saving = $state(false);
@@ -35,28 +47,54 @@
   let taxonSuggestions = $state(/** @type {any[]} */ ([]));
   let localitySuggestions = $state(/** @type {any[]} */ ([]));
   let collectorSuggestions = $state(/** @type {any[]} */ ([]));
+  
+  // Custom suggestion list for duplicates
+  let duplicateSuggestions = $state(/** @type {any[]} */ ([]));
+  const duplicateCodes = ["P", "K", "MO", "MAU"];
+
+  // Helper to load collectionCode from active session owner's export settings
+  async function loadCollectionCode() {
+    form.collectionCode = collectionCode || "WIOI";
+  }
 
   // Watch activeRecord changes (when a search result is clicked, copy it to the form!)
   $effect(() => {
     if (activeRecord) {
       form.id = activeRecord.id && activeRecord.sessionId ? activeRecord.id : null; // Only reuse id if it is a previously captured record, not a reference database record
+      form.collectionCode = activeRecord.collectionCode || form.collectionCode || "WIOI";
+      form.catalogNumber = activeRecord.catalogNumber || "";
+      form.duplicates = activeRecord.duplicates ? String(activeRecord.duplicates) : "";
       form.recordedBy = activeRecord.recordedBy || "";
       form.recordNumber = activeRecord.recordNumber || "";
-      form.locality = activeRecord.locality || "";
-      form.locationNotes = activeRecord.locationNotes || "";
-      form.verbatimLocality = activeRecord.verbatimLocality || "";
-      form.scientificName = activeRecord.scientificName || "";
-      form.family = activeRecord.family || "";
-      form.genus = activeRecord.genus || "";
-      form.specificEpithet = activeRecord.specificEpithet || "";
-      form.infraSpecificEpithet = activeRecord.infraSpecificEpithet || "";
-      form.country = activeRecord.country || "";
-      form.stateProvince = activeRecord.stateProvince || "";
+      form.verbatimEventDate = activeRecord.verbatimEventDate || "";
       form.year = activeRecord.year !== null && activeRecord.year !== undefined ? activeRecord.year.toString() : "";
       form.month = activeRecord.month !== null && activeRecord.month !== undefined ? activeRecord.month.toString() : "";
       form.day = activeRecord.day !== null && activeRecord.day !== undefined ? activeRecord.day.toString() : "";
+      form.country = activeRecord.country || "";
+      form.stateProvince = activeRecord.stateProvince || "";
+      form.county = activeRecord.county || "";
+      form.municipality = activeRecord.municipality || "";
+      form.locality = activeRecord.locality || "";
+      form.verbatimCoordinates = activeRecord.verbatimCoordinates || "";
+      form.locationNotes = activeRecord.locationNotes || activeRecord.locationRemarks || "";
+      form.verbatimLocality = activeRecord.verbatimLocality || "";
+      form.identificationQualifier = activeRecord.identificationQualifier || "";
+      form.scientificName = activeRecord.scientificName || "";
+      form.taxonID = activeRecord.taxonID || "";
+      form.typeStatus = activeRecord.typeStatus || "";
+      form.identifiedBy = activeRecord.identifiedBy || "";
+      form.yearIdentified = activeRecord.yearIdentified !== null && activeRecord.yearIdentified !== undefined ? activeRecord.yearIdentified.toString() : "";
+      form.monthIdentified = activeRecord.monthIdentified !== null && activeRecord.monthIdentified !== undefined ? activeRecord.monthIdentified.toString() : "";
+      form.dayIdentified = activeRecord.dayIdentified !== null && activeRecord.dayIdentified !== undefined ? activeRecord.dayIdentified.toString() : "";
+      form.identificationRemarks = activeRecord.identificationRemarks || "";
       
       statusMessage = "";
+    }
+  });
+
+  $effect(() => {
+    if (sessionId) {
+      loadCollectionCode();
     }
   });
 
@@ -74,11 +112,8 @@
   }
 
   function handleTaxonSelect(/** @type {any} */ sug) {
-    // Populate matching taxonomic fields automatically
     form.scientificName = sug.scientificName || "";
-    if (sug.family) form.family = sug.family;
-    if (sug.genus) form.genus = sug.genus;
-    if (sug.specificEpithet) form.specificEpithet = sug.specificEpithet;
+    form.taxonID = sug.taxonID || "";
   }
 
   async function handleLocalityInput(/** @type {any} */ val) {
@@ -105,6 +140,121 @@
     }
   }
 
+  // Handle autocomplete input for duplicates (comma-separated select multiple)
+  function handleDuplicateInput(/** @type {any} */ val) {
+    let parts = val.split(",");
+    let lastPart = parts[parts.length - 1].trim().toUpperCase();
+    if (lastPart === "") {
+      duplicateSuggestions = [];
+      return;
+    }
+    duplicateSuggestions = duplicateCodes
+      .filter(code => code.startsWith(lastPart) && !parts.slice(0, -1).map(/** @param {string} p */ p => p.trim().toUpperCase()).includes(code));
+  }
+
+  function handleDuplicateSelect(/** @type {any} */ sug) {
+    let parts = form.duplicates.split(",");
+    if (parts.length > 0) {
+      parts[parts.length - 1] = sug;
+    } else {
+      parts = [sug];
+    }
+    form.duplicates = parts.map(p => p.trim()).join(", ") + ", ";
+    duplicateSuggestions = [];
+  }
+
+  // Verbatim Event Date Parser
+  function parseVerbatimDate() {
+    let dateStr = form.verbatimEventDate.trim();
+    if (!dateStr) return;
+
+    // ISO Format: YYYY-MM-DD
+    let isoRegex = /^(\d{4})-(\d{2})-(\d{2})$/;
+    let isoMatch = dateStr.match(isoRegex);
+    if (isoMatch) {
+      form.year = String(parseInt(isoMatch[1]));
+      form.month = String(parseInt(isoMatch[2]));
+      form.day = String(parseInt(isoMatch[3]));
+      return;
+    }
+
+    // ISO Format: YYYY-MM
+    let isoMonthRegex = /^(\d{4})-(\d{2})$/;
+    let isoMonthMatch = dateStr.match(isoMonthRegex);
+    if (isoMonthMatch) {
+      form.year = String(parseInt(isoMonthMatch[1]));
+      form.month = String(parseInt(isoMonthMatch[2]));
+      form.day = "";
+      return;
+    }
+
+    // Format: DD Month YYYY or D Month YYYY (e.g. 20 May 2024, 20 May, 2024)
+    const monthNames = [
+      "january", "february", "march", "april", "may", "june",
+      "july", "august", "september", "october", "november", "december"
+    ];
+    const monthShortNames = [
+      "jan", "feb", "mar", "apr", "may", "jun",
+      "jul", "aug", "sep", "oct", "nov", "dec"
+    ];
+
+    // DD Month YYYY
+    let textDateRegex = /^(\d{1,2})\s+([a-zA-Z]+)\s+(\d{4})$/;
+    let textDateMatch = dateStr.match(textDateRegex);
+    if (textDateMatch) {
+      form.day = String(parseInt(textDateMatch[1]));
+      let monthStr = textDateMatch[2].toLowerCase();
+      let mIdx = monthNames.indexOf(monthStr);
+      if (mIdx === -1) mIdx = monthShortNames.indexOf(monthStr);
+      form.month = mIdx !== -1 ? String(mIdx + 1) : "";
+      form.year = textDateMatch[3];
+      return;
+    }
+
+    // Month YYYY
+    let monthYearRegex = /^([a-zA-Z]+)\s+(\d{4})$/;
+    let monthYearMatch = dateStr.match(monthYearRegex);
+    if (monthYearMatch) {
+      form.day = "";
+      let monthStr = monthYearMatch[1].toLowerCase();
+      let mIdx = monthNames.indexOf(monthStr);
+      if (mIdx === -1) mIdx = monthShortNames.indexOf(monthStr);
+      form.month = mIdx !== -1 ? String(mIdx + 1) : "";
+      form.year = monthYearMatch[2];
+      return;
+    }
+
+    // YYYY
+    let yearRegex = /^(\d{4})$/;
+    let yearMatch = dateStr.match(yearRegex);
+    if (yearMatch) {
+      form.year = dateStr;
+      form.month = "";
+      form.day = "";
+      return;
+    }
+  }
+
+  // Proper Casing Helper Utility
+  /**
+   * @param {string} str
+   * @returns {string}
+   */
+  function toProperCase(str) {
+    if (!str) return "";
+    return str
+      .toLowerCase()
+      .replace(/\b([a-z])/g, (m) => m.toUpperCase());
+  }
+
+  function properCaseField(/** @type {string} */ field) {
+    let formObj = /** @type {any} */ (form);
+    let val = formObj[field];
+    if (typeof val === "string") {
+      formObj[field] = toProperCase(val);
+    }
+  }
+
   async function handleSave(/** @type {any} */ e) {
     if (e) e.preventDefault();
     if (!sessionId) {
@@ -127,9 +277,13 @@
     let recordPayload = {
       ...form,
       sessionId: sessionId,
+      duplicates: form.duplicates.trim().replace(/,\s*$/, "").split(",").map(p => p.trim()).filter(Boolean).length || null, // Convert string duplicates list to number of duplicates for DB
       year: form.year !== "" ? parseInt(form.year) : null,
       month: form.month !== "" ? parseInt(form.month) : null,
-      day: form.day !== "" ? parseInt(form.day) : null
+      day: form.day !== "" ? parseInt(form.day) : null,
+      yearIdentified: form.yearIdentified !== "" ? parseInt(form.yearIdentified) : null,
+      monthIdentified: form.monthIdentified !== "" ? parseInt(form.monthIdentified) : null,
+      dayIdentified: form.dayIdentified !== "" ? parseInt(form.dayIdentified) : null
     };
     
     try {
@@ -163,27 +317,39 @@
   function handleReset() {
     form = {
       id: null,
+      collectionCode: collectionCode || "WIOI",
+      catalogNumber: "",
+      duplicates: "",
       recordedBy: "",
       recordNumber: "",
-      locality: "",
-      locationNotes: "",
-      verbatimLocality: "",
-      scientificName: "",
-      family: "",
-      genus: "",
-      specificEpithet: "",
-      infraSpecificEpithet: "",
-      country: "",
-      stateProvince: "",
+      verbatimEventDate: "",
       year: "",
       month: "",
-      day: ""
+      day: "",
+      country: "",
+      stateProvince: "",
+      county: "",
+      municipality: "",
+      locality: "",
+      verbatimCoordinates: "",
+      locationNotes: "",
+      verbatimLocality: "",
+      identificationQualifier: "",
+      scientificName: "",
+      taxonID: "",
+      typeStatus: "",
+      identifiedBy: "",
+      yearIdentified: "",
+      monthIdentified: "",
+      dayIdentified: "",
+      identificationRemarks: ""
     };
     activeRecord = null;
     statusMessage = "";
     taxonSuggestions = [];
     localitySuggestions = [];
     collectorSuggestions = [];
+    duplicateSuggestions = [];
   }
 
   // Keyboard shortcut listener (Ctrl+S to save)
@@ -204,7 +370,7 @@
 
 <div class="flex flex-col h-full bg-white border border-slate-300">
   <!-- Header Title -->
-  <div class="px-4 py-3 bg-slate-100 border-b border-slate-300 flex justify-between items-center">
+  <div class="px-4 py-3 bg-slate-100 border-b border-slate-300 flex justify-between items-center border-box">
     <div class="flex items-center gap-2">
       <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wide">
         {form.id ? "Edit Captured Specimen" : "Capture New Specimen"}
@@ -226,236 +392,410 @@
       </div>
     {/if}
 
-    <!-- 1. Taxonomic Details Section -->
-    <div class="space-y-3">
-      <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">Taxonomic Identification</h3>
-      
-      <!-- Scientific Name Autocomplete -->
-      <div>
-        <Autocomplete
-          id="capture-scientificName"
-          label="Scientific Name *"
-          placeholder="Start typing scientific name..."
-          bind:value={form.scientificName}
-          suggestions={taxonSuggestions}
-          oninput={handleTaxonInput}
-          onselect={handleTaxonSelect}
-        />
-      </div>
-
-      <div class="grid grid-cols-2 gap-3">
-        <!-- Family -->
-        <div>
-          <label for="capture-family" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Family</label>
-          <input
-            id="capture-family"
-            type="text"
-            placeholder="e.g. Malvaceae"
-            bind:value={form.family}
-            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
-          />
-        </div>
-        <!-- Genus -->
-        <div>
-          <label for="capture-genus" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Genus</label>
-          <input
-            id="capture-genus"
-            type="text"
-            placeholder="e.g. Abelmoschus"
-            bind:value={form.genus}
-            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
-          />
-        </div>
-      </div>
-
-      <div class="grid grid-cols-2 gap-3">
-        <!-- Species Epithet -->
-        <div>
-          <label for="capture-specificEpithet" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Specific Epithet</label>
-          <input
-            id="capture-specificEpithet"
-            type="text"
-            placeholder="e.g. manihot"
-            bind:value={form.specificEpithet}
-            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
-          />
-        </div>
-        <!-- Infraspecific Epithet -->
-        <div>
-          <label for="capture-infraSpecificEpithet" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Infraspecific Epithet</label>
-          <input
-            id="capture-infraSpecificEpithet"
-            type="text"
-            placeholder="e.g. heleniana"
-            bind:value={form.infraSpecificEpithet}
-            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
-          />
-        </div>
-      </div>
-    </div>
-
-    <!-- 2. Collector Details Section -->
-    <div class="space-y-3 pt-2">
-      <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">Collector Details</h3>
-      
-      <div class="grid grid-cols-3 gap-3">
-        <!-- Recorded By Autocomplete -->
-        <div class="col-span-2">
-          <Autocomplete
-            id="capture-recordedBy"
-            label="Collector Name"
-            placeholder="Search or enter collector name..."
-            bind:value={form.recordedBy}
-            suggestions={collectorSuggestions}
-            oninput={handleCollectorInput}
-          />
-        </div>
-        <!-- Record Number -->
-        <div>
-          <label for="capture-recordNumber" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Collector No.</label>
-          <input
-            id="capture-recordNumber"
-            type="text"
-            placeholder="e.g. 1042"
-            bind:value={form.recordNumber}
-            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
-          />
-        </div>
-      </div>
-    </div>
-
-    <!-- 3. Locality Section -->
-    <div class="space-y-3 pt-2">
-      <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">Geographic Locality</h3>
-      
-      <!-- Locality Autocomplete -->
-      <div>
-        <Autocomplete
-          id="capture-locality"
-          label="Locality"
-          placeholder="Search or enter exact locality description..."
-          bind:value={form.locality}
-          suggestions={localitySuggestions}
-          oninput={handleLocalityInput}
-        />
-      </div>
-
-      <!-- Verbatim Locality -->
-      <div>
-        <label for="capture-verbatimLocality" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Verbatim Locality</label>
+    <!-- Row 1: Collection Code (read-only), catalogNumber, duplicates -->
+    <div class="grid grid-cols-12 gap-3">
+      <div class="col-span-3">
+        <label for="capture-collectionCode" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Collection Code</label>
         <input
-          id="capture-verbatimLocality"
+          id="capture-collectionCode"
           type="text"
-          placeholder="e.g. Kestell district, near riverbank"
-          bind:value={form.verbatimLocality}
+          readonly
+          bind:value={form.collectionCode}
+          class="w-full bg-slate-100 border border-slate-300 text-slate-500 text-sm px-3 py-2 cursor-not-allowed outline-none rounded-none font-semibold"
+        />
+      </div>
+      <div class="col-span-4">
+        <label for="capture-catalogNumber" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">Barcode Number</label>
+        <input
+          id="capture-catalogNumber"
+          type="text"
+          placeholder="ex. TAN123456"
+          bind:value={form.catalogNumber}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
         />
       </div>
-
-      <!-- Location Notes -->
-      <div>
-        <label for="capture-locationNotes" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Location / Habitat Notes</label>
-        <textarea
-          id="capture-locationNotes"
-          rows="2"
-          placeholder="e.g. Moist loamy soil under shade, growing with ferns"
-          bind:value={form.locationNotes}
-          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all resize-none"
-        ></textarea>
-      </div>
-
-      <div class="grid grid-cols-2 gap-3">
-        <!-- Country -->
-        <div>
-          <label for="capture-country" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Country</label>
-          <input
-            id="capture-country"
-            type="text"
-            placeholder="e.g. South Africa"
-            bind:value={form.country}
-            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
-          />
-        </div>
-        <!-- State / Province -->
-        <div>
-          <label for="capture-stateProvince" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">State / Province</label>
-          <input
-            id="capture-stateProvince"
-            type="text"
-            placeholder="e.g. Free State"
-            bind:value={form.stateProvince}
-            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
-          />
-        </div>
+      <div class="col-span-5">
+        <Autocomplete
+          id="capture-duplicates"
+          label="Duplicates (comma-separated)"
+          placeholder="ex. P, K, etc..."
+          bind:value={form.duplicates}
+          suggestions={duplicateSuggestions}
+          oninput={handleDuplicateInput}
+          onselect={handleDuplicateSelect}
+        />
       </div>
     </div>
 
-    <!-- 4. Date Captured Section -->
-    <div class="space-y-3 pt-2 pb-6">
-      <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">Date Collected</h3>
-      
-      <div class="grid grid-cols-3 gap-3">
-        <!-- Year -->
-        <div>
+    <!-- Row 2: Collector/s (recordedBy), Collector Number, Verbatim Date, Year, Month, Day -->
+    <div class="grid grid-cols-12 gap-3">
+      <div class="col-span-3">
+        <Autocomplete
+          id="capture-recordedBy"
+          label="Collector/s"
+          placeholder="Partial search ex. 'Raza'"
+          bind:value={form.recordedBy}
+          suggestions={collectorSuggestions}
+          oninput={handleCollectorInput}
+        />
+      </div>
+      <div class="col-span-2">
+        <label for="capture-recordNumber" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Collector No.</label>
+        <input
+          id="capture-recordNumber"
+          type="text"
+          placeholder="ex. 1042"
+          bind:value={form.recordNumber}
+          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+        />
+      </div>
+      <div class="col-span-3">
+        <label for="capture-verbatimEventDate" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Verbatim Date</label>
+        <input
+          id="capture-verbatimEventDate"
+          type="text"
+          placeholder="ex. May 20, '84"
+          bind:value={form.verbatimEventDate}
+          onblur={parseVerbatimDate}
+          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+        />
+      </div>
+      <div class="col-span-4 flex gap-2">
+        <div class="flex-1">
           <label for="capture-year" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Year</label>
           <input
             id="capture-year"
             type="number"
-            placeholder="YYYY"
             bind:value={form.year}
-            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
         </div>
-        <!-- Month -->
-        <div>
+        <div class="flex-1">
           <label for="capture-month" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Month</label>
           <input
             id="capture-month"
             type="number"
-            placeholder="MM"
             min="1"
             max="12"
             bind:value={form.month}
-            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
         </div>
-        <!-- Day -->
-        <div>
+        <div class="flex-1">
           <label for="capture-day" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Day</label>
           <input
             id="capture-day"
             type="number"
-            placeholder="DD"
             min="1"
             max="31"
             bind:value={form.day}
-            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
         </div>
       </div>
     </div>
+
+    <!-- Row 3: Geography with Proper-case buttons -->
+    <div class="space-y-3 pt-2">
+      <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">Geographic Locality</h3>
+      
+      <div class="grid grid-cols-4 gap-3">
+        <div>
+          <label for="capture-country" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Country</label>
+          <div class="relative flex items-center">
+            <input
+              id="capture-country"
+              type="text"
+              placeholder="ex. Madagascar"
+              bind:value={form.country}
+              class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+            />
+            <button
+              type="button"
+              onclick={() => properCaseField("country")}
+              title="Proper case Country"
+              class="absolute right-2 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold"
+            >
+              Aa
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label for="capture-stateProvince" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Admin 2</label>
+          <div class="relative flex items-center">
+            <input
+              id="capture-stateProvince"
+              type="text"
+              placeholder="ex. Itasy"
+              bind:value={form.stateProvince}
+              class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+            />
+            <button
+              type="button"
+              onclick={() => properCaseField("stateProvince")}
+              title="Proper case Admin 2"
+              class="absolute right-2 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold"
+            >
+              Aa
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label for="capture-county" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Admin 3</label>
+          <div class="relative flex items-center">
+            <input
+              id="capture-county"
+              type="text"
+              placeholder="ex. Miarinarivo"
+              bind:value={form.county}
+              class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+            />
+            <button
+              type="button"
+              onclick={() => properCaseField("county")}
+              title="Proper case Admin 3"
+              class="absolute right-2 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold"
+            >
+              Aa
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label for="capture-municipality" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">Admin 4</label>
+          <div class="relative flex items-center">
+            <input
+              id="capture-municipality"
+              type="text"
+              placeholder="ex. Manazary"
+              bind:value={form.municipality}
+              class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+            />
+            <button
+              type="button"
+              onclick={() => properCaseField("municipality")}
+              title="Proper case Admin 4"
+              class="absolute right-2 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold"
+            >
+              Aa
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 4: Locality (on its own row) & Verbatim Coordinates (on its own row) -->
+    <div class="space-y-3">
+      <div>
+        <label for="capture-locality" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Locality</label>
+        <div class="relative flex items-center">
+          <Autocomplete
+            id="capture-locality"
+            label=""
+            placeholder="ex. Antakohandro (use partial search ex. Anta)"
+            bind:value={form.locality}
+            suggestions={localitySuggestions}
+            oninput={handleLocalityInput}
+          />
+          <button
+            type="button"
+            onclick={() => properCaseField("locality")}
+            title="Proper case Locality"
+            class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold z-10"
+          >
+            Aa
+          </button>
+        </div>
+      </div>
+
+      <!-- Row 5: Locality Notes (locationNotes) -->
+      <div>
+        <label for="capture-locationNotes" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Locality Notes</label>
+        <div class="relative flex items-start">
+          <textarea
+            id="capture-locationNotes"
+            rows="2"
+            placeholder="ex. 12 km south, main ravine"
+            bind:value={form.locationNotes}
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all resize-none"
+          ></textarea>
+          <button
+            type="button"
+            onclick={() => properCaseField("locationNotes")}
+            title="Proper case Locality Notes"
+            class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold"
+          >
+            Aa
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <label for="capture-verbatimCoordinates" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Verbatim Coordinates</label>
+        <input
+          id="capture-verbatimCoordinates"
+          type="text"
+          placeholder="ex. 28°15'S, 28°39'E"
+          bind:value={form.verbatimCoordinates}
+          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+        />
+      </div>
+    </div>
+
+    
+
+    <!-- Row 6: Verbatim Locality (grayed-out read-only) -->
+    <div>
+      <label for="capture-verbatimLocality" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Verbatim Locality (copy data above)</label>
+      <textarea
+        id="capture-verbatimLocality"
+        rows="2"
+        readonly
+        placeholder="Read-only imported value"
+        bind:value={form.verbatimLocality}
+        class="w-full bg-slate-100 border border-slate-300 text-slate-500 text-sm px-3 py-2 cursor-not-allowed outline-none rounded-none"      >
+      </textarea>
+    </div>
+
+    <!-- Row 7: Identification Section -->
+    <div class="space-y-3 pt-2">
+      <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">Identification</h3>
+      
+      <div class="grid grid-cols-12 gap-3">
+        <!-- Qualifier dropdown -->
+        <div class="col-span-3">
+          <label for="capture-identificationQualifier" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Qualifier</label>
+          <select
+            id="capture-identificationQualifier"
+            bind:value={form.identificationQualifier}
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          >
+            <option value="">(None)</option>
+            <option value="cf.">cf.</option>
+            <option value="aff.">aff.</option>
+            <option value="nr.">nr.</option>
+          </select>
+        </div>
+
+        <!-- Scientific Name autocomplete targeting wcvp -->
+        <div class="col-span-6">
+          <Autocomplete
+            id="capture-scientificName"
+            label="Scientific Name"
+            placeholder="Partial search ex. ab man"
+            bind:value={form.scientificName}
+            suggestions={taxonSuggestions}
+            oninput={handleTaxonInput}
+            onselect={handleTaxonSelect}
+          />
+        </div>
+
+        <!-- Type Status single-select dropdown -->
+        <div class="col-span-3">
+          <label for="capture-typeStatus" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Type Status</label>
+          <select
+            id="capture-typeStatus"
+            bind:value={form.typeStatus}
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          >
+            <option value="">(None)</option>
+            <option value="holotype">holotype</option>
+            <option value="isotype">isotype</option>
+            <option value="syntype">syntype</option>
+            <option value="paratype">paratype</option>
+            <option value="lectotype">lectotype</option>
+            <option value="neotype">neotype</option>
+            <option value="epitype">epitype</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 8: Identified By, Year, Month, Day Identified -->
+    <div class="grid grid-cols-12 gap-3">
+      <div class="col-span-6">
+        <label for="capture-identifiedBy" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Identified By</label>
+        <input
+          id="capture-identifiedBy"
+          type="text"
+          placeholder="Partial search ex. Raza"
+          bind:value={form.identifiedBy}
+          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+        />
+      </div>
+      <div class="col-span-2">
+        <label for="capture-yearIdentified" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Year Ident.</label>
+        <input
+          id="capture-yearIdentified"
+          type="number"
+          placeholder="YYYY"
+          bind:value={form.yearIdentified}
+          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+        />
+      </div>
+      <div class="col-span-2">
+        <label for="capture-monthIdentified" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Month Ident.</label>
+        <input
+          id="capture-monthIdentified"
+          type="number"
+          placeholder="MM"
+          min="1"
+          max="12"
+          bind:value={form.monthIdentified}
+          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+        />
+      </div>
+      <div class="col-span-2">
+        <label for="capture-dayIdentified" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Day Ident.</label>
+        <input
+          id="capture-dayIdentified"
+          type="number"
+          placeholder="DD"
+          min="1"
+          max="31"
+          bind:value={form.dayIdentified}
+          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+        />
+      </div>
+    </div>
+
+    <!-- Row 9: Identification Notes -->
+    <div class="pb-6">
+      <label for="capture-identificationRemarks" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Identification Notes</label>
+      <textarea
+        id="capture-identificationRemarks"
+        rows="2"
+        placeholder="e.g. Similar to [species name] but has different bract structures"
+        bind:value={form.identificationRemarks}
+        class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all resize-none"
+      ></textarea>
+    </div>
   </form>
 
   <!-- Save Action Footer -->
-  <div class="p-4 border-t border-slate-300 bg-slate-50 flex justify-between gap-2">
-    <button
-      type="button"
-      onclick={handleReset}
-      class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors"
-    >
-      Reset Form
-    </button>
-    <button
-      type="button"
-      onclick={handleSave}
-      disabled={saving || !sessionId}
-      class="flex-1 bg-slate-800 hover:bg-slate-900 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white px-6 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors flex justify-center items-center gap-2"
-    >
-      {#if saving}
-        <span>Saving...</span>
-      {:else}
-        <span>Save Specimen</span>
-      {/if}
-    </button>
+  <div class="p-4 border-t  border-slate-300 bg-slate-50 ">
+    <div class="w-1/2 ml-auto flex justify-between gap-2" >
+      <button
+        type="button"
+        onclick={handleReset}
+        class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors"
+      >
+        Reset Form
+      </button>
+      <button
+        type="button"
+        onclick={handleSave}
+        disabled={saving || !sessionId}
+        class="flex-1 bg-slate-800 hover:bg-slate-900 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white px-6 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors flex justify-center items-center gap-2"
+      >
+        {#if saving}
+          <span>Saving...</span>
+        {:else}
+          <span>Save Specimen</span>
+        {/if}
+      </button>
+    </div>
   </div>
 </div>

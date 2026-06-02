@@ -22,6 +22,7 @@
   
   // Export Settings state
   let exportFormat = $state("DwC"); // "DwC" or "BRAHMS"
+  let workingCollectionCode = $state("WIOI");
   let customMappings = $state(/** @type {any} */ ({
     recordedBy: "",
     recordNumber: "",
@@ -41,7 +42,6 @@
   // Workspace state
   let activeRecord = $state(/** @type {any} */ (null)); // Selected record for CaptureForm
   let capturedRecords = $state(/** @type {any[]} */ ([])); // Records captured in the current session
-  let exportPath = $state("");
   let exportMessage = $state("");
   let exportError = $state("");
 
@@ -113,9 +113,6 @@
     exportMessage = "";
     exportError = "";
     
-    // Default export path
-    exportPath = `C:\\Users\\${currentUser.username}\\Downloads\\${session.name.replace(/[^a-zA-Z0-9]/g, "_")}_captured.csv`;
-    
     await loadCapturedRecords();
   }
 
@@ -129,6 +126,7 @@
       exportFormat = settings.format || "DwC";
       if (settings.mappings) {
         let maps = JSON.parse(settings.mappings);
+        workingCollectionCode = maps.collectionCode || "WIOI";
         customMappings = {
           recordedBy: maps.recordedBy || "",
           recordNumber: maps.recordNumber || "",
@@ -153,10 +151,11 @@
     if (!currentUser) return;
     settingsMessage = "";
     try {
+      let mappingsObj = { ...customMappings, collectionCode: workingCollectionCode };
       await invoke("save_export_settings", {
         userId: currentUser.id,
         format: exportFormat,
-        mappings: JSON.stringify(customMappings)
+        mappings: JSON.stringify(mappingsObj)
       });
       settingsMessage = "Settings saved successfully!";
       setTimeout(() => { settingsMessage = ""; }, 3000);
@@ -196,20 +195,39 @@
     }
   }
 
+  async function handleDeleteSession(/** @type {number} */ id, /** @type {string} */ name, /** @type {any} */ e) {
+    if (e) e.stopPropagation();
+    let msg = `WARNING: Are you sure you want to permanently delete the capture session "${name}"?\n\nThis will permanently delete all captured records associated with this session. Have you downloaded/exported the data for this session?`;
+    if (!confirm(msg)) return;
+    
+    try {
+      await invoke("delete_session", { id });
+      await loadSessions();
+      if (activeSession && activeSession.id === id) {
+        activeSession = null;
+        view = "dashboard";
+      }
+    } catch (err) {
+      alert("Error deleting session: " + (/** @type {any} */ (err)).toString());
+    }
+  }
+
   async function handleExportCSV() {
     if (!activeSession) return;
     exportMessage = "";
     exportError = "";
     
-    if (exportPath.trim().length === 0) {
-      exportError = "Please specify a valid file path.";
-      return;
-    }
-
     try {
+      let defaultName = `${activeSession.name.replace(/[^a-zA-Z0-9]/g, "_")}_captured.csv`;
+      let path = await invoke("select_export_path", { defaultName });
+      if (!path) {
+        // User cancelled the dialog
+        return;
+      }
+      
       let res = await invoke("export_session_csv", {
         sessionId: activeSession.id,
-        filepath: exportPath
+        filepath: path
       });
       exportMessage = /** @type {string} */ (res);
     } catch (err) {
@@ -379,10 +397,10 @@
                 {#if sessionList.length > 0}
                   <ul class="border border-slate-200 divide-y divide-slate-200">
                     {#each sessionList as ses}
-                      <li class="hover:bg-slate-50 transition-colors">
+                      <li class="hover:bg-slate-50 transition-colors flex justify-between items-center pr-4">
                         <button
                           onclick={() => selectSession(ses)}
-                          class="w-full text-left p-4 flex justify-between items-center outline-none"
+                          class="flex-1 text-left p-4 flex justify-between items-center outline-none"
                         >
                           <div>
                             <span class="text-sm font-semibold text-slate-900 block">{ses.name}</span>
@@ -394,6 +412,12 @@
                             </span>
                             <span class="text-slate-400 font-bold text-sm">→</span>
                           </div>
+                        </button>
+                        <button
+                          onclick={(e) => handleDeleteSession(ses.id, ses.name, e)}
+                          class="bg-red-50 hover:bg-red-100 text-red-650 border border-red-200 px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors ml-2"
+                        >
+                          Delete
                         </button>
                       </li>
                     {/each}
@@ -421,9 +445,21 @@
                 </div>
               {/if}
 
+              <!-- Collection Code Setting -->
+              <div class="space-y-2">
+                <label for="settings-collectionCode" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Working Collection Code</label>
+                <input
+                  id="settings-collectionCode"
+                  type="text"
+                  placeholder="e.g. WIOI"
+                  bind:value={workingCollectionCode}
+                  class="w-full sm:w-64 bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+                />
+              </div>
+
               <!-- Format Choice -->
               <div class="space-y-2">
-                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Export Protocol Format</label>
+                <span class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Export Protocol Format</span>
                 <div class="flex gap-4">
                   <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
                     <input
@@ -526,16 +562,10 @@
             </div>
             
             <!-- Export Session CSV bar -->
-            <div class="flex items-center gap-1">
-              <input
-                type="text"
-                placeholder="Export file path"
-                bind:value={exportPath}
-                class="bg-slate-700 border border-slate-650 text-white text-xs px-2.5 py-1.5 outline-none rounded-none w-64"
-              />
+            <div class="flex items-center">
               <button
                 onclick={handleExportCSV}
-                class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-none transition-colors"
+                class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors"
               >
                 Export CSV
               </button>
@@ -567,6 +597,7 @@
           <div class="flex flex-col h-[650px] min-h-0">
             <CaptureForm 
               sessionId={activeSession.id} 
+              collectionCode={workingCollectionCode}
               bind:activeRecord={activeRecord} 
               onSaveSuccess={async () => { await loadCapturedRecords(); await loadSessions(); }} 
             />
