@@ -1,82 +1,45 @@
-# WIOI Herbarium Duplicate Specimen Finder & Capture Tool
+# Herbarium Specimen Duplicate Finder and Capture Tool
 
-An advanced, high-performance desktop application designed for botanists and herbarium curators to capture specimen records and automatically identify duplicate specimens. Leveraging a fast local SQLite database pre-populated with millions of reference records from the **GBIF (Global Biodiversity Information Facility)** and **Kew's WCVP (World Checklist of Vascular Plants)** taxonomy, the tool streamlines specimen digitisation, standardises taxonomic names, and maintains high data integrity.
+This application is designed for botanical researchers and herbarium curators to capture specimen data and automatically identify duplicate specimens. It helps standardise specimen data and streamlines the digitisation workflow.
 
----
+## How the Tool Works
 
-## 🚀 Key Features
+The application interface is split into two primary columns:
 
-### 🔍 1. Reference Database Search
-* **Rule-Based Constraints**: Prevents database scans through search constraints on collector names, collector numbers, date elements, and geographic areas.
-* **FTS5 Full-Text Search**: Instant search capability across millions of records.
-* **Dynamic Indicators**: Real-time display showing the exact count of records inside the GBIF reference table (e.g. `530,767 Records`) directly in the search panel.
+1. Finding Duplicates (Left Column): Use this panel to search the reference databases (which contain specimen records from GBIF and taxonomic names from the Kew World Checklist of Vascular Plants). When you enter search filters, the application queries the reference records to identify potential duplicates.
+2. Selecting and Editing (Right Column): Clicking on a record from the search results on the left loads that specimen's details into the capture form on the right. You can review the details, edit or clean up fields (such as dates, taxonomies, and geographic hierarchies), and save the record to your current capturing session.
 
-### 📝 2. Specimen Capture Form
-* **Verbatim Date Parser**: An intelligent `onblur` event parser that extracts year, month, and day integers from verbatim dates (e.g. `12 October 2026`, `May 1994`, `2026-10-12`) automatically.
-* **Hierarchical Geography Autocompletes**: Implements single-value autocompletes for **Country**, **Admin 2 (State/Province)**, **Admin 3 (County)**, and **Admin 4 (Municipality)**. Options are filtered dynamically based on parent selections in the hierarchy (e.g. choosing Madagascar restricts Admin 2 suggestions to Madagascan regions).
-* **Taxonomic Autocomplete**: Integrates Kew WCVP v12 taxonomy autocomplete, querying over 1.4M taxa using sequence-exact phrase match searches to prevent matching spelling variations. Displays taxonomic version and total taxa count (e.g., `Kew WCVP v12 (1,441,155 Taxa)`) dynamically on the form header.
-* **Collector Matching**: Normalises spelling, diacritics, and punctuation (e.g. matching `Müller-Landry` when searching `mullerlandry`) to identify spelling variations across collectors.
-* **Proper-Case Helpers (`Aa`)**: Quick-format buttons next to text inputs to automatically proper-case geographic names and localities.
-* **Clean Formatting**: Autocomplete fields automatically hide placeholder hints if any one of the geographic input fields is populated.
+Once you have finished capturing specimens for a session, you can export your captured records to a standard CSV file. This CSV file can then be imported into your main herbarium database system.
 
-### 💾 3. Data Integrity & Performance
-* **WAL Mode (Write-Ahead Logging)**: Configured with `journal_mode=WAL` and `synchronous=NORMAL` to prevent database locks during concurrent search queries and database writes.
-* **Startup/Shutdown Checks**: Performs a fast `quick_check` structural scan on startup, and runs query-planner index optimisations (`PRAGMA optimize`) and checks on exit.
-* **Optimized Bulk Normalization**: Fast, trigger-less startup indexing that automatically processes externally inserted records in seconds.
-* **Bundled DB Seeding Protection**: Fully protects pre-populated databases from being dropped or overwritten during migrations.
+## How to Install and Run the Tool
 
-### 📥 4. Session & Darwin Core Export
-* **Native File Exporter**: Uses native platform save dialogues to prompt users for locations to save files.
-* **Darwin Core Mappings**: Exports captured sessions directly into standard Darwin Core CSV formatted data, maintaining precise column layouts.
-* **Safe Deletion**: Session deletion warning prompts ensure data is not lost accidentally.
+### Running from the Installer
+An installer package will be linked here once the production file is uploaded. Installing this version handles all setup steps automatically.
 
----
+### Running from Source Code
+If you want to run the application from source code instead of using the installer, follow these steps:
 
-## 🛠️ Tech Stack
+1. Clone the repository:
+   git clone <repository-url>
 
-* **Backend**: Rust, [Tauri v2](https://tauri.app/) (native OS wrapper & security layer), [rusqlite](https://github.com/rusqlite/rusqlite) (SQLite interface).
-* **Frontend**: SvelteKit, [Svelte 5](https://svelte.dev/) (reactive UI framework), [Tailwind CSS](https://tailwindcss.com/) (modern typography, dark layout styles, and fluid grid systems).
-* **Database**: SQLite with **FTS5** (Full-Text Search) extension.
+2. Install Node.js dependencies:
+   From the project root directory, run:
+   npm install
 
----
+3. Install Rust:
+   Ensure you have the Rust compiler installed on your system. You can download it from https://www.rust-lang.org/
 
-## 💻 Installation & Setup
+4. Start the application:
+   Run the development command from the project root directory:
+   npm run tauri dev
 
-### Prerequisites
-* [Node.js](https://nodejs.org/) (v18 or higher)
-* [Rust Compiler](https://www.rust-lang.org/) (cargo, rustc)
-* C++ Build tools installed (via Visual Studio Installer on Windows)
+## Development and Customisation
 
-### 1. Clone the Repository & Install Node Dependencies
-```bash
-npm install
-```
+This project is designed to be maintained and developed using the Antigravity AI coding assistant.
 
-### 2. Prepare the Reference Database
-Place your pre-populated SQLite database in the Tauri resources folder:
-```text
-src-tauri/resources/reference.db
-```
-*Note: On startup, if no local database file exists in your user's AppData directory, the app will automatically copy this pre-bundled template into your application folder.*
+If you need to make changes, add features, or update validation rules, you can invoke Antigravity and describe the changes you want in plain English. For example, you can tell the AI to:
+- Add a new input field to the capture form.
+- Modify the database schema.
+- Update search validation logic or autocomplete behaviors.
 
----
-
-## 🏃 Running the Application
-
-### Start Development Server
-Launches the Svelte dev server and boots up the Tauri desktop container:
-```bash
-npm run tauri dev
-```
-
-### Build Production Desktop Application
-Generates a standalone, optimized installer (`.msi` or `.exe` on Windows):
-```bash
-npm run tauri build
-```
-
----
-
-## 📁 Recommended IDE Setup
-
-* **VS Code** + **Svelte Beta/Official** extension + **Tauri VSCode** + **rust-analyzer**.
+The AI will handle updating the Svelte frontend, the Rust backend, and database migrations automatically.
