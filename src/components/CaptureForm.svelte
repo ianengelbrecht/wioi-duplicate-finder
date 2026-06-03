@@ -21,9 +21,9 @@
     month: "",
     day: "",
     country: "",
-    stateProvince: "", // Label Admin Div 1
-    county: "",        // Label Admin Div 2
-    municipality: "",  // Label Admin Div 3
+    stateProvince: "", // Label Admin 2
+    county: "",        // Label Admin 3
+    municipality: "",  // Label Admin 4
     locality: "",
     verbatimCoordinates: "",
     locationNotes: "", // Mapped to locationRemarks
@@ -38,6 +38,13 @@
     dayIdentified: "",
     identificationRemarks: ""
   });
+
+  let isAnyGeoPopulated = $derived(
+    !!((form.country && form.country.trim().length > 0) ||
+       (form.stateProvince && form.stateProvince.trim().length > 0) ||
+       (form.county && form.county.trim().length > 0) ||
+       (form.municipality && form.municipality.trim().length > 0))
+  );
 
   let saving = $state(false);
   let statusMessage = $state("");
@@ -460,6 +467,22 @@
     }
   }
 
+  let wcvpCount = $state(/** @type {number|null} */ (null));
+  let formattedWcvpCount = $derived(wcvpCount !== null ? wcvpCount.toLocaleString() : "...");
+
+  async function fetchCounts() {
+    try {
+      const counts = /** @type {any} */ (await invoke("get_table_counts"));
+      wcvpCount = counts.wcvp;
+    } catch (e) {
+      console.error("Failed to fetch table counts:", e);
+    }
+  }
+
+  $effect(() => {
+    fetchCounts();
+  });
+
   $effect(() => {
     window.addEventListener("keydown", handleGlobalKeyDown);
     return () => {
@@ -480,6 +503,7 @@
       {:else}
         <span class="text-[9px] bg-emerald-100 text-emerald-800 font-bold uppercase tracking-wider px-1.5 py-0.5">NEW FORM</span>
       {/if}
+      <span class="text-[10px] text-slate-500 font-semibold bg-slate-200 px-2 py-0.5 uppercase">Kew WCVP v12 ({formattedWcvpCount} Taxa)</span>
     </div>
     <span class="text-[10px] text-slate-400 font-semibold uppercase">Shortcut: Ctrl+S to save</span>
   </div>
@@ -537,6 +561,7 @@
           bind:value={form.recordedBy}
           suggestions={collectorSuggestions}
           oninput={handleCollectorInput}
+          delay={300}
         />
       </div>
       <div class="col-span-2">
@@ -607,11 +632,12 @@
             <Autocomplete
               id="capture-country"
               label=""
-              placeholder="eg Madagascar"
+              placeholder={isAnyGeoPopulated ? "" : "eg Madagascar"}
               bind:value={form.country}
               suggestions={countrySuggestions}
               oninput={handleCountryInput}
               onselect={onCountryChanged}
+              delay={300}
             />
             <button
               type="button"
@@ -625,21 +651,22 @@
         </div>
 
         <div>
-          <label for="capture-stateProvince" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Admin Div 1 <span class="text-[70%]">(state/province)</span></label>
+          <label for="capture-stateProvince" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Admin 2 <span class="text-[70%]">(state/prov/etc)</span></label>
           <div class="relative flex items-center">
             <Autocomplete
               id="capture-stateProvince"
               label=""
-              placeholder="eg 'Itasy'"
+              placeholder={isAnyGeoPopulated ? "" : "eg 'Itasy'"}
               bind:value={form.stateProvince}
               suggestions={stateProvinceSuggestions}
               oninput={handleStateProvinceInput}
               onselect={onStateProvinceChanged}
+              delay={300}
             />
             <button
               type="button"
               onclick={() => properCaseField("stateProvince")}
-              title="Proper case Admin Div 1"
+              title="Proper case Admin 2"
               class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold z-10"
             >
               Aa
@@ -648,21 +675,22 @@
         </div>
 
         <div>
-          <label for="capture-county" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Admin Div 2</label>
+          <label for="capture-county" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Admin 3</label>
           <div class="relative flex items-center">
             <Autocomplete
               id="capture-county"
               label=""
-              placeholder="eg 'Miarinarivo'"
+              placeholder={isAnyGeoPopulated ? "" : "eg 'Miarinarivo'"}
               bind:value={form.county}
               suggestions={countySuggestions}
               oninput={handleCountyInput}
               onselect={onCountyChanged}
+              delay={300}
             />
             <button
               type="button"
               onclick={() => properCaseField("county")}
-              title="Proper case Admin Div 2"
+              title="Proper case Admin 3"
               class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold z-10"
             >
               Aa
@@ -671,20 +699,21 @@
         </div>
 
         <div>
-          <label for="capture-municipality" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">Admin Div 3</label>
+          <label for="capture-municipality" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">Admin 4</label>
           <div class="relative flex items-center">
             <Autocomplete
               id="capture-municipality"
               label=""
-              placeholder="eg 'Manazary'"
+              placeholder={isAnyGeoPopulated ? "" : "eg 'Manazary'"}
               bind:value={form.municipality}
               suggestions={municipalitySuggestions}
               oninput={handleMunicipalityInput}
+              delay={300}
             />
             <button
               type="button"
               onclick={() => properCaseField("municipality")}
-              title="Proper case Admin Div 3"
+              title="Proper case Admin 4"
               class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold z-10"
             >
               Aa
@@ -706,6 +735,7 @@
             bind:value={form.locality}
             suggestions={localitySuggestions}
             oninput={handleLocalityInput}
+            delay={300}
           />
           <button
             type="button"
@@ -797,6 +827,7 @@
             suggestions={taxonSuggestions}
             oninput={handleTaxonInput}
             onselect={handleTaxonSelect}
+            delay={300}
           />
         </div>
 

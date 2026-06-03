@@ -57,6 +57,54 @@ pub fn normalize_taxon_name(name: &str) -> String {
     normalized_words.join(" ")
 }
 
+/// Normalizes a locality string by:
+/// 1. Replacing accented characters (French & English) with base ASCII characters.
+/// 2. Converting to lowercase.
+/// 3. Replacing non-alphanumeric characters with spaces.
+/// 4. Filtering out grammatical and prepositional stop words in English and French.
+/// 5. Removing single-letter connector words (like 'd' or 'l') unless they are numbers.
+pub fn normalize_locality(s: &str) -> String {
+    let mut mapped = String::new();
+    for c in s.chars() {
+        let mc = match c {
+            'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'Å' => 'a',
+            'è' | 'é' | 'ê' | 'ë' | 'È' | 'É' | 'Ê' | 'Ë' => 'e',
+            'ì' | 'í' | 'î' | 'ï' | 'Ì' | 'Í' | 'Î' | 'Ï' => 'i',
+            'ò' | 'ó' | 'ô' | 'õ' | 'ö' | 'ø' | 'Ò' | 'Ó' | 'Ô' | 'Õ' | 'Ö' | 'Ø' => 'o',
+            'ù' | 'ú' | 'û' | 'ü' | 'Ù' | 'Ú' | 'Û' | 'Ü' => 'u',
+            'ñ' | 'Ñ' => 'n',
+            'ç' | 'Ç' => 'c',
+            'ý' | 'ÿ' | 'Ý' | 'Ÿ' => 'y',
+            _ => c.to_ascii_lowercase(),
+        };
+        if mc.is_ascii_alphanumeric() {
+            mapped.push(mc);
+        } else {
+            mapped.push(' ');
+        }
+    }
+
+    let stopwords = [
+        // English
+        "the", "a", "an", "and", "or", "near", "about", "along", "to", "of", "in", "on", "at", "by", "from", "with", "under", "over", "between", "around",
+        // French
+        "le", "la", "les", "un", "une", "des", "du", "de", "et", "ou", "pres", "vers", "dans", "sur", "sous", "par", "pour", "avec", "chez", "au", "aux"
+    ];
+
+    let mut result_words = Vec::new();
+    for word in mapped.split_whitespace() {
+        if stopwords.contains(&word) {
+            continue;
+        }
+        if word.len() == 1 && !word.chars().next().unwrap().is_ascii_digit() {
+            continue;
+        }
+        result_words.push(word);
+    }
+
+    result_words.join(" ")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -86,16 +134,32 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_collector_search() {
-        assert_eq!(normalize_collector_search("Müller"), "MULLER");
-        assert_eq!(normalize_collector_search("José René"), "JOSE RENE");
-        assert_eq!(normalize_collector_search("smith"), "SMITH");
+    fn test_normalize_search_recorded_by() {
+        assert_eq!(normalize_search_recorded_by("Müller-Landry"), "MULLERLANDRY");
+        assert_eq!(normalize_search_recorded_by("Smith, J."), "SMITH J");
+        assert_eq!(normalize_search_recorded_by("J. René Smith"), "J RENE SMITH");
+    }
+
+    #[test]
+    fn test_normalize_locality() {
+        assert_eq!(
+            normalize_locality("near the forest of Antananarivo"),
+            "forest antananarivo"
+        );
+        assert_eq!(
+            normalize_locality("près de la forêt d'Antananarivo"),
+            "foret antananarivo"
+        );
+        assert_eq!(
+            normalize_locality("Along Route 3, 5 km west of town"),
+            "route 3 5 km west town"
+        );
     }
 }
 
-/// Strips accents/diacritics and converts to uppercase for collector search normalization.
-pub fn normalize_collector_search(s: &str) -> String {
-    s.chars()
+/// Normalizes a collector name for searchRecordedBy (uppercase, alphanumeric + spaces only).
+pub fn normalize_search_recorded_by(s: &str) -> String {
+    let mapped: String = s.chars()
         .map(|c| match c {
             'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'Å' => 'A',
             'è' | 'é' | 'ê' | 'ë' | 'È' | 'É' | 'Ê' | 'Ë' => 'E',
@@ -107,5 +171,22 @@ pub fn normalize_collector_search(s: &str) -> String {
             'ý' | 'ÿ' | 'Ý' | 'Ÿ' => 'Y',
             _ => c.to_ascii_uppercase(),
         })
-        .collect()
+        .filter(|&c| c.is_ascii_alphanumeric() || c == ' ')
+        .collect();
+
+    // Remove double/multiple spaces
+    let mut result = String::new();
+    let mut last_was_space = false;
+    for c in mapped.trim().chars() {
+        if c == ' ' {
+            if !last_was_space {
+                result.push(c);
+                last_was_space = true;
+            }
+        } else {
+            result.push(c);
+            last_was_space = false;
+        }
+    }
+    result
 }

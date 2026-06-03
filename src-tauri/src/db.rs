@@ -5,7 +5,7 @@ use std::fs;
 use pbkdf2::pbkdf2_hmac_array;
 use sha2::Sha256;
 
-use crate::parser::normalize_taxon_name;
+use crate::parser::{normalize_taxon_name, normalize_locality};
 
 /// Encodes binary data to standard hex string.
 pub fn to_hex(bytes: &[u8]) -> String {
@@ -59,9 +59,6 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
     // Setup tables
     run_migrations(&conn).map_err(|e| e.to_string())?;
     
-    // Seed sample reference data if the reference tables are empty (helps in dev and testing)
-    seed_sample_data(&conn).map_err(|e| e.to_string())?;
-    
     // Auto-normalize imported CSV reference records if they exist and are empty
     auto_normalize_reference_data(&conn).map_err(|e| e.to_string())?;
     
@@ -75,11 +72,6 @@ fn run_migrations(conn: &Connection) -> Result<()> {
     let _ = conn.execute("DROP TRIGGER IF EXISTS parsed_gbif_au", []);
     let _ = conn.execute("DROP TABLE IF EXISTS parsed_gbif_fts", []);
     let _ = conn.execute("DROP TABLE IF EXISTS parsed_gbif", []);
-    let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ai", []);
-    let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ad", []);
-    let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_au", []);
-    let _ = conn.execute("DROP TABLE IF EXISTS gbif_fts", []);
-    let _ = conn.execute("DROP TABLE IF EXISTS gbif", []);
 
     // 1. Reference Data Tables
     conn.execute(
@@ -90,6 +82,7 @@ fn run_migrations(conn: &Connection) -> Result<()> {
             recordNumber TEXT,
             recordedBy TEXT,
             normalizedRecordedBy TEXT,
+            searchRecordedBy VARCHAR(100),
             year INTEGER,
             month INTEGER,
             day INTEGER,
@@ -106,6 +99,7 @@ fn run_migrations(conn: &Connection) -> Result<()> {
             decimalLongitude REAL,
             habitat TEXT,
             verbatimElevation TEXT,
+            elevation VARCHAR(10),
             occurrenceRemarks TEXT,
             fieldNotes TEXT,
             typeStatus TEXT,
@@ -117,17 +111,23 @@ fn run_migrations(conn: &Connection) -> Result<()> {
             monthIdentified INTEGER,
             dayIdentified INTEGER,
             identificationRemarks TEXT,
-            normalized_scientific_name TEXT
+            normalized_scientific_name TEXT,
+            normalized_locality TEXT
         );",
         [],
     )?;
 
-    // Drop old wcvp_taxonomy trigger and table if it exists to align with new schema
-    let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_ai", []);
-    let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_ad", []);
-    let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_au", []);
-    let _ = conn.execute("DROP TABLE IF EXISTS wcvp_taxonomy_fts", []);
-    let _ = conn.execute("DROP TABLE IF EXISTS wcvp_taxonomy", []);
+    // Migrations for existing databases: check and add normalized_locality if missing
+    let col_exists: bool = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('gbif') WHERE name='normalized_locality'",
+        [],
+        |r| r.get::<_, i32>(0).map(|c| c > 0)
+    ).unwrap_or(false);
+    
+    if !col_exists {
+        let _ = conn.execute("ALTER TABLE gbif ADD COLUMN normalized_locality TEXT", []);
+    }
+
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS wcvp_taxonomy (
@@ -261,6 +261,7 @@ fn run_migrations(conn: &Connection) -> Result<()> {
     conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_day ON gbif(day);", [])?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_date ON gbif(year, month, day);", [])?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_normalizedRecordedBy ON gbif(normalizedRecordedBy COLLATE NOCASE);", [])?;
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_searchRecordedBy ON gbif(searchRecordedBy);", [])?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_country ON gbif(country COLLATE NOCASE);", [])?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_stateProvince ON gbif(stateProvince COLLATE NOCASE);", [])?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_county ON gbif(county COLLATE NOCASE);", [])?;
@@ -274,6 +275,20 @@ fn run_migrations(conn: &Connection) -> Result<()> {
     conn.execute("CREATE INDEX IF NOT EXISTS idx_wcvp_taxonomy_basionym_plant_name_id ON wcvp_taxonomy(basionym_plant_name_id);", [])?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_wcvp_taxonomy_parent_plant_name_id ON wcvp_taxonomy(parent_plant_name_id);", [])?;
 
+    // Drop gbif_fts and recreate if it does not have the normalized_locality column
+    let fts_col_exists: bool = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('gbif_fts') WHERE name='normalized_locality'",
+        [],
+        |r| r.get::<_, i32>(0).map(|c| c > 0)
+    ).unwrap_or(false);
+    
+    if !fts_col_exists {
+        let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ai", []);
+        let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ad", []);
+        let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_au", []);
+        let _ = conn.execute("DROP TABLE IF EXISTS gbif_fts", []);
+    }
+
     // 3. FTS5 Virtual Tables setup for gbif table (external content content-rowid mapped for maximum index efficiency)
     conn.execute(
         "CREATE VIRTUAL TABLE IF NOT EXISTS gbif_fts USING fts5(
@@ -282,6 +297,7 @@ fn run_migrations(conn: &Connection) -> Result<()> {
             verbatimLocality,
             scientificName,
             normalized_scientific_name,
+            normalized_locality,
             content='gbif',
             content_rowid='gbifID'
         );",
@@ -297,7 +313,8 @@ fn run_migrations(conn: &Connection) -> Result<()> {
                 locationRemarks,
                 verbatimLocality,
                 scientificName,
-                normalized_scientific_name
+                normalized_scientific_name,
+                normalized_locality
             )
             VALUES (
                 new.gbifID,
@@ -305,7 +322,8 @@ fn run_migrations(conn: &Connection) -> Result<()> {
                 new.locationRemarks,
                 new.verbatimLocality,
                 new.scientificName,
-                new.normalized_scientific_name
+                new.normalized_scientific_name,
+                new.normalized_locality
             );
         END;",
         [],
@@ -320,7 +338,8 @@ fn run_migrations(conn: &Connection) -> Result<()> {
                 locationRemarks,
                 verbatimLocality,
                 scientificName,
-                normalized_scientific_name
+                normalized_scientific_name,
+                normalized_locality
             )
             VALUES (
                 'delete',
@@ -329,7 +348,8 @@ fn run_migrations(conn: &Connection) -> Result<()> {
                 old.locationRemarks,
                 old.verbatimLocality,
                 old.scientificName,
-                old.normalized_scientific_name
+                old.normalized_scientific_name,
+                old.normalized_locality
             );
         END;",
         [],
@@ -344,7 +364,8 @@ fn run_migrations(conn: &Connection) -> Result<()> {
                 locationRemarks,
                 verbatimLocality,
                 scientificName,
-                normalized_scientific_name
+                normalized_scientific_name,
+                normalized_locality
             )
             VALUES (
                 'delete',
@@ -353,7 +374,8 @@ fn run_migrations(conn: &Connection) -> Result<()> {
                 old.locationRemarks,
                 old.verbatimLocality,
                 old.scientificName,
-                old.normalized_scientific_name
+                old.normalized_scientific_name,
+                old.normalized_locality
             );
 
             INSERT INTO gbif_fts(
@@ -362,7 +384,8 @@ fn run_migrations(conn: &Connection) -> Result<()> {
                 locationRemarks,
                 verbatimLocality,
                 scientificName,
-                normalized_scientific_name
+                normalized_scientific_name,
+                normalized_locality
             )
             VALUES (
                 new.gbifID,
@@ -370,7 +393,8 @@ fn run_migrations(conn: &Connection) -> Result<()> {
                 new.locationRemarks,
                 new.verbatimLocality,
                 new.scientificName,
-                new.normalized_scientific_name
+                new.normalized_scientific_name,
+                new.normalized_locality
             );
         END;",
         [],
@@ -421,90 +445,6 @@ fn run_migrations(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-fn seed_sample_data(conn: &Connection) -> Result<()> {
-    // Check if gbif has any data
-    let count: i64 = conn.query_row("SELECT COUNT(*) FROM gbif", [], |r| r.get(0))?;
-    if count > 0 {
-        return Ok(());
-    }
-    
-    println!("Reference table empty. Seeding realistic sample herbarium records...");
-
-    // Seed 1. gbif reference dataset (small subset for testing)
-    let sample_records = vec![
-        (
-            1, "K", "K000123456", "1042", "John Smith", 2024, 1, 15,
-            "South Africa", "Free State", "Kestell", "Kestell", "Kestell district near farm", "Kestell district",
-            "Wetland zone, moist soil", "", -28.25, 28.65, "Wetland", "1500m", "Occurs with grasses", "Field note 1",
-            "Type", "", "Abelmoschus manihot (L.) Medik.", "John Smith", 2024, 1, 15, "Confirmed"
-        ),
-        (
-            2, "PRE", "PRE0078901", "89", "Alice Johnson", 2023, 5, 20,
-            "South Africa", "Free State", "Mangaung", "Bloemfontein", "Bloemfontein Botanical Garden, north facing slope", "Bloemfontein",
-            "Grassland, red sand", "", -29.1, 26.2, "Grassland", "1400m", "", "Field note 2",
-            "", "", "Abelmoschus esculentus (L.) Moench", "Alice Johnson", 2023, 5, 20, ""
-        ),
-        (
-            3, "BOL", "BOL0054321", "5512", "Peter Williams", 2025, 10, 5,
-            "South Africa", "Western Cape", "Cape Town", "Cape Town", "Table Mountain, Nursery Ravine", "Table Mountain, Cape Town",
-            "Fynbos scrubland, rocky soil", "", -33.95, 18.45, "Fynbos", "800m", "", "Field note 3",
-            "", "", "Protea cynaroides (L.) L.", "Peter Williams", 2025, 10, 5, ""
-        ),
-        (
-            4, "K", "K000123457", "1043", "John Smith", 2024, 1, 17,
-            "South Africa", "Free State", "Kestell", "Kestell", "Kestell mountain pass", "Kestell pass",
-            "Alpine rock crevice", "", -28.28, 28.67, "Alpine", "1700m", "", "Field note 4",
-            "", "", "Protea cynaroides (L.) L.", "John Smith", 2024, 1, 17, ""
-        ),
-    ];
-
-    for r in sample_records {
-        conn.execute(
-            "INSERT INTO gbif (
-                gbifID, collectionCode, catalogNumber, recordNumber, recordedBy, year, month, day,
-                country, stateProvince, county, municipality, locality, verbatimLocality,
-                locationRemarks, verbatimCoordinates, decimalLatitude, decimalLongitude, habitat, verbatimElevation,
-                occurrenceRemarks, fieldNotes, typeStatus, identificationQualifier, scientificName,
-                identifiedBy, yearIdentified, monthIdentified, dayIdentified, identificationRemarks, normalized_scientific_name
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31)",
-            params![
-                r.0, r.1, r.2, r.3, r.4, r.5, r.6, r.7, r.8, r.9, r.10, r.11, r.12, r.13, r.14, r.15, r.16, r.17, r.18, r.19, r.20, r.21, r.22, r.23, r.24, r.25, r.26, r.27, r.28, r.29,
-                normalize_taxon_name(r.24)
-            ]
-        )?;
-    }
-
-    // Explicitly rebuild FTS index to sync seeded contents
-    conn.execute("INSERT INTO gbif_fts(gbif_fts) VALUES('rebuild');", [])?;
-
-    // Seed 2. WCVP taxonomy references
-    let sample_taxa = vec![
-        ("Abelmoschus manihot (L.) Medik.", "Malvaceae", "Abelmoschus", "manihot", "(L.) Medik.", "species", "abelmoschus manihot"),
-        ("Abelmoschus esculentus (L.) Moench", "Malvaceae", "Abelmoschus", "esculentus", "(L.) Moench", "species", "abelmoschus esculentus"),
-        ("Protea cynaroides (L.) L.", "Proteaceae", "Protea", "cynaroides", "(L.) L.", "species", "protea cynaroides"),
-    ];
-
-    for t in sample_taxa {
-        conn.execute(
-            "INSERT INTO wcvp_taxonomy (
-                taxon_name, family, genus, species, taxon_authors, taxon_rank, normalized_taxon_name, plant_name_id
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            params![
-                t.0,
-                t.1,
-                t.2,
-                t.3,
-                t.4,
-                t.5,
-                t.6,
-                format!("seed_id_{}", t.3)
-            ]
-        )?;
-    }
-
-    println!("Seeding completed successfully!");
-    Ok(())
-}
 
 pub fn auto_normalize_reference_data(conn: &Connection) -> Result<()> {
     // 1. Check if gbif has un-normalized records
@@ -540,6 +480,48 @@ pub fn auto_normalize_reference_data(conn: &Connection) -> Result<()> {
         println!("Rebuilt FTS5 index successfully!");
     }
     
+    // 1b. Check if gbif has un-normalized localities
+    let count_locality: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM gbif WHERE (normalized_locality IS NULL OR normalized_locality = '') AND (locality IS NOT NULL OR locationRemarks IS NOT NULL OR verbatimLocality IS NOT NULL)",
+        [],
+        |r| r.get(0)
+    )?;
+    
+    if count_locality > 0 {
+        println!("Detected {} un-normalized localities in gbif. Normalizing...", count_locality);
+        let mut stmt = conn.prepare(
+            "SELECT gbifID, locality, locationRemarks, verbatimLocality FROM gbif WHERE (normalized_locality IS NULL OR normalized_locality = '') AND (locality IS NOT NULL OR locationRemarks IS NOT NULL OR verbatimLocality IS NOT NULL)"
+        )?;
+        let mut rows = stmt.query([])?;
+        let mut updates_locality = Vec::new();
+        while let Some(row) = rows.next()? {
+            let id: i64 = row.get(0)?;
+            let locality_val: Option<String> = row.get(1)?;
+            let remarks_val: Option<String> = row.get(2)?;
+            let verbatim_val: Option<String> = row.get(3)?;
+            
+            let combined = format!(
+                "{} {} {}",
+                locality_val.unwrap_or_default(),
+                remarks_val.unwrap_or_default(),
+                verbatim_val.unwrap_or_default()
+            );
+            let normalized = normalize_locality(&combined);
+            updates_locality.push((id, normalized));
+        }
+        
+        let mut stmt_update = conn.prepare("UPDATE gbif SET normalized_locality = ?1 WHERE gbifID = ?2")?;
+        conn.execute("BEGIN TRANSACTION", [])?;
+        for (id, normalized) in updates_locality {
+            stmt_update.execute(params![normalized, id])?;
+        }
+        conn.execute("COMMIT", [])?;
+        
+        println!("Rebuilding FTS5 full-text index for locality...");
+        conn.execute("INSERT INTO gbif_fts(gbif_fts) VALUES('rebuild');", [])?;
+        println!("Rebuilt FTS5 index successfully!");
+    }
+    
     // 2. Check if wcvp_taxonomy has un-normalized records
     let count_wcvp: i64 = conn.query_row(
         "SELECT COUNT(*) FROM wcvp_taxonomy WHERE taxon_name IS NOT NULL AND (normalized_taxon_name IS NULL OR normalized_taxon_name = '')",
@@ -569,6 +551,6 @@ pub fn auto_normalize_reference_data(conn: &Connection) -> Result<()> {
         conn.execute("COMMIT", [])?;
         println!("WCVP normalization completed!");
     }
-    
+
     Ok(())
 }

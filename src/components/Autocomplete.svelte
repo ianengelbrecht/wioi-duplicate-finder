@@ -1,4 +1,6 @@
 <script>
+import { onDestroy } from "svelte";
+
   let {
     label = "",
     value = $bindable(""),
@@ -6,19 +8,34 @@
     placeholder = "",
     id = "",
     oninput = () => {},
-    onselect = () => {}
+    onselect = () => {},
+    delay = 0
   } = $props();
 
   let showDropdown = $state(false);
   let activeIndex = $state(-1);
   let containerRef = $state(/** @type {any} */ (null));
+  /** @type {any} */
+  let timeoutId = null;
 
   function handleInput(/** @type {any} */ e) {
     value = e.target.value;
     showDropdown = true;
     activeIndex = -1;
-    oninput(value);
+
+    if (delay > 0) {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        oninput(value);
+      }, delay);
+    } else {
+      oninput(value);
+    }
   }
+
+  onDestroy(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
 
   function handleKeyDown(/** @type {any} */ e) {
     if (!showDropdown && suggestions.length > 0 && (e.key === "ArrowDown" || e.key === "ArrowUp")) {

@@ -181,6 +181,22 @@
     }
   }
 
+  let gbifCount = $state(/** @type {number|null} */ (null));
+  let formattedGbifCount = $derived(gbifCount !== null ? gbifCount.toLocaleString() : "...");
+
+  async function fetchCounts() {
+    try {
+      const counts = /** @type {any} */ (await invoke("get_table_counts"));
+      gbifCount = counts.gbif;
+    } catch (e) {
+      console.error("Failed to fetch table counts:", e);
+    }
+  }
+
+  $effect(() => {
+    fetchCounts();
+  });
+
   $effect(() => {
     window.addEventListener("keydown", handleGlobalKeyDown);
     return () => {
@@ -193,7 +209,7 @@
   <!-- Header Title -->
   <div class="px-4 py-3 bg-slate-100 border-b border-slate-300 flex justify-between items-center">
     <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wide">Search Existing Specimens</h2>
-    <span class="text-[10px] text-slate-500 font-semibold bg-slate-200 px-2 py-0.5 uppercase">Reference Data (1M+ Records)</span>
+    <span class="text-[10px] text-slate-500 font-semibold bg-slate-200 px-2 py-0.5 uppercase">Reference Data ({formattedGbifCount} Records)</span>
   </div>
 
   <!-- Search Filter Form -->
@@ -292,10 +308,11 @@
             suggestions={countrySuggestions}
             oninput={handleCountryInput}
             onselect={onCountryChanged}
+            delay={300}
           />
         </div>
         <div class="col-span-12 sm:col-span-3">
-          <label for="search-stateProvince" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Admin Div 1 <span class="text-[70%]">(state/province)</span></label>
+          <label for="search-stateProvince" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Admin 2 <span class="text-[70%]">(state/prov/etc)</span></label>
           <Autocomplete
             id="search-stateProvince"
             label=""
@@ -303,6 +320,7 @@
             bind:value={filters.stateProvince}
             suggestions={stateProvinceSuggestions}
             oninput={handleStateProvinceInput}
+            delay={300}
           />
         </div>
         <div class="col-span-12 sm:col-span-6">
@@ -321,7 +339,7 @@
     <!-- Constraints Warning Flags -->
     {#if hasRecordedBy && !collectorRuleOk}
       <div class="mt-3 text-xs bg-amber-50 border-l-2 border-amber-500 text-amber-700 px-3 py-2 font-medium">
-        ⚠️ Collector search requires a collector number, or if just a collector and a date field, it also requires at least one of (family, scientific name, country, Admin Div 1, or locality).
+        ⚠️ Collector search requires a collector number, or if just a collector and a date field, it also requires at least one of (family, scientific name, country, Admin 1, or locality).
       </div>
     {/if}
     {#if hasRecordNumber && !recordNumberRuleOk}
@@ -336,7 +354,7 @@
     {/if}
     {#if hasOther && !tglRuleOk}
       <div class="mt-3 text-xs bg-amber-50 border-l-2 border-amber-500 text-amber-700 px-3 py-2 font-medium">
-        ⚠️ Searching on family, scientific name, country, Admin Div 1, or locality requires at least two other fields (total of 3 or more fields).
+        ⚠️ Searching on family, scientific name, country, Admin 1, or locality requires at least two other fields (total of 3 or more fields).
       </div>
     {/if}
 
@@ -386,11 +404,13 @@
         <table class="w-full text-left text-xs border-collapse">
           <thead>
             <tr class="bg-slate-100 border-b border-slate-300 text-slate-600 font-bold uppercase tracking-wider">
+              <th class="p-3">HERB</th>
               <th class="p-3">Collector</th>
               <th class="p-3">Taxon Name</th>
               <th class="p-3">Locality</th>
               <th class="p-3">Geo</th>
               <th class="p-3">Date</th>
+              <th class="p-3">Coords</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-200">
@@ -399,6 +419,11 @@
                 onclick={() => onSelectRecord(rec)}
                 class="hover:bg-slate-50 cursor-pointer transition-colors border-b border-slate-100 group"
               >
+                <!-- HERB -->
+                <td class="p-3 text-slate-700 font-medium">
+                  {rec.collectionCode || 'N/A'}
+                </td>
+
                 <!-- Collector Details -->
                 <td class="p-3 text-slate-700 font-medium">
                   {rec.recordedBy || 'N/A'}
@@ -437,6 +462,17 @@
                 <!-- Date -->
                 <td class="p-3 text-slate-600 whitespace-nowrap">
                   {formatISO8601Date(rec.year, rec.month, rec.day)}
+                </td>
+
+                <!-- Coordinates -->
+                <td class="p-3 text-slate-500 whitespace-nowrap">
+                  {#if rec.verbatimCoordinates}
+                    {rec.verbatimCoordinates}
+                  {:else if rec.decimalLatitude != null && rec.decimalLongitude != null}
+                    {rec.decimalLatitude}, {rec.decimalLongitude}
+                  {:else}
+                    N/A
+                  {/if}
                 </td>
               </tr>
             {/each}

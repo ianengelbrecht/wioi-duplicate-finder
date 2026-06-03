@@ -9,7 +9,7 @@ use std::fs;
 mod parser;
 mod db;
 
-use parser::{normalize_taxon_name, normalize_collector_search};
+use parser::{normalize_taxon_name, normalize_search_recorded_by, normalize_locality};
 use db::{get_db_path, init_database, hash_password};
 
 // -------------------------------------------------------------
@@ -204,14 +204,15 @@ fn search_reference(app: AppHandle, filters: serde_json::Value) -> Result<Vec<se
     let mut sql = String::from(
         "SELECT recordedBy, recordNumber, locality, locationRemarks, verbatimLocality, 
                 scientificName, family, country, stateProvince, year, month, day,
-                identificationQualifier
+                identificationQualifier, collectionCode, decimalLatitude, decimalLongitude,
+                verbatimCoordinates
          FROM gbif WHERE 1=1"
     );
     let mut params_vec: Vec<serde_json::Value> = Vec::new();
     
     if has_recorded_by {
-        let normalized = normalize_collector_search(recorded_by);
-        sql.push_str(" AND normalizedRecordedBy LIKE ? COLLATE NOCASE");
+        let normalized = normalize_search_recorded_by(recorded_by);
+        sql.push_str(" AND searchRecordedBy LIKE ? COLLATE NOCASE");
         params_vec.push(json!(format!("{}%", normalized)));
     }
     if has_record_number {
@@ -243,19 +244,14 @@ fn search_reference(app: AppHandle, filters: serde_json::Value) -> Result<Vec<se
         params_vec.push(json!(d));
     }
     
-    // Locality FTS5 Search (multi-term prefix match across locality, locationRemarks, verbatimLocality)
+    // Locality FTS5 Search (multi-term prefix match across normalized_locality)
     if has_locality {
-        let terms: Vec<&str> = locality.split_whitespace().collect();
+        let normalized = normalize_locality(locality);
+        let terms: Vec<&str> = normalized.split_whitespace().collect();
         if !terms.is_empty() {
             let mut match_clauses = Vec::new();
             for term in terms {
-                let clean_term = term.trim_matches(|c: char| c.is_ascii_punctuation());
-                if !clean_term.is_empty() {
-                    match_clauses.push(format!(
-                        "(locality:{term}* OR locationRemarks:{term}* OR verbatimLocality:{term}*)",
-                        term = clean_term
-                    ));
-                }
+                match_clauses.push(format!("normalized_locality:{}*", term));
             }
             if !match_clauses.is_empty() {
                 let fts_query = match_clauses.join(" AND ");
@@ -313,6 +309,10 @@ fn search_reference(app: AppHandle, filters: serde_json::Value) -> Result<Vec<se
         let month: Option<i32> = row.get(10)?;
         let day: Option<i32> = row.get(11)?;
         let id_qualifier: Option<String> = row.get(12)?;
+        let collection_code: Option<String> = row.get(13)?;
+        let decimal_latitude: Option<f64> = row.get(14)?;
+        let decimal_longitude: Option<f64> = row.get(15)?;
+        let verbatim_coordinates: Option<String> = row.get(16)?;
         
         Ok(json!({
             "id": serde_json::Value::Null,
@@ -332,6 +332,10 @@ fn search_reference(app: AppHandle, filters: serde_json::Value) -> Result<Vec<se
             "month": month,
             "day": day,
             "identificationQualifier": id_qualifier.unwrap_or_default(),
+            "collectionCode": collection_code.unwrap_or_default(),
+            "decimalLatitude": decimal_latitude,
+            "decimalLongitude": decimal_longitude,
+            "verbatimCoordinates": verbatim_coordinates.unwrap_or_default(),
         }))
     }).map_err(|e| e.to_string())?;
     
@@ -415,14 +419,14 @@ fn autocomplete_recorded_by(app: AppHandle, query: String) -> Result<Vec<String>
         return Ok(Vec::new());
     }
     
-    let normalized = normalize_collector_search(q_clean);
+    let normalized = normalize_search_recorded_by(q_clean);
     
-    // We aggregate unique collector names from recordedBy, using normalizedRecordedBy for lookup.
+    // We aggregate unique collector names from recordedBy, using searchRecordedBy for lookup.
     // The user must only ever see values from recordedBy.
     let mut stmt = conn
         .prepare(
             "SELECT DISTINCT collector FROM (
-                SELECT recordedBy AS collector FROM gbif WHERE normalizedRecordedBy LIKE ?1 COLLATE NOCASE
+                SELECT recordedBy AS collector FROM gbif WHERE searchRecordedBy LIKE ?1 COLLATE NOCASE
                 UNION
                 SELECT recordedBy AS collector FROM captured_records WHERE recordedBy LIKE ?2 COLLATE NOCASE
              ) WHERE collector IS NOT NULL AND collector != '' LIMIT 10"
@@ -743,6 +747,25 @@ fn get_export_settings(app: AppHandle, user_id: i32) -> Result<serde_json::Value
 }
 
 #[tauri::command]
+fn get_table_counts(app: AppHandle) -> Result<serde_json::Value, String> {
+    let db_path = get_db_path(&app);
+    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+    
+    let gbif_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM gbif", [], |r| r.get(0))
+        .unwrap_or(0);
+        
+    let wcvp_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM wcvp_taxonomy", [], |r| r.get(0))
+        .unwrap_or(0);
+        
+    Ok(json!({
+        "gbif": gbif_count,
+        "wcvp": wcvp_count
+    }))
+}
+
+#[tauri::command]
 fn select_export_path(default_name: String) -> Option<String> {
     let file = rfd::FileDialog::new()
         .set_file_name(&default_name)
@@ -1016,7 +1039,8 @@ pub fn run() {
             save_export_settings,
             get_export_settings,
             export_session_csv,
-            autocomplete_geography
+            autocomplete_geography,
+            get_table_counts
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
