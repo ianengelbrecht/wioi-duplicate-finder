@@ -1,9 +1,13 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
+  import Autocomplete from "./Autocomplete.svelte";
 
   let {
     onSelectRecord = () => {}
   } = $props();
+
+  let countrySuggestions = $state(/** @type {string[]} */ ([]));
+  let stateProvinceSuggestions = $state(/** @type {string[]} */ ([]));
 
   let filters = $state({
     recordedBy: "",
@@ -55,6 +59,48 @@
   let tglRuleOk = $derived(!hasOther || (totalFilledCount >= 3));
 
   let searchIsValid = $derived(totalFilledCount > 0 && collectorRuleOk && recordNumberRuleOk && dateRuleOk && tglRuleOk);
+
+  function onCountryChanged() {
+    filters.stateProvince = "";
+    stateProvinceSuggestions = [];
+  }
+
+  async function handleCountryInput(/** @type {string} */ val) {
+    onCountryChanged();
+    if (!val || val.trim().length === 0) {
+      countrySuggestions = [];
+      return;
+    }
+    try {
+      countrySuggestions = /** @type {any[]} */ (await invoke("autocomplete_geography", {
+        field: "country",
+        query: val,
+        country: "",
+        stateProvince: "",
+        county: ""
+      }));
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function handleStateProvinceInput(/** @type {string} */ val) {
+    if (!val || val.trim().length === 0) {
+      stateProvinceSuggestions = [];
+      return;
+    }
+    try {
+      stateProvinceSuggestions = /** @type {any[]} */ (await invoke("autocomplete_geography", {
+        field: "stateProvince",
+        query: val,
+        country: filters.country,
+        stateProvince: "",
+        county: ""
+      }));
+    } catch (e) {
+      console.error(e);
+    }
+  }
 
   async function handleSearch() {
     if (!searchIsValid) return;
@@ -238,22 +284,25 @@
       <div class="grid grid-cols-12 gap-3">
         <div class="col-span-12 sm:col-span-3">
           <label for="search-country" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Country</label>
-          <input
+          <Autocomplete
             id="search-country"
-            type="text"
+            label=""
             placeholder="Partial ex. Mad"
             bind:value={filters.country}
-            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+            suggestions={countrySuggestions}
+            oninput={handleCountryInput}
+            onselect={onCountryChanged}
           />
         </div>
         <div class="col-span-12 sm:col-span-3">
           <label for="search-stateProvince" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Admin Div 1 <span class="text-[70%]">(state/province)</span></label>
-          <input
+          <Autocomplete
             id="search-stateProvince"
-            type="text"
+            label=""
             placeholder="Partial eg 'Itas'"
             bind:value={filters.stateProvince}
-            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+            suggestions={stateProvinceSuggestions}
+            oninput={handleStateProvinceInput}
           />
         </div>
         <div class="col-span-12 sm:col-span-6">

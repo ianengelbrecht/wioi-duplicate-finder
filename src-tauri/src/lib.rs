@@ -879,6 +879,110 @@ fn export_session_csv(app: AppHandle, session_id: i32, filepath: String) -> Resu
     Ok(format!("Successfully exported {} records to {}", escaped_headers.len(), filepath))
 }
 
+#[tauri::command]
+fn autocomplete_geography(
+    app: AppHandle,
+    field: String,
+    query: String,
+    country: String,
+    state_province: String,
+    county: String,
+) -> Result<Vec<String>, String> {
+    let db_path = get_db_path(&app);
+    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+
+    let q = query.trim();
+    let c = country.trim();
+    let sp = state_province.trim();
+    let co = county.trim();
+
+    let mut sql = String::new();
+    let mut params_vec: Vec<String> = vec![format!("{}%", q)];
+
+    match field.as_str() {
+        "country" => {
+            sql.push_str(
+                "SELECT DISTINCT country \
+                 FROM gbif \
+                 WHERE country LIKE ?1 COLLATE NOCASE \
+                   AND country != '' \
+                   AND country IS NOT NULL \
+                 ORDER BY country ASC \
+                 LIMIT 15",
+            );
+        }
+        "stateProvince" => {
+            sql.push_str(
+                "SELECT DISTINCT stateProvince \
+                 FROM gbif \
+                 WHERE stateProvince LIKE ?1 COLLATE NOCASE \
+                   AND stateProvince != '' \
+                   AND stateProvince IS NOT NULL \
+                   AND (?2 = '' OR country = ?2 COLLATE NOCASE) \
+                 ORDER BY stateProvince ASC \
+                 LIMIT 15",
+            );
+            params_vec.push(c.to_string());
+        }
+        "county" => {
+            sql.push_str(
+                "SELECT DISTINCT county \
+                 FROM gbif \
+                 WHERE county LIKE ?1 COLLATE NOCASE \
+                   AND county != '' \
+                   AND county IS NOT NULL \
+                   AND (?2 = '' OR country = ?2 COLLATE NOCASE) \
+                   AND (?3 = '' OR stateProvince = ?3 COLLATE NOCASE) \
+                 ORDER BY county ASC \
+                 LIMIT 15",
+            );
+            params_vec.push(c.to_string());
+            params_vec.push(sp.to_string());
+        }
+        "municipality" => {
+            sql.push_str(
+                "SELECT DISTINCT municipality \
+                 FROM gbif \
+                 WHERE municipality LIKE ?1 COLLATE NOCASE \
+                   AND municipality != '' \
+                   AND municipality IS NOT NULL \
+                   AND (?2 = '' OR country = ?2 COLLATE NOCASE) \
+                   AND (?3 = '' OR stateProvince = ?3 COLLATE NOCASE) \
+                   AND (?4 = '' OR county = ?4 COLLATE NOCASE) \
+                 ORDER BY municipality ASC \
+                 LIMIT 15",
+            );
+            params_vec.push(c.to_string());
+            params_vec.push(sp.to_string());
+            params_vec.push(co.to_string());
+        }
+        _ => return Err(format!("Invalid geography field: {}", field)),
+    }
+
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+    
+    // Map params dynamically
+    let rusql_params: Vec<Box<dyn rusqlite::ToSql>> = params_vec.iter().map(|v| {
+        Box::new(v.clone()) as Box<dyn rusqlite::ToSql>
+    }).collect();
+    let ref_params: Vec<&dyn rusqlite::ToSql> = rusql_params.iter().map(|b| b.as_ref()).collect();
+
+    let rows = stmt.query_map(&ref_params[..], |row| {
+        let val: Option<String> = row.get(0)?;
+        Ok(val.unwrap_or_default())
+    }).map_err(|e| e.to_string())?;
+
+    let mut list = Vec::new();
+    for r in rows {
+        let s = r.map_err(|e| e.to_string())?;
+        if !s.is_empty() {
+            list.push(s);
+        }
+    }
+
+    Ok(list)
+}
+
 // -------------------------------------------------------------
 // Tauri Application Runner
 // -------------------------------------------------------------
@@ -911,7 +1015,8 @@ pub fn run() {
             select_export_path,
             save_export_settings,
             get_export_settings,
-            export_session_csv
+            export_session_csv,
+            autocomplete_geography
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

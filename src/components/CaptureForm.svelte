@@ -47,6 +47,10 @@
   let taxonSuggestions = $state(/** @type {any[]} */ ([]));
   let localitySuggestions = $state(/** @type {any[]} */ ([]));
   let collectorSuggestions = $state(/** @type {any[]} */ ([]));
+  let countrySuggestions = $state(/** @type {any[]} */ ([]));
+  let stateProvinceSuggestions = $state(/** @type {any[]} */ ([]));
+  let countySuggestions = $state(/** @type {any[]} */ ([]));
+  let municipalitySuggestions = $state(/** @type {any[]} */ ([]));
   
   // Custom suggestion list for duplicates
   let duplicateSuggestions = $state(/** @type {any[]} */ ([]));
@@ -135,6 +139,102 @@
     }
     try {
       collectorSuggestions = /** @type {any[]} */ (await invoke("autocomplete_recorded_by", { query: val }));
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function onCountryChanged() {
+    form.stateProvince = "";
+    form.county = "";
+    form.municipality = "";
+    stateProvinceSuggestions = [];
+    countySuggestions = [];
+    municipalitySuggestions = [];
+  }
+
+  function onStateProvinceChanged() {
+    form.county = "";
+    form.municipality = "";
+    countySuggestions = [];
+    municipalitySuggestions = [];
+  }
+
+  function onCountyChanged() {
+    form.municipality = "";
+    municipalitySuggestions = [];
+  }
+
+  async function handleCountryInput(/** @type {string} */ val) {
+    onCountryChanged();
+    if (!val || val.trim().length === 0) {
+      countrySuggestions = [];
+      return;
+    }
+    try {
+      countrySuggestions = /** @type {any[]} */ (await invoke("autocomplete_geography", {
+        field: "country",
+        query: val,
+        country: "",
+        stateProvince: "",
+        county: ""
+      }));
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function handleStateProvinceInput(/** @type {string} */ val) {
+    onStateProvinceChanged();
+    if (!val || val.trim().length === 0) {
+      stateProvinceSuggestions = [];
+      return;
+    }
+    try {
+      stateProvinceSuggestions = /** @type {any[]} */ (await invoke("autocomplete_geography", {
+        field: "stateProvince",
+        query: val,
+        country: form.country,
+        stateProvince: "",
+        county: ""
+      }));
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function handleCountyInput(/** @type {string} */ val) {
+    onCountyChanged();
+    if (!val || val.trim().length === 0) {
+      countySuggestions = [];
+      return;
+    }
+    try {
+      countySuggestions = /** @type {any[]} */ (await invoke("autocomplete_geography", {
+        field: "county",
+        query: val,
+        country: form.country,
+        stateProvince: form.stateProvince,
+        county: ""
+      }));
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function handleMunicipalityInput(/** @type {string} */ val) {
+    if (!val || val.trim().length === 0) {
+      municipalitySuggestions = [];
+      return;
+    }
+    try {
+      municipalitySuggestions = /** @type {any[]} */ (await invoke("autocomplete_geography", {
+        field: "municipality",
+        query: val,
+        country: form.country,
+        stateProvince: form.stateProvince,
+        county: form.county
+      }));
     } catch (e) {
       console.error(e);
     }
@@ -504,18 +604,20 @@
         <div>
           <label for="capture-country" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Country</label>
           <div class="relative flex items-center">
-            <input
+            <Autocomplete
               id="capture-country"
-              type="text"
+              label=""
               placeholder="eg Madagascar"
               bind:value={form.country}
-              class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+              suggestions={countrySuggestions}
+              oninput={handleCountryInput}
+              onselect={onCountryChanged}
             />
             <button
               type="button"
               onclick={() => properCaseField("country")}
               title="Proper case Country"
-              class="absolute right-2 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold"
+              class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold z-10"
             >
               Aa
             </button>
@@ -525,18 +627,20 @@
         <div>
           <label for="capture-stateProvince" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Admin Div 1 <span class="text-[70%]">(state/province)</span></label>
           <div class="relative flex items-center">
-            <input
+            <Autocomplete
               id="capture-stateProvince"
-              type="text"
+              label=""
               placeholder="eg 'Itasy'"
               bind:value={form.stateProvince}
-              class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+              suggestions={stateProvinceSuggestions}
+              oninput={handleStateProvinceInput}
+              onselect={onStateProvinceChanged}
             />
             <button
               type="button"
               onclick={() => properCaseField("stateProvince")}
               title="Proper case Admin Div 1"
-              class="absolute right-2 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold"
+              class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold z-10"
             >
               Aa
             </button>
@@ -546,18 +650,20 @@
         <div>
           <label for="capture-county" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Admin Div 2</label>
           <div class="relative flex items-center">
-            <input
+            <Autocomplete
               id="capture-county"
-              type="text"
+              label=""
               placeholder="eg 'Miarinarivo'"
               bind:value={form.county}
-              class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+              suggestions={countySuggestions}
+              oninput={handleCountyInput}
+              onselect={onCountyChanged}
             />
             <button
               type="button"
               onclick={() => properCaseField("county")}
               title="Proper case Admin Div 2"
-              class="absolute right-2 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold"
+              class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold z-10"
             >
               Aa
             </button>
@@ -567,18 +673,19 @@
         <div>
           <label for="capture-municipality" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">Admin Div 3</label>
           <div class="relative flex items-center">
-            <input
+            <Autocomplete
               id="capture-municipality"
-              type="text"
+              label=""
               placeholder="eg 'Manazary'"
               bind:value={form.municipality}
-              class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+              suggestions={municipalitySuggestions}
+              oninput={handleMunicipalityInput}
             />
             <button
               type="button"
               onclick={() => properCaseField("municipality")}
               title="Proper case Admin Div 3"
-              class="absolute right-2 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold"
+              class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold z-10"
             >
               Aa
             </button>

@@ -262,6 +262,10 @@ fn run_migrations(conn: &Connection) -> Result<()> {
     conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_date ON gbif(year, month, day);", [])?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_normalizedRecordedBy ON gbif(normalizedRecordedBy COLLATE NOCASE);", [])?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_country ON gbif(country COLLATE NOCASE);", [])?;
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_stateProvince ON gbif(stateProvince COLLATE NOCASE);", [])?;
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_county ON gbif(county COLLATE NOCASE);", [])?;
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_municipality ON gbif(municipality COLLATE NOCASE);", [])?;
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_geo_hierarchy ON gbif(country COLLATE NOCASE, stateProvince COLLATE NOCASE, county COLLATE NOCASE, municipality COLLATE NOCASE);", [])?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_family ON gbif(family COLLATE NOCASE);", [])?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_normalized_sci_name ON gbif(normalized_scientific_name);", [])?;
 
