@@ -31,15 +31,30 @@
   let hasFamily = $derived(filters.family.trim().length > 0);
   let hasCountry = $derived(filters.country.trim().length > 0);
   let hasStateProvince = $derived(filters.stateProvince.trim().length > 0);
-  let hasDate = $derived(filters.year !== "" || filters.month !== "" || filters.day !== "");
   
-  let otherFieldsPresent = $derived(hasRecordNumber || hasLocality || hasScientificName || hasFamily || hasCountry || hasStateProvince);
+  let hasYear = $derived(filters.year !== "");
+  let hasMonth = $derived(filters.month !== "");
+  let hasDay = $derived(filters.day !== "");
+  let hasDate = $derived(hasYear || hasMonth || hasDay);
   
-  let collectorConstraintOk = $derived(!hasRecordedBy || otherFieldsPresent || hasDate);
-  let dateConstraintOk = $derived(!hasDate || hasScientificName || hasFamily || hasLocality || hasRecordedBy);
-  let hasAtLeastOneQuery = $derived(hasRecordedBy || otherFieldsPresent || hasDate);
+  let hasOther = $derived(hasFamily || hasScientificName || hasCountry || hasStateProvince || hasLocality);
   
-  let searchIsValid = $derived(hasAtLeastOneQuery && collectorConstraintOk && dateConstraintOk);
+  let nonDateFieldsCount = $derived(
+    [hasRecordedBy, hasRecordNumber, hasFamily, hasScientificName, hasCountry, hasStateProvince, hasLocality]
+      .filter(Boolean).length
+  );
+  
+  let totalFilledCount = $derived(
+    [hasRecordedBy, hasRecordNumber, hasYear, hasMonth, hasDay, hasFamily, hasScientificName, hasCountry, hasStateProvince, hasLocality]
+      .filter(Boolean).length
+  );
+
+  let collectorRuleOk = $derived(!hasRecordedBy || hasRecordNumber || (hasDate && hasOther));
+  let recordNumberRuleOk = $derived(!hasRecordNumber || hasRecordedBy);
+  let dateRuleOk = $derived(!hasDate || (nonDateFieldsCount >= 2));
+  let tglRuleOk = $derived(!hasOther || (totalFilledCount >= 3));
+
+  let searchIsValid = $derived(totalFilledCount > 0 && collectorRuleOk && recordNumberRuleOk && dateRuleOk && tglRuleOk);
 
   async function handleSearch() {
     if (!searchIsValid) return;
@@ -145,7 +160,7 @@
           <input
             id="search-recordedBy"
             type="text"
-            placeholder="Partial search ex. Raza"
+            placeholder="Partial eg 'Raza'"
             bind:value={filters.recordedBy}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
@@ -155,7 +170,7 @@
           <input
             id="search-recordNumber"
             type="text"
-            placeholder="ex. 1042"
+            placeholder="eg 1042"
             bind:value={filters.recordNumber}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
@@ -166,7 +181,6 @@
             <input
               id="search-year"
               type="number"
-              placeholder="YYYY"
               bind:value={filters.year}
               class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
             />
@@ -176,7 +190,6 @@
             <input
               id="search-month"
               type="number"
-              placeholder="MM"
               min="1"
               max="12"
               bind:value={filters.month}
@@ -188,7 +201,6 @@
             <input
               id="search-day"
               type="number"
-              placeholder="DD"
               min="1"
               max="31"
               bind:value={filters.day}
@@ -215,14 +227,14 @@
           <input
             id="search-scientificName"
             type="text"
-            placeholder="Partial search ex. ab man"
+            placeholder="Partial search eg 'ab man'"
             bind:value={filters.scientificName}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
         </div>
       </div>
 
-      <!-- Row 3: Country, State Province (Admin Div 1), Locality -->
+      <!-- Row 3: Country, State Province (Admin 2), Locality -->
       <div class="grid grid-cols-12 gap-3">
         <div class="col-span-12 sm:col-span-3">
           <label for="search-country" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Country</label>
@@ -235,11 +247,11 @@
           />
         </div>
         <div class="col-span-12 sm:col-span-3">
-          <label for="search-stateProvince" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Admin Div 1</label>
+          <label for="search-stateProvince" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Admin Div 1 <span class="text-[70%]">(state/province)</span></label>
           <input
             id="search-stateProvince"
             type="text"
-            placeholder="Partial ex. Itas"
+            placeholder="Partial eg 'Itas'"
             bind:value={filters.stateProvince}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
@@ -249,7 +261,7 @@
           <input
             id="search-locality"
             type="text"
-            placeholder="Partial ex. Anta ré"
+            placeholder="Partial search eg 'Anta ré'"
             bind:value={filters.locality}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
@@ -258,13 +270,24 @@
     </div>
 
     <!-- Constraints Warning Flags -->
-    {#if hasRecordedBy && !otherFieldsPresent && !hasDate}
+    {#if hasRecordedBy && !collectorRuleOk}
       <div class="mt-3 text-xs bg-amber-50 border-l-2 border-amber-500 text-amber-700 px-3 py-2 font-medium">
-        ⚠️ Collector search must be accompanied by at least one other field (like locality, country, or taxon).
+        ⚠️ Collector search requires a collector number, or if just a collector and a date field, it also requires at least one of (family, scientific name, country, Admin Div 1, or locality).
       </div>
-    {:else if hasDate && !(hasScientificName || hasFamily || hasLocality || hasRecordedBy)}
+    {/if}
+    {#if hasRecordNumber && !recordNumberRuleOk}
       <div class="mt-3 text-xs bg-amber-50 border-l-2 border-amber-500 text-amber-700 px-3 py-2 font-medium">
-        ⚠️ Date queries require a Taxon Name, Family, Collector, or Locality to prevent excessive database hits.
+        ⚠️ Collector number always requires a collector name, regardless of other fields.
+      </div>
+    {/if}
+    {#if hasDate && !dateRuleOk}
+      <div class="mt-3 text-xs bg-amber-50 border-l-2 border-amber-500 text-amber-700 px-3 py-2 font-medium">
+        ⚠️ Searches on year, month, or day require at least two other non-date fields.
+      </div>
+    {/if}
+    {#if hasOther && !tglRuleOk}
+      <div class="mt-3 text-xs bg-amber-50 border-l-2 border-amber-500 text-amber-700 px-3 py-2 font-medium">
+        ⚠️ Searching on family, scientific name, country, Admin Div 1, or locality requires at least two other fields (total of 3 or more fields).
       </div>
     {/if}
 

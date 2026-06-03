@@ -19,6 +19,8 @@
   let sessionName = $state("");
   let sessionList = $state(/** @type {any[]} */ ([]));
   let activeTab = $state("sessions"); // "sessions", "settings"
+  let editingSessionId = $state(/** @type {number|null} */ (null));
+  let editingName = $state("");
   
   // Export Settings state
   let exportFormat = $state("DwC"); // "DwC" or "BRAHMS"
@@ -104,6 +106,42 @@
       selectSession(session);
     } catch (err) {
       alert("Error creating session: " + (/** @type {any} */ (err)).toString());
+    }
+  }
+
+  function startEditing(/** @type {any} */ ses, /** @type {MouseEvent} */ e) {
+    if (e) e.stopPropagation();
+    editingSessionId = ses.id;
+    editingName = ses.name;
+  }
+
+  async function saveSessionName(/** @type {any} */ ses) {
+    if (editingSessionId === null) return;
+    
+    let newName = editingName.trim();
+    let oldName = ses.name;
+    
+    // Clear editing state first so UI updates immediately
+    editingSessionId = null;
+    
+    if (newName.length === 0 || newName === oldName) {
+      // Revert if empty or unchanged
+      return;
+    }
+    
+    try {
+      await invoke("rename_session", { id: ses.id, name: newName });
+      await loadSessions();
+    } catch (err) {
+      alert("Error renaming session: " + (/** @type {any} */ (err)).toString());
+    }
+  }
+
+  function handleEditingKeydown(/** @type {KeyboardEvent} */ e, /** @type {any} */ ses) {
+    if (e.key === "Enter") {
+      saveSessionName(ses);
+    } else if (e.key === "Escape") {
+      editingSessionId = null;
     }
   }
 
@@ -398,12 +436,34 @@
                   <ul class="border border-slate-200 divide-y divide-slate-200">
                     {#each sessionList as ses}
                       <li class="hover:bg-slate-50 transition-colors flex justify-between items-center pr-4">
-                        <button
+                        <!-- svelte-ignore a11y_click_events_have_key_events -->
+                        <!-- svelte-ignore a11y_no_static_element_interactions -->
+                        <div
                           onclick={() => selectSession(ses)}
-                          class="flex-1 text-left p-4 flex justify-between items-center outline-none"
+                          class="flex-1 text-left p-4 flex justify-between items-center cursor-pointer outline-none"
                         >
-                          <div>
-                            <span class="text-sm font-semibold text-slate-900 block">{ses.name}</span>
+                          <!-- svelte-ignore a11y_click_events_have_key_events -->
+                          <!-- svelte-ignore a11y_no_static_element_interactions -->
+                          <div class="flex-1 mr-4" onclick={(e) => e.stopPropagation()}>
+                            {#if editingSessionId === ses.id}
+                              <!-- svelte-ignore a11y_autofocus -->
+                              <input
+                                type="text"
+                                bind:value={editingName}
+                                onblur={() => saveSessionName(ses)}
+                                onkeydown={(e) => handleEditingKeydown(e, ses)}
+                                class="bg-white border border-slate-300 text-slate-800 text-sm px-2 py-1 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none w-full"
+                                autofocus
+                              />
+                            {:else}
+                              <span 
+                                onclick={(e) => startEditing(ses, e)}
+                                class="text-sm font-semibold text-slate-900 block cursor-pointer hover:text-slate-600 hover:underline"
+                                title="Click to rename"
+                              >
+                                {ses.name}
+                              </span>
+                            {/if}
                             <span class="text-[10px] text-slate-400 font-semibold uppercase">ID: {ses.id}</span>
                           </div>
                           <div class="flex items-center gap-3">
@@ -412,7 +472,7 @@
                             </span>
                             <span class="text-slate-400 font-bold text-sm">→</span>
                           </div>
-                        </button>
+                        </div>
                         <button
                           onclick={(e) => handleDeleteSession(ses.id, ses.name, e)}
                           class="bg-red-50 hover:bg-red-100 text-red-650 border border-red-200 px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors ml-2"

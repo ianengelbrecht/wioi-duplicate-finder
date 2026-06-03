@@ -21,9 +21,9 @@
     month: "",
     day: "",
     country: "",
-    stateProvince: "", // Label Admin 2
-    county: "",        // Label Admin 3
-    municipality: "",  // Label Admin 4
+    stateProvince: "", // Label Admin Div 1
+    county: "",        // Label Admin Div 2
+    municipality: "",  // Label Admin Div 3
     locality: "",
     verbatimCoordinates: "",
     locationNotes: "", // Mapped to locationRemarks
@@ -409,7 +409,7 @@
         <input
           id="capture-catalogNumber"
           type="text"
-          placeholder="ex. TAN123456"
+          placeholder="eg TAN123456"
           bind:value={form.catalogNumber}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
         />
@@ -418,7 +418,7 @@
         <Autocomplete
           id="capture-duplicates"
           label="Duplicates (comma-separated)"
-          placeholder="ex. P, K, etc..."
+          placeholder="eg P, K, etc..."
           bind:value={form.duplicates}
           suggestions={duplicateSuggestions}
           oninput={handleDuplicateInput}
@@ -433,7 +433,7 @@
         <Autocomplete
           id="capture-recordedBy"
           label="Collector/s"
-          placeholder="Partial search ex. 'Raza'"
+          placeholder="Partial eg 'Raza'"
           bind:value={form.recordedBy}
           suggestions={collectorSuggestions}
           oninput={handleCollectorInput}
@@ -444,17 +444,18 @@
         <input
           id="capture-recordNumber"
           type="text"
-          placeholder="ex. 1042"
+          placeholder="eg 1042"
           bind:value={form.recordNumber}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
         />
       </div>
+      
       <div class="col-span-3">
         <label for="capture-verbatimEventDate" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Verbatim Date</label>
         <input
           id="capture-verbatimEventDate"
           type="text"
-          placeholder="ex. May 20, '84"
+          placeholder="eg 'May 20, `84'"
           bind:value={form.verbatimEventDate}
           onblur={parseVerbatimDate}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
@@ -506,7 +507,7 @@
             <input
               id="capture-country"
               type="text"
-              placeholder="ex. Madagascar"
+              placeholder="eg Madagascar"
               bind:value={form.country}
               class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
             />
@@ -522,19 +523,19 @@
         </div>
 
         <div>
-          <label for="capture-stateProvince" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Admin 2</label>
+          <label for="capture-stateProvince" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Admin Div 1 <span class="text-[70%]">(state/province)</span></label>
           <div class="relative flex items-center">
             <input
               id="capture-stateProvince"
               type="text"
-              placeholder="ex. Itasy"
+              placeholder="eg 'Itasy'"
               bind:value={form.stateProvince}
               class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
             />
             <button
               type="button"
               onclick={() => properCaseField("stateProvince")}
-              title="Proper case Admin 2"
+              title="Proper case Admin Div 1"
               class="absolute right-2 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold"
             >
               Aa
@@ -543,19 +544,19 @@
         </div>
 
         <div>
-          <label for="capture-county" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Admin 3</label>
+          <label for="capture-county" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Admin Div 2</label>
           <div class="relative flex items-center">
             <input
               id="capture-county"
               type="text"
-              placeholder="ex. Miarinarivo"
+              placeholder="eg 'Miarinarivo'"
               bind:value={form.county}
               class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
             />
             <button
               type="button"
               onclick={() => properCaseField("county")}
-              title="Proper case Admin 3"
+              title="Proper case Admin Div 2"
               class="absolute right-2 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold"
             >
               Aa
@@ -564,19 +565,19 @@
         </div>
 
         <div>
-          <label for="capture-municipality" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">Admin 4</label>
+          <label for="capture-municipality" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">Admin Div 3</label>
           <div class="relative flex items-center">
             <input
               id="capture-municipality"
               type="text"
-              placeholder="ex. Manazary"
+              placeholder="eg 'Manazary'"
               bind:value={form.municipality}
               class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
             />
             <button
               type="button"
               onclick={() => properCaseField("municipality")}
-              title="Proper case Admin 4"
+              title="Proper case Admin Div 3"
               class="absolute right-2 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold"
             >
               Aa
@@ -594,7 +595,7 @@
           <Autocomplete
             id="capture-locality"
             label=""
-            placeholder="ex. Antakohandro (use partial search ex. Anta)"
+            placeholder="eg 'Antakohandro' (use partial search eg 'Anta')"
             bind:value={form.locality}
             suggestions={localitySuggestions}
             oninput={handleLocalityInput}
@@ -617,7 +618,7 @@
           <textarea
             id="capture-locationNotes"
             rows="2"
-            placeholder="ex. 12 km south, main ravine"
+            placeholder="eg '12 km south, main ravine'"
             bind:value={form.locationNotes}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all resize-none"
           ></textarea>
@@ -637,7 +638,7 @@
         <input
           id="capture-verbatimCoordinates"
           type="text"
-          placeholder="ex. 28°15'S, 28°39'E"
+          placeholder="eg 28°15'S, 28°39'E"
           bind:value={form.verbatimCoordinates}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
         />
@@ -684,7 +685,7 @@
           <Autocomplete
             id="capture-scientificName"
             label="Scientific Name"
-            placeholder="Partial search ex. ab man"
+            placeholder="Partial search eg 'ab man'"
             bind:value={form.scientificName}
             suggestions={taxonSuggestions}
             oninput={handleTaxonInput}
@@ -720,7 +721,7 @@
         <input
           id="capture-identifiedBy"
           type="text"
-          placeholder="Partial search ex. Raza"
+          placeholder="Partial search eg 'Raza'"
           bind:value={form.identifiedBy}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
         />

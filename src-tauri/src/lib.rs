@@ -153,27 +153,52 @@ fn search_reference(app: AppHandle, filters: serde_json::Value) -> Result<Vec<se
     let has_family = !family.is_empty();
     let has_country = !country.is_empty();
     let has_state_province = !state_province.is_empty();
-    let has_date = year.is_some() || month.is_some() || day.is_some();
     
-    // Constraint: family search must be accompanied by collector
-    if has_family && !has_recorded_by {
-        return Err("Family search must be accompanied by a Collector name.".to_string());
-    }
-
-    let other_fields_present = has_record_number || has_locality || has_scientific_name || has_family || has_country || has_state_province;
+    let has_year = year.is_some();
+    let has_month = month.is_some();
+    let has_day = day.is_some();
+    let has_date = has_year || has_month || has_day;
     
-    // Constraint: collector must be accompanied by at least one other field
-    if has_recorded_by && !other_fields_present && !has_date {
-        return Err("Collector search must be accompanied by at least one other field (e.g. locality, country, taxon, or date).".to_string());
-    }
+    let has_other = has_family || has_scientific_name || has_country || has_state_province || has_locality;
     
-    // Constraint: date searches must be accompanied by taxon name, family, collector, or locality
-    if has_date && !(has_scientific_name || has_family || has_locality || has_recorded_by) {
-        return Err("Date queries require a Taxon Name, Family, Collector, or Locality to prevent excessive database hits.".to_string());
-    }
+    // Count how many non-date fields are filled
+    let mut non_date_fields_count = 0;
+    if has_recorded_by { non_date_fields_count += 1; }
+    if has_record_number { non_date_fields_count += 1; }
+    if has_family { non_date_fields_count += 1; }
+    if has_scientific_name { non_date_fields_count += 1; }
+    if has_country { non_date_fields_count += 1; }
+    if has_state_province { non_date_fields_count += 1; }
+    if has_locality { non_date_fields_count += 1; }
     
-    if !has_recorded_by && !other_fields_present && !has_date {
+    // Count total filled fields in the form
+    let mut total_filled_count = non_date_fields_count;
+    if has_year { total_filled_count += 1; }
+    if has_month { total_filled_count += 1; }
+    if has_day { total_filled_count += 1; }
+    
+    if total_filled_count == 0 {
         return Err("Please enter at least one query search field.".to_string());
+    }
+    
+    // Rule 1: collector requires at least a collector number, or if just collector and one of the date fields, then also one of the other fields
+    if has_recorded_by && !has_record_number && !(has_date && has_other) {
+        return Err("Collector search requires a collector number, or if just a collector and a date field, it also requires at least one of (family, scientific name, country, Admin Div 1, or locality).".to_string());
+    }
+    
+    // Rule 2: collector number always requires a collector
+    if has_record_number && !has_recorded_by {
+        return Err("Collector number always requires a collector name, regardless of other fields.".to_string());
+    }
+    
+    // Rule 3: date searches require at least two other non-date fields
+    if has_date && non_date_fields_count < 2 {
+        return Err("Searches on year, month, or day require at least two other non-date fields.".to_string());
+    }
+    
+    // Rule 4: family, scientific name, country, stateProvince, or locality requires at least two other fields (total of 3 or more fields)
+    if has_other && total_filled_count < 3 {
+        return Err("Searching on family, scientific name, country, Admin Div 1, or locality requires at least two other fields (total of 3 or more fields).".to_string());
     }
     
     let mut sql = String::from(
@@ -654,6 +679,24 @@ fn delete_session(app: AppHandle, id: i32) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn rename_session(app: AppHandle, id: i32, name: String) -> Result<(), String> {
+    let db_path = get_db_path(&app);
+    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+    
+    let name_clean = name.trim();
+    if name_clean.is_empty() {
+        return Err("Session name cannot be empty.".to_string());
+    }
+    
+    conn.execute(
+        "UPDATE sessions SET name = ?1 WHERE id = ?2",
+        params![name_clean, id],
+    ).map_err(|e| e.to_string())?;
+    
+    Ok(())
+}
+
 
 #[tauri::command]
 fn save_export_settings(app: AppHandle, user_id: i32, format: String, mappings: String) -> Result<(), String> {
@@ -861,6 +904,7 @@ pub fn run() {
             get_captured_records,
             delete_captured_record,
             delete_session,
+            rename_session,
             select_export_path,
             save_export_settings,
             get_export_settings,
