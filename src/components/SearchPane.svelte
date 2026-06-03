@@ -360,6 +360,9 @@
                 
                 <!-- Scientific Name -->
                 <td class="p-3 text-slate-900 italic font-semibold">
+                  {#if rec.identificationQualifier && rec.identificationQualifier.trim()}
+                    <span class="not-italic">{rec.identificationQualifier.trim()} </span>
+                  {/if}
                   {rec.scientificName || 'N/A'}
                   {#if rec.family}
                     <span class="text-[9px] text-slate-400 not-italic uppercase tracking-wider font-bold block">{rec.family}</span>

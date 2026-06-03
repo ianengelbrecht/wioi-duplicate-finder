@@ -203,7 +203,8 @@ fn search_reference(app: AppHandle, filters: serde_json::Value) -> Result<Vec<se
     
     let mut sql = String::from(
         "SELECT recordedBy, recordNumber, locality, locationRemarks, verbatimLocality, 
-                scientificName, family, country, stateProvince, year, month, day 
+                scientificName, family, country, stateProvince, year, month, day,
+                identificationQualifier
          FROM gbif WHERE 1=1"
     );
     let mut params_vec: Vec<serde_json::Value> = Vec::new();
@@ -311,6 +312,7 @@ fn search_reference(app: AppHandle, filters: serde_json::Value) -> Result<Vec<se
         let year: Option<i32> = row.get(9)?;
         let month: Option<i32> = row.get(10)?;
         let day: Option<i32> = row.get(11)?;
+        let id_qualifier: Option<String> = row.get(12)?;
         
         Ok(json!({
             "id": serde_json::Value::Null,
@@ -329,6 +331,7 @@ fn search_reference(app: AppHandle, filters: serde_json::Value) -> Result<Vec<se
             "year": year,
             "month": month,
             "day": day,
+            "identificationQualifier": id_qualifier.unwrap_or_default(),
         }))
     }).map_err(|e| e.to_string())?;
     

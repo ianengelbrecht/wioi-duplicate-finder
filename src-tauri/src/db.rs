@@ -93,6 +93,7 @@ fn run_migrations(conn: &Connection) -> Result<()> {
             year INTEGER,
             month INTEGER,
             day INTEGER,
+            verbatimEventDate VARCHAR(30),
             country TEXT,
             stateProvince TEXT,
             county TEXT,
