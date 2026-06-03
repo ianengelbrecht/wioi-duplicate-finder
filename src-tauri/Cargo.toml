@@ -1,7 +1,7 @@
 [package]
-name = "tauri-app"
+name = "WIOI_Herbarium_Duplicate_Finder"
 version = "0.1.0"
-description = "A Tauri App"
+description = "Find and reuse duplicate herbarium specimen data fast"
 authors = ["you"]
 edition = "2021"
 

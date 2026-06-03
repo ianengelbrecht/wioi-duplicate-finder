@@ -10,7 +10,7 @@ mod parser;
 mod db;
 
 use parser::{normalize_taxon_name, normalize_search_recorded_by, normalize_locality};
-use db::{get_db_path, init_database, hash_password};
+use db::{get_db_path, init_database, hash_password, shutdown_database};
 
 // -------------------------------------------------------------
 // Tauri Command Handlers
@@ -1012,7 +1012,7 @@ fn autocomplete_geography(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             // Initialize database on startup
@@ -1042,6 +1042,12 @@ pub fn run() {
             autocomplete_geography,
             get_table_counts
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|app_handle, event| {
+        if let tauri::RunEvent::Exit = event {
+            shutdown_database(app_handle);
+        }
+    });
 }

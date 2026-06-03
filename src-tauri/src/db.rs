@@ -56,6 +56,19 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
     
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
     
+    // Enable WAL journal mode & normal synchronous for performance and resilience
+    let _ = conn.execute("PRAGMA journal_mode=WAL;", []);
+    let _ = conn.execute("PRAGMA synchronous=NORMAL;", []);
+    
+    // Run quick integrity check on startup
+    if let Ok(res) = conn.query_row("PRAGMA quick_check;", [], |r| r.get::<_, String>(0)) {
+        if res != "ok" {
+            println!("Warning: Database quick_check failed on startup: {}", res);
+        } else {
+            println!("Database quick_check passed on startup.");
+        }
+    }
+    
     // Setup tables
     run_migrations(&conn).map_err(|e| e.to_string())?;
     
@@ -63,6 +76,31 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
     auto_normalize_reference_data(&conn).map_err(|e| e.to_string())?;
     
     Ok(())
+}
+
+/// Runs optimizations and integrity checks on shutdown.
+pub fn shutdown_database(app: &AppHandle) {
+    let db_path = get_db_path(app);
+    if !db_path.exists() {
+        return;
+    }
+    if let Ok(conn) = Connection::open(&db_path) {
+        println!("Running database optimization and integrity checks on shutdown...");
+        let _ = conn.execute("PRAGMA optimize;", []);
+        
+        match conn.query_row("PRAGMA quick_check;", [], |r| r.get::<_, String>(0)) {
+            Ok(res) => {
+                if res != "ok" {
+                    println!("Database quick_check failed on shutdown: {}", res);
+                } else {
+                    println!("Database quick_check passed on shutdown.");
+                }
+            }
+            Err(e) => {
+                println!("Failed to run database quick_check on shutdown: {}", e);
+            }
+        }
+    }
 }
 
 fn run_migrations(conn: &Connection) -> Result<()> {
