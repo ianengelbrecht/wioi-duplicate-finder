@@ -416,7 +416,7 @@
               <form onsubmit={handleCreateSession} class="flex gap-2">
                 <input
                   type="text"
-                  placeholder="e.g. Kirstenbosch Field Trip Jan 2026"
+                  placeholder="eg Malvaceae Cupboard 2"
                   bind:value={sessionName}
                   class="flex-1 bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
                 />

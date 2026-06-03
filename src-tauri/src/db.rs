@@ -343,6 +343,23 @@ fn run_migrations(conn: &Connection) -> Result<()> {
     )?;
 
     // Create FTS triggers to automatically index inserts/deletes/updates to gbif
+    recreate_gbif_triggers(conn)?;
+
+    // 4. FTS5 Virtual Table for wcvp_taxonomy table
+    conn.execute(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS wcvp_taxonomy_fts USING fts5(
+            taxon_name,
+            content='wcvp_taxonomy'
+        );",
+        [],
+    )?;
+
+    recreate_wcvp_triggers(conn)?;
+
+    Ok(())
+}
+
+fn recreate_gbif_triggers(conn: &Connection) -> Result<()> {
     conn.execute(
         "CREATE TRIGGER IF NOT EXISTS gbif_ai AFTER INSERT ON gbif BEGIN
             INSERT INTO gbif_fts(
@@ -437,16 +454,10 @@ fn run_migrations(conn: &Connection) -> Result<()> {
         END;",
         [],
     )?;
+    Ok(())
+}
 
-    // 4. FTS5 Virtual Table for wcvp_taxonomy table
-    conn.execute(
-        "CREATE VIRTUAL TABLE IF NOT EXISTS wcvp_taxonomy_fts USING fts5(
-            taxon_name,
-            content='wcvp_taxonomy'
-        );",
-        [],
-    )?;
-
+fn recreate_wcvp_triggers(conn: &Connection) -> Result<()> {
     conn.execute(
         "CREATE TRIGGER IF NOT EXISTS wcvp_taxonomy_ai
         AFTER INSERT ON wcvp_taxonomy
@@ -479,98 +490,115 @@ fn run_migrations(conn: &Connection) -> Result<()> {
         END;",
         [],
     )?;
-
     Ok(())
 }
 
-
 pub fn auto_normalize_reference_data(conn: &Connection) -> Result<()> {
-    // 1. Check if gbif has un-normalized records
+    // 1. Check if gbif has un-normalized records (ignoring nulls and empty strings)
     let count_gbif: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM gbif WHERE scientificName IS NOT NULL AND (normalized_scientific_name IS NULL OR normalized_scientific_name = '')",
+        "SELECT COUNT(*) FROM gbif WHERE scientificName IS NOT NULL AND scientificName != '' AND (normalized_scientific_name IS NULL OR normalized_scientific_name = '')",
         [],
         |r| r.get(0)
     )?;
     
-    if count_gbif > 0 {
-        println!("Detected {} un-normalized scientific names in gbif. Normalizing...", count_gbif);
-        let mut stmt = conn.prepare(
-            "SELECT gbifID, scientificName FROM gbif WHERE scientificName IS NOT NULL AND (normalized_scientific_name IS NULL OR normalized_scientific_name = '')"
-        )?;
-        let mut rows = stmt.query([])?;
-        let mut updates = Vec::new();
-        while let Some(row) = rows.next()? {
-            let id: i64 = row.get(0)?;
-            let name: String = row.get(1)?;
-            let normalized = normalize_taxon_name(&name);
-            updates.push((id, normalized));
-        }
-        
-        let mut stmt_update = conn.prepare("UPDATE gbif SET normalized_scientific_name = ?1 WHERE gbifID = ?2")?;
-        conn.execute("BEGIN TRANSACTION", [])?;
-        for (id, normalized) in updates {
-            stmt_update.execute(params![normalized, id])?;
-        }
-        conn.execute("COMMIT", [])?;
-        
-        println!("Rebuilding FTS5 full-text index...");
-        conn.execute("INSERT INTO gbif_fts(gbif_fts) VALUES('rebuild');", [])?;
-        println!("Rebuilt FTS5 index successfully!");
-    }
-    
-    // 1b. Check if gbif has un-normalized localities
+    // 1b. Check if gbif has un-normalized localities (ignoring nulls and empty strings)
     let count_locality: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM gbif WHERE (normalized_locality IS NULL OR normalized_locality = '') AND (locality IS NOT NULL OR locationRemarks IS NOT NULL OR verbatimLocality IS NOT NULL)",
+        "SELECT COUNT(*) FROM gbif WHERE (normalized_locality IS NULL OR normalized_locality = '') AND (locality IS NOT NULL AND locality != '' OR locationRemarks IS NOT NULL AND locationRemarks != '' OR verbatimLocality IS NOT NULL AND verbatimLocality != '')",
         [],
         |r| r.get(0)
     )?;
-    
-    if count_locality > 0 {
-        println!("Detected {} un-normalized localities in gbif. Normalizing...", count_locality);
-        let mut stmt = conn.prepare(
-            "SELECT gbifID, locality, locationRemarks, verbatimLocality FROM gbif WHERE (normalized_locality IS NULL OR normalized_locality = '') AND (locality IS NOT NULL OR locationRemarks IS NOT NULL OR verbatimLocality IS NOT NULL)"
-        )?;
-        let mut rows = stmt.query([])?;
-        let mut updates_locality = Vec::new();
-        while let Some(row) = rows.next()? {
-            let id: i64 = row.get(0)?;
-            let locality_val: Option<String> = row.get(1)?;
-            let remarks_val: Option<String> = row.get(2)?;
-            let verbatim_val: Option<String> = row.get(3)?;
-            
-            let combined = format!(
-                "{} {} {}",
-                locality_val.unwrap_or_default(),
-                remarks_val.unwrap_or_default(),
-                verbatim_val.unwrap_or_default()
-            );
-            let normalized = normalize_locality(&combined);
-            updates_locality.push((id, normalized));
+
+    if count_gbif > 0 || count_locality > 0 {
+        println!("Detected un-normalized data in gbif ({} names, {} localities). Normalizing...", count_gbif, count_locality);
+        
+        // Temporarily drop FTS triggers to make updates lightning fast
+        let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ai", []);
+        let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ad", []);
+        let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_au", []);
+        
+        // Gather scientific names updates
+        let mut updates_names = Vec::new();
+        if count_gbif > 0 {
+            let mut stmt = conn.prepare(
+                "SELECT gbifID, scientificName FROM gbif WHERE scientificName IS NOT NULL AND scientificName != '' AND (normalized_scientific_name IS NULL OR normalized_scientific_name = '')"
+            )?;
+            let mut rows = stmt.query([])?;
+            while let Some(row) = rows.next()? {
+                let id: i64 = row.get(0)?;
+                let name: String = row.get(1)?;
+                let normalized = normalize_taxon_name(&name);
+                updates_names.push((id, normalized));
+            }
         }
         
-        let mut stmt_update = conn.prepare("UPDATE gbif SET normalized_locality = ?1 WHERE gbifID = ?2")?;
-        conn.execute("BEGIN TRANSACTION", [])?;
-        for (id, normalized) in updates_locality {
-            stmt_update.execute(params![normalized, id])?;
+        // Gather locality updates
+        let mut updates_locality = Vec::new();
+        if count_locality > 0 {
+            let mut stmt = conn.prepare(
+                "SELECT gbifID, locality, locationRemarks, verbatimLocality FROM gbif WHERE (normalized_locality IS NULL OR normalized_locality = '') AND (locality IS NOT NULL AND locality != '' OR locationRemarks IS NOT NULL AND locationRemarks != '' OR verbatimLocality IS NOT NULL AND verbatimLocality != '')"
+            )?;
+            let mut rows = stmt.query([])?;
+            while let Some(row) = rows.next()? {
+                let id: i64 = row.get(0)?;
+                let locality_val: Option<String> = row.get(1)?;
+                let remarks_val: Option<String> = row.get(2)?;
+                let verbatim_val: Option<String> = row.get(3)?;
+                
+                let combined = format!(
+                    "{} {} {}",
+                    locality_val.unwrap_or_default(),
+                    remarks_val.unwrap_or_default(),
+                    verbatim_val.unwrap_or_default()
+                );
+                let normalized = normalize_locality(&combined);
+                updates_locality.push((id, normalized));
+            }
         }
+        
+        // Apply updates in a single transaction
+        conn.execute("BEGIN TRANSACTION", [])?;
+        
+        if !updates_names.is_empty() {
+            let mut stmt_update = conn.prepare("UPDATE gbif SET normalized_scientific_name = ?1 WHERE gbifID = ?2")?;
+            for (id, normalized) in updates_names {
+                stmt_update.execute(params![normalized, id])?;
+            }
+        }
+        
+        if !updates_locality.is_empty() {
+            let mut stmt_update = conn.prepare("UPDATE gbif SET normalized_locality = ?1 WHERE gbifID = ?2")?;
+            for (id, normalized) in updates_locality {
+                stmt_update.execute(params![normalized, id])?;
+            }
+        }
+        
         conn.execute("COMMIT", [])?;
         
-        println!("Rebuilding FTS5 full-text index for locality...");
+        // Recreate the triggers
+        recreate_gbif_triggers(conn)?;
+        
+        println!("Rebuilding FTS5 full-text index for gbif...");
         conn.execute("INSERT INTO gbif_fts(gbif_fts) VALUES('rebuild');", [])?;
         println!("Rebuilt FTS5 index successfully!");
     }
     
     // 2. Check if wcvp_taxonomy has un-normalized records
     let count_wcvp: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM wcvp_taxonomy WHERE taxon_name IS NOT NULL AND (normalized_taxon_name IS NULL OR normalized_taxon_name = '')",
+        "SELECT COUNT(*) FROM wcvp_taxonomy WHERE taxon_name IS NOT NULL AND taxon_name != '' AND (normalized_taxon_name IS NULL OR normalized_taxon_name = '')",
         [],
         |r| r.get(0)
     )?;
     
     if count_wcvp > 0 {
         println!("Detected {} un-normalized taxa in wcvp_taxonomy. Normalizing...", count_wcvp);
+        
+        // Drop triggers to speed up bulk updates
+        let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_ai", []);
+        let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_ad", []);
+        let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_au", []);
+        
         let mut stmt = conn.prepare(
-            "SELECT plant_name_id, taxon_name FROM wcvp_taxonomy WHERE taxon_name IS NOT NULL AND (normalized_taxon_name IS NULL OR normalized_taxon_name = '')"
+            "SELECT plant_name_id, taxon_name FROM wcvp_taxonomy WHERE taxon_name IS NOT NULL AND taxon_name != '' AND (normalized_taxon_name IS NULL OR normalized_taxon_name = '')"
         )?;
         let mut rows = stmt.query([])?;
         let mut updates_wcvp = Vec::new();
@@ -581,13 +609,19 @@ pub fn auto_normalize_reference_data(conn: &Connection) -> Result<()> {
             updates_wcvp.push((id, normalized));
         }
         
-        let mut stmt_update = conn.prepare("UPDATE wcvp_taxonomy SET normalized_taxon_name = ?1 WHERE plant_name_id = ?2")?;
         conn.execute("BEGIN TRANSACTION", [])?;
+        let mut stmt_update = conn.prepare("UPDATE wcvp_taxonomy SET normalized_taxon_name = ?1 WHERE plant_name_id = ?2")?;
         for (id, normalized) in updates_wcvp {
             stmt_update.execute(params![normalized, id])?;
         }
         conn.execute("COMMIT", [])?;
-        println!("WCVP normalization completed!");
+        
+        // Recreate the triggers
+        recreate_wcvp_triggers(conn)?;
+        
+        println!("Rebuilding FTS5 full-text index for wcvp_taxonomy...");
+        conn.execute("INSERT INTO wcvp_taxonomy_fts(wcvp_taxonomy_fts) VALUES('rebuild');", [])?;
+        println!("WCVP normalization and index rebuild completed!");
     }
 
     Ok(())
