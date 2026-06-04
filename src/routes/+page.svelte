@@ -255,7 +255,7 @@
 
   function handleSelectSearchResult(/** @type {any} */ rec) {
     // Populate the form. Note: rec contains reference DB records or previously captured records.
-    activeRecord = rec;
+    activeRecord = { ...rec };
   }
 
   async function handleDeleteCapturedRecord(/** @type {any} */ id, /** @type {any} */ e) {
@@ -754,7 +754,7 @@
                 <tbody class="divide-y divide-slate-100">
                   {#each capturedRecords as rec}
                     <tr 
-                      onclick={() => activeRecord = rec}
+                      onclick={() => activeRecord = { ...rec }}
                       class="hover:bg-slate-50 cursor-pointer transition-colors border-b border-slate-100"
                     >
                       <td class="p-2 text-slate-700 font-medium">{rec.recordedBy || 'N/A'} {rec.recordNumber ? `#${rec.recordNumber}` : ''}</td>

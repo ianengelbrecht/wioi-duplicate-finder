@@ -1060,7 +1060,7 @@
         {#if saving}
           <span>Saving...</span>
         {:else}
-          <span>Save Specimen</span>
+          <span>{form.id ? "Update Specimen" : "Save Specimen"}</span>
         {/if}
       </button>
     </div>
