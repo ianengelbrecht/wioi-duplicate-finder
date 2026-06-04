@@ -6,7 +6,41 @@
   // State Management
   let currentUser = $state(/** @type {any} */ (null)); // { id, username }
   let activeSession = $state(/** @type {any} */ (null)); // { id, name, recordCount }
-  let view = $state("auth"); // "auth", "dashboard", "workspace"
+  let view = $state("loading"); // "loading", "auth", "dashboard", "workspace"
+  let dbLoadingMessage = $state("Checking database and indexing reference records...");
+
+  async function checkDb() {
+    try {
+      await invoke("initialize_database");
+      
+      const storedUser = localStorage.getItem("currentUser");
+      if (storedUser) {
+        currentUser = JSON.parse(storedUser);
+        await loadSessions();
+        await loadExportSettings();
+        
+        const storedSession = localStorage.getItem("lastActiveSession");
+        if (storedSession) {
+          const parsedSession = JSON.parse(storedSession);
+          const sessionExists = sessionList.find(s => s.id === parsedSession.id);
+          if (sessionExists) {
+            await selectSession(sessionExists);
+            return;
+          }
+        }
+        view = "dashboard";
+      } else {
+        view = "auth";
+      }
+    } catch (e) {
+      console.error(e);
+      dbLoadingMessage = "Error: " + (/** @type {any} */ (e)).toString();
+    }
+  }
+
+  $effect(() => {
+    checkDb();
+  });
 
   // Auth form state
   let isRegister = $state(false);
@@ -70,6 +104,7 @@
         let user = await invoke("login_user", { username: authUsername, password: authPassword });
         if (user) {
           currentUser = user;
+          localStorage.setItem("currentUser", JSON.stringify(user));
           view = "dashboard";
           await loadSessions();
           await loadExportSettings();
@@ -150,6 +185,8 @@
     view = "workspace";
     exportMessage = "";
     exportError = "";
+    
+    localStorage.setItem("lastActiveSession", JSON.stringify(session));
     
     await loadCapturedRecords();
   }
@@ -241,6 +278,15 @@
     try {
       await invoke("delete_session", { id });
       await loadSessions();
+      
+      const storedSession = localStorage.getItem("lastActiveSession");
+      if (storedSession) {
+        const parsed = JSON.parse(storedSession);
+        if (parsed.id === id) {
+          localStorage.removeItem("lastActiveSession");
+        }
+      }
+      
       if (activeSession && activeSession.id === id) {
         activeSession = null;
         view = "dashboard";
@@ -281,6 +327,9 @@
     authPassword = "";
     authError = "";
     authSuccess = "";
+    
+    localStorage.removeItem("currentUser");
+    localStorage.removeItem("lastActiveSession");
   }
 </script>
 
@@ -316,8 +365,21 @@
 
   <!-- Content Router View -->
   <main class="flex-1 flex flex-col min-h-0">
-    <!-- VIEW 1: AUTHENTICATION (SIGN UP & LOGIN) -->
-    {#if view === "auth"}
+    <!-- VIEW 0: DATABASE INITIALIZATION LOADING SCREEN -->
+    {#if view === "loading"}
+      <div class="flex-1 flex flex-col justify-center items-center p-6 bg-slate-50">
+        <div class="w-full max-w-sm bg-white border border-slate-300 shadow-sm p-8 flex flex-col items-center text-center space-y-4">
+          <!-- Spinner -->
+          <div class="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+          <div>
+            <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Preparing Database</h2>
+            <p class="text-xs text-slate-550 mt-2 leading-relaxed">
+              {dbLoadingMessage}
+            </p>
+          </div>
+        </div>
+      </div>
+    {:else if view === "auth"}
       <div class="flex-1 flex justify-center items-center p-6">
         <div class="w-full max-w-sm bg-white border border-slate-300 shadow-sm p-6 space-y-6">
           <div class="text-center">
@@ -444,7 +506,7 @@
                         >
                           <!-- svelte-ignore a11y_click_events_have_key_events -->
                           <!-- svelte-ignore a11y_no_static_element_interactions -->
-                          <div class="flex-1 mr-4" onclick={(e) => e.stopPropagation()}>
+                          <div class="flex-1 mr-4">
                             {#if editingSessionId === ses.id}
                               <!-- svelte-ignore a11y_autofocus -->
                               <input
@@ -603,7 +665,12 @@
         <div class="px-6 py-3 bg-slate-800 text-white flex justify-between items-center shrink-0">
           <div class="flex items-center gap-3">
             <button
-              onclick={async () => { view = "dashboard"; await loadSessions(); }}
+              onclick={async () => {
+                view = "dashboard";
+                activeSession = null;
+                localStorage.removeItem("lastActiveSession");
+                await loadSessions();
+              }}
               class="bg-slate-700 hover:bg-slate-600 text-xs font-bold uppercase px-3 py-1.5 tracking-wide rounded-none transition-colors"
             >
               ← Dashboard

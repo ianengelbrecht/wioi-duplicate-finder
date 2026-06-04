@@ -1,11 +1,14 @@
 use rusqlite::{Connection, Result, params};
 use tauri::{AppHandle, Manager};
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 use std::fs;
 use pbkdf2::pbkdf2_hmac_array;
 use sha2::Sha256;
+use chrono::{Local, NaiveDate, NaiveDateTime, Datelike};
+
 
 use crate::parser::{normalize_taxon_name, normalize_locality};
+use log::{info, warn, error};
 
 /// Encodes binary data to standard hex string.
 pub fn to_hex(bytes: &[u8]) -> String {
@@ -42,19 +45,20 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
         if let Ok(resource_path) = app.path().resource_dir().map(|p| p.join("resources/reference.db")) {
             if resource_path.exists() {
                 if let Err(err) = fs::copy(&resource_path, &db_path) {
-                    println!("Failed to copy reference.db resource: {}", err);
+                    error!("Failed to copy reference.db resource: {}", err);
                 } else {
-                    println!("Successfully copied pre-bundled reference.db resource!");
+                    info!("Successfully copied pre-bundled reference.db resource!");
                 }
             } else {
-                println!("Reference DB resource not found at {:?}, initializing empty DB.", resource_path);
+                warn!("Reference DB resource not found at {:?}, initializing empty DB.", resource_path);
             }
         } else {
-            println!("Could not resolve resource path for reference.db, initializing empty DB.");
+            error!("Could not resolve resource path for reference.db, initializing empty DB.");
         }
     }
     
-    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+    info!("Opened database at absolute path: {:?}", db_path);
+    let mut conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
     
     // Enable WAL journal mode & normal synchronous for performance and resilience
     let _ = conn.execute("PRAGMA journal_mode=WAL;", []);
@@ -63,9 +67,9 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
     // Run quick integrity check on startup
     if let Ok(res) = conn.query_row("PRAGMA quick_check;", [], |r| r.get::<_, String>(0)) {
         if res != "ok" {
-            println!("Warning: Database quick_check failed on startup: {}", res);
+            warn!("Database quick_check failed on startup: {}", res);
         } else {
-            println!("Database quick_check passed on startup.");
+            info!("Database quick_check passed on startup.");
         }
     }
     
@@ -73,34 +77,156 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
     run_migrations(&conn).map_err(|e| e.to_string())?;
     
     // Auto-normalize imported CSV reference records if they exist and are empty
-    auto_normalize_reference_data(&conn).map_err(|e| e.to_string())?;
+    auto_normalize_reference_data(&mut conn).map_err(|e| e.to_string())?;
     
     Ok(())
 }
-
-/// Runs optimizations and integrity checks on shutdown.
+ 
+/// Runs database backup, optimizations, and integrity checks on shutdown.
 pub fn shutdown_database(app: &AppHandle) {
     let db_path = get_db_path(app);
     if !db_path.exists() {
         return;
     }
     if let Ok(conn) = Connection::open(&db_path) {
-        println!("Running database optimization and integrity checks on shutdown...");
+        info!("Running database optimization and integrity checks on shutdown...");
         let _ = conn.execute("PRAGMA optimize;", []);
         
         match conn.query_row("PRAGMA quick_check;", [], |r| r.get::<_, String>(0)) {
             Ok(res) => {
                 if res != "ok" {
-                    println!("Database quick_check failed on shutdown: {}", res);
+                    warn!("Database quick_check failed on shutdown: {}", res);
                 } else {
-                    println!("Database quick_check passed on shutdown.");
+                    info!("Database quick_check passed on shutdown.");
                 }
             }
             Err(e) => {
-                println!("Failed to run database quick_check on shutdown: {}", e);
+                error!("Failed to run database quick_check on shutdown: {}", e);
             }
         }
     }
+    
+    // Perform database backup
+    perform_database_backup(app);
+}
+
+fn prune_database_backups(backups_dir: &Path, today: NaiveDate) {
+    let entries = match fs::read_dir(backups_dir) {
+        Ok(e) => e,
+        Err(err) => {
+            error!("Failed to read backups directory: {}", err);
+            return;
+        }
+    };
+    
+    struct BackupFile {
+        path: PathBuf,
+        date: NaiveDate,
+        datetime: NaiveDateTime,
+        age_days: i64,
+    }
+    
+    let mut backups = Vec::new();
+    
+    for entry in entries {
+        if let Ok(entry) = entry {
+            let path = entry.path();
+            if path.is_file() {
+                if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
+                    if filename.starts_with("backup_") && filename.ends_with(".db") {
+                        if filename.len() >= 29 {
+                            let ts_str = &filename[7..filename.len() - 3];
+                            if let Ok(dt) = NaiveDateTime::parse_from_str(ts_str, "%Y-%m-%d_%H-%M-%S") {
+                                let date = dt.date();
+                                let age_days = (today - date).num_days();
+                                backups.push(BackupFile {
+                                    path,
+                                    date,
+                                    datetime: dt,
+                                    age_days,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Sort backups by datetime descending (latest first)
+    backups.sort_by(|a, b| b.datetime.cmp(&a.datetime));
+    
+    let mut kept_days = std::collections::HashSet::new();
+    let mut kept_weeks = std::collections::HashSet::new();
+    let mut kept_months = std::collections::HashSet::new();
+    
+    for backup in backups {
+        let mut keep = false;
+        
+        // Rule 1: Keep everything from Today (age <= 0)
+        if backup.age_days <= 0 {
+            keep = true;
+        }
+        
+        // Rule 2: Keep only the latest backup for any previous day, up to 14 days (daily backups)
+        if backup.age_days > 0 && backup.age_days <= 14 {
+            if !kept_days.contains(&backup.date) {
+                kept_days.insert(backup.date);
+                keep = true;
+            }
+        }
+        
+        // Rule 3: Keep only the latest backup for any week, up to 30 days (weekly backups)
+        if backup.age_days > 0 && backup.age_days <= 30 {
+            let week_key = (backup.date.year(), backup.date.iso_week().week());
+            if !kept_weeks.contains(&week_key) {
+                kept_weeks.insert(week_key);
+                keep = true;
+            }
+        }
+        
+        // Rule 4: Keep only the latest backup for any calendar month, up to 180 days (monthly backups)
+        if backup.age_days > 0 && backup.age_days <= 180 {
+            let month_key = (backup.date.year(), backup.date.month());
+            if !kept_months.contains(&month_key) {
+                kept_months.insert(month_key);
+                keep = true;
+            }
+        }
+        
+        if !keep {
+            info!("Pruning old database backup file: {:?}", backup.path);
+            let _ = fs::remove_file(&backup.path);
+        } else {
+            info!("Keeping database backup file: {:?} (age: {} days)", backup.path.file_name().unwrap(), backup.age_days);
+        }
+    }
+}
+
+pub fn perform_database_backup(app: &AppHandle) {
+    let db_path = get_db_path(app);
+    if !db_path.exists() {
+        return;
+    }
+    
+    let app_dir = db_path.parent().unwrap();
+    let backups_dir = app_dir.join("backups");
+    if let Err(e) = fs::create_dir_all(&backups_dir) {
+        error!("Failed to create backups directory: {}", e);
+        return;
+    }
+    
+    let now = Local::now();
+    let backup_filename = format!("backup_{}.db", now.format("%Y-%m-%d_%H-%M-%S"));
+    let backup_path = backups_dir.join(&backup_filename);
+    
+    if let Err(e) = fs::copy(&db_path, &backup_path) {
+        error!("Failed to copy database to backup: {}", e);
+        return;
+    }
+    info!("Database backup created: {:?}", backup_path);
+    
+    prune_database_backups(&backups_dir, now.naive_local().date());
 }
 
 fn run_migrations(conn: &Connection) -> Result<()> {
@@ -254,6 +380,7 @@ fn run_migrations(conn: &Connection) -> Result<()> {
             verbatimElevation TEXT,
             habitat TEXT,
             occurrenceRemarks TEXT,
+            fieldNotes TEXT,
             typeStatus TEXT,
             identificationQualifier TEXT,
             scientificName TEXT,
@@ -493,7 +620,7 @@ fn recreate_wcvp_triggers(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-pub fn auto_normalize_reference_data(conn: &Connection) -> Result<()> {
+pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
     // 1. Check if gbif has un-normalized records (ignoring nulls and empty strings)
     let count_gbif: i64 = conn.query_row(
         "SELECT COUNT(*) FROM gbif WHERE scientificName IS NOT NULL AND scientificName != '' AND (normalized_scientific_name IS NULL OR normalized_scientific_name = '')",
@@ -509,7 +636,7 @@ pub fn auto_normalize_reference_data(conn: &Connection) -> Result<()> {
     )?;
 
     if count_gbif > 0 || count_locality > 0 {
-        println!("Detected un-normalized data in gbif ({} names, {} localities). Normalizing...", count_gbif, count_locality);
+        info!("Detected un-normalized data in gbif ({} names, {} localities). Normalizing...", count_gbif, count_locality);
         
         // Temporarily drop FTS triggers to make updates lightning fast
         let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ai", []);
@@ -527,7 +654,8 @@ pub fn auto_normalize_reference_data(conn: &Connection) -> Result<()> {
                 let id: i64 = row.get(0)?;
                 let name: String = row.get(1)?;
                 let normalized = normalize_taxon_name(&name);
-                updates_names.push((id, normalized));
+                let val = if normalized.trim().is_empty() { "-".to_string() } else { normalized };
+                updates_names.push((id, val));
             }
         }
         
@@ -551,35 +679,38 @@ pub fn auto_normalize_reference_data(conn: &Connection) -> Result<()> {
                     verbatim_val.unwrap_or_default()
                 );
                 let normalized = normalize_locality(&combined);
-                updates_locality.push((id, normalized));
+                let val = if normalized.trim().is_empty() { "-".to_string() } else { normalized };
+                updates_locality.push((id, val));
             }
         }
         
         // Apply updates in a single transaction
-        conn.execute("BEGIN TRANSACTION", [])?;
-        
-        if !updates_names.is_empty() {
-            let mut stmt_update = conn.prepare("UPDATE gbif SET normalized_scientific_name = ?1 WHERE gbifID = ?2")?;
-            for (id, normalized) in updates_names {
-                stmt_update.execute(params![normalized, id])?;
+        {
+            let tx = conn.transaction()?;
+            
+            if !updates_names.is_empty() {
+                let mut stmt_update = tx.prepare("UPDATE gbif SET normalized_scientific_name = ?1 WHERE gbifID = ?2")?;
+                for (id, normalized) in updates_names {
+                    stmt_update.execute(params![normalized, id])?;
+                }
             }
-        }
-        
-        if !updates_locality.is_empty() {
-            let mut stmt_update = conn.prepare("UPDATE gbif SET normalized_locality = ?1 WHERE gbifID = ?2")?;
-            for (id, normalized) in updates_locality {
-                stmt_update.execute(params![normalized, id])?;
+            
+            if !updates_locality.is_empty() {
+                let mut stmt_update = tx.prepare("UPDATE gbif SET normalized_locality = ?1 WHERE gbifID = ?2")?;
+                for (id, normalized) in updates_locality {
+                    stmt_update.execute(params![normalized, id])?;
+                }
             }
+            
+            tx.commit()?;
         }
-        
-        conn.execute("COMMIT", [])?;
         
         // Recreate the triggers
         recreate_gbif_triggers(conn)?;
         
-        println!("Rebuilding FTS5 full-text index for gbif...");
+        info!("Rebuilding FTS5 full-text index for gbif...");
         conn.execute("INSERT INTO gbif_fts(gbif_fts) VALUES('rebuild');", [])?;
-        println!("Rebuilt FTS5 index successfully!");
+        info!("Rebuilt FTS5 index successfully!");
     }
     
     // 2. Check if wcvp_taxonomy has un-normalized records
@@ -590,39 +721,47 @@ pub fn auto_normalize_reference_data(conn: &Connection) -> Result<()> {
     )?;
     
     if count_wcvp > 0 {
-        println!("Detected {} un-normalized taxa in wcvp_taxonomy. Normalizing...", count_wcvp);
+        info!("Detected {} un-normalized taxa in wcvp_taxonomy. Normalizing...", count_wcvp);
         
         // Drop triggers to speed up bulk updates
         let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_ai", []);
         let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_ad", []);
         let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_au", []);
         
-        let mut stmt = conn.prepare(
-            "SELECT plant_name_id, taxon_name FROM wcvp_taxonomy WHERE taxon_name IS NOT NULL AND taxon_name != '' AND (normalized_taxon_name IS NULL OR normalized_taxon_name = '')"
-        )?;
-        let mut rows = stmt.query([])?;
         let mut updates_wcvp = Vec::new();
-        while let Some(row) = rows.next()? {
-            let id: String = row.get(0)?;
-            let name: String = row.get(1)?;
-            let normalized = normalize_taxon_name(&name);
-            updates_wcvp.push((id, normalized));
+        {
+            let mut stmt = conn.prepare(
+                "SELECT plant_name_id, taxon_name FROM wcvp_taxonomy WHERE taxon_name IS NOT NULL AND taxon_name != '' AND (normalized_taxon_name IS NULL OR normalized_taxon_name = '')"
+            )?;
+            let mut rows = stmt.query([])?;
+            while let Some(row) = rows.next()? {
+                let id: String = row.get(0)?;
+                let name: String = row.get(1)?;
+                let normalized = normalize_taxon_name(&name);
+                let val = if normalized.trim().is_empty() { "-".to_string() } else { normalized };
+                updates_wcvp.push((id, val));
+            }
         }
         
-        conn.execute("BEGIN TRANSACTION", [])?;
-        let mut stmt_update = conn.prepare("UPDATE wcvp_taxonomy SET normalized_taxon_name = ?1 WHERE plant_name_id = ?2")?;
-        for (id, normalized) in updates_wcvp {
-            stmt_update.execute(params![normalized, id])?;
+        {
+            let tx = conn.transaction()?;
+            {
+                let mut stmt_update = tx.prepare("UPDATE wcvp_taxonomy SET normalized_taxon_name = ?1 WHERE plant_name_id = ?2")?;
+                for (id, normalized) in updates_wcvp {
+                    stmt_update.execute(params![normalized, id])?;
+                }
+            }
+            tx.commit()?;
         }
-        conn.execute("COMMIT", [])?;
         
         // Recreate the triggers
         recreate_wcvp_triggers(conn)?;
         
-        println!("Rebuilding FTS5 full-text index for wcvp_taxonomy...");
+        info!("Rebuilding FTS5 full-text index for wcvp_taxonomy...");
         conn.execute("INSERT INTO wcvp_taxonomy_fts(wcvp_taxonomy_fts) VALUES('rebuild');", [])?;
-        println!("WCVP normalization and index rebuild completed!");
+        info!("WCVP normalization and index rebuild completed!");
     }
 
     Ok(())
 }
+

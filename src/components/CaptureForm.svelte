@@ -1,5 +1,6 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
+  import { convert } from 'geo-coordinates-parser';
   import Autocomplete from "./Autocomplete.svelte";
 
   let {
@@ -26,8 +27,12 @@
     municipality: "",  // Label Admin 4
     locality: "",
     verbatimCoordinates: "",
+    decimalLatitude: "",
+    decimalLongitude: "",
     locationNotes: "", // Mapped to locationRemarks
     verbatimLocality: "",
+    verbatimElevation: "",
+    habitat: "",
     identificationQualifier: "", // cf., aff., nr.
     scientificName: "",
     taxonID: "",
@@ -36,8 +41,12 @@
     yearIdentified: "",
     monthIdentified: "",
     dayIdentified: "",
-    identificationRemarks: ""
+    identificationRemarks: "",
+    occurrenceRemarks: "",
+    fieldNotes: ""
   });
+
+  let coordinatesError = $state(false);
 
   let isAnyGeoPopulated = $derived(
     !!((form.country && form.country.trim().length > 0) ||
@@ -86,9 +95,33 @@
       form.county = activeRecord.county || "";
       form.municipality = activeRecord.municipality || "";
       form.locality = activeRecord.locality || "";
-      form.verbatimCoordinates = activeRecord.verbatimCoordinates || "";
+      
+      // Populate verbatimCoordinates: use verbatimCoordinates if present, otherwise combine decimalLatitude and decimalLongitude
+      if (activeRecord.verbatimCoordinates && activeRecord.verbatimCoordinates.trim().length > 0) {
+        form.verbatimCoordinates = activeRecord.verbatimCoordinates;
+      } else if (
+        (activeRecord.decimalLatitude !== null && activeRecord.decimalLatitude !== undefined && activeRecord.decimalLatitude !== "") &&
+        (activeRecord.decimalLongitude !== null && activeRecord.decimalLongitude !== undefined && activeRecord.decimalLongitude !== "")
+      ) {
+        form.verbatimCoordinates = `${activeRecord.decimalLatitude}, ${activeRecord.decimalLongitude}`;
+      } else {
+        form.verbatimCoordinates = "";
+      }
+
       form.locationNotes = activeRecord.locationNotes || activeRecord.locationRemarks || "";
       form.verbatimLocality = activeRecord.verbatimLocality || "";
+
+      // Populate verbatimElevation: use verbatimElevation if present, otherwise use elevation and add 'm'
+      if (activeRecord.verbatimElevation && activeRecord.verbatimElevation.trim().length > 0) {
+        form.verbatimElevation = activeRecord.verbatimElevation;
+      } else if (activeRecord.elevation && String(activeRecord.elevation).trim().length > 0) {
+        let elevStr = String(activeRecord.elevation).trim();
+        form.verbatimElevation = elevStr.toLowerCase().endsWith("m") ? elevStr : `${elevStr}m`;
+      } else {
+        form.verbatimElevation = "";
+      }
+
+      form.habitat = activeRecord.habitat || "";
       form.identificationQualifier = activeRecord.identificationQualifier || "";
       form.scientificName = activeRecord.scientificName || "";
       form.taxonID = activeRecord.taxonID || "";
@@ -98,6 +131,8 @@
       form.monthIdentified = activeRecord.monthIdentified !== null && activeRecord.monthIdentified !== undefined ? activeRecord.monthIdentified.toString() : "";
       form.dayIdentified = activeRecord.dayIdentified !== null && activeRecord.dayIdentified !== undefined ? activeRecord.dayIdentified.toString() : "";
       form.identificationRemarks = activeRecord.identificationRemarks || "";
+      form.occurrenceRemarks = activeRecord.occurrenceRemarks || "";
+      form.fieldNotes = activeRecord.fieldNotes || "";
       
       statusMessage = "";
     }
@@ -439,8 +474,12 @@
       municipality: "",
       locality: "",
       verbatimCoordinates: "",
+      decimalLatitude: "",
+      decimalLongitude: "",
       locationNotes: "",
       verbatimLocality: "",
+      verbatimElevation: "",
+      habitat: "",
       identificationQualifier: "",
       scientificName: "",
       taxonID: "",
@@ -449,7 +488,9 @@
       yearIdentified: "",
       monthIdentified: "",
       dayIdentified: "",
-      identificationRemarks: ""
+      identificationRemarks: "",
+      occurrenceRemarks: "",
+      fieldNotes: ""
     };
     activeRecord = null;
     statusMessage = "";
@@ -467,21 +508,25 @@
     }
   }
 
-  let wcvpCount = $state(/** @type {number|null} */ (null));
-  let formattedWcvpCount = $derived(wcvpCount !== null ? wcvpCount.toLocaleString() : "...");
+  function handleCoordinatesBlur() {
+    if (form.verbatimCoordinates.trim() === "") {
+      coordinatesError = false;
+      form.decimalLatitude = "";
+      form.decimalLongitude = "";
+      return;
+    }
 
-  async function fetchCounts() {
     try {
-      const counts = /** @type {any} */ (await invoke("get_table_counts"));
-      wcvpCount = counts.wcvp;
+      const result = convert(form.verbatimCoordinates);
+      if (result && result.decimalLatitude !== undefined && result.decimalLongitude !== undefined) {
+        coordinatesError = false;
+        form.decimalLatitude = String(result.decimalLatitude);
+        form.decimalLongitude = String(result.decimalLongitude);
+      }
     } catch (e) {
-      console.error("Failed to fetch table counts:", e);
+      coordinatesError = true;
     }
   }
-
-  $effect(() => {
-    fetchCounts();
-  });
 
   $effect(() => {
     window.addEventListener("keydown", handleGlobalKeyDown);
@@ -503,7 +548,6 @@
       {:else}
         <span class="text-[9px] bg-emerald-100 text-emerald-800 font-bold uppercase tracking-wider px-1.5 py-0.5">NEW FORM</span>
       {/if}
-      <span class="text-[10px] text-slate-500 font-semibold bg-slate-200 px-2 py-0.5 uppercase">Kew WCVP v12 ({formattedWcvpCount} Taxa)</span>
     </div>
     <span class="text-[10px] text-slate-400 font-semibold uppercase">Shortcut: Ctrl+S to save</span>
   </div>
@@ -777,9 +821,15 @@
           type="text"
           placeholder="eg 28°15'S, 28°39'E"
           bind:value={form.verbatimCoordinates}
+          onblur={handleCoordinatesBlur}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
         />
       </div>
+      {#if coordinatesError}
+        <div class="mt-3 text-xs bg-amber-50 border-l-2 border-amber-500 text-amber-700 px-3 py-2 font-medium">
+          ⚠️ Unable to parse coordinates, please check they are correct
+        </div>
+      {/if}
     </div>
 
     
@@ -795,6 +845,84 @@
         bind:value={form.verbatimLocality}
         class="w-full bg-slate-100 border border-slate-300 text-slate-500 text-sm px-3 py-2 cursor-not-allowed outline-none rounded-none"      >
       </textarea>
+    </div>
+
+    <!-- Row 6b: Verbatim Elevation & Habitat -->
+    <div class="flex gap-3">
+      <div class="w-1/4">
+        <label for="capture-verbatimElevation" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Verbatim Elevation</label>
+        <input
+          id="capture-verbatimElevation"
+          type="text"
+          placeholder="eg 1200m"
+          bind:value={form.verbatimElevation}
+          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+        />
+      </div>
+      <div class="flex-1">
+        <label for="capture-habitat" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Habitat</label>
+        <div class="relative flex items-center">
+          <input
+            id="capture-habitat"
+            type="text"
+            placeholder="eg Oak woodland, sandy soil..."
+            bind:value={form.habitat}
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          />
+          <button
+            type="button"
+            onclick={() => properCaseField("habitat")}
+            title="Proper case Habitat"
+            class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold z-10"
+          >
+            Aa
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Plant description Section -->
+    <div class="space-y-3 pt-2">
+      <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">Plant description</h3>
+      <div class="relative flex items-start">
+        <textarea
+          id="capture-fieldNotes"
+          rows="2"
+          placeholder="eg flower yellow, tree 5m"
+          bind:value={form.fieldNotes}
+          class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all resize-none"
+        ></textarea>
+        <button
+          type="button"
+          onclick={() => properCaseField("fieldNotes")}
+          title="Proper case Plant description"
+          class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold"
+        >
+          Aa
+        </button>
+      </div>
+    </div>
+
+    <!-- General Notes Section -->
+    <div class="space-y-3 pt-2">
+      <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">General Notes</h3>
+      <div class="relative flex items-start">
+        <textarea
+          id="capture-occurrenceRemarks"
+          rows="2"
+          placeholder="Any other notes..."
+          bind:value={form.occurrenceRemarks}
+          class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all resize-none"
+        ></textarea>
+        <button
+          type="button"
+          onclick={() => properCaseField("occurrenceRemarks")}
+          title="Proper case General Notes"
+          class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold"
+        >
+          Aa
+        </button>
+      </div>
     </div>
 
     <!-- Row 7: Identification Section -->

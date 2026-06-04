@@ -182,12 +182,15 @@
   }
 
   let gbifCount = $state(/** @type {number|null} */ (null));
+  let wcvpCount = $state(/** @type {number|null} */ (null));
   let formattedGbifCount = $derived(gbifCount !== null ? gbifCount.toLocaleString() : "...");
+  let formattedWcvpCount = $derived(wcvpCount !== null ? wcvpCount.toLocaleString() : "...");
 
   async function fetchCounts() {
     try {
       const counts = /** @type {any} */ (await invoke("get_table_counts"));
       gbifCount = counts.gbif;
+      wcvpCount = counts.wcvp;
     } catch (e) {
       console.error("Failed to fetch table counts:", e);
     }
@@ -209,7 +212,10 @@
   <!-- Header Title -->
   <div class="px-4 py-3 bg-slate-100 border-b border-slate-300 flex justify-between items-center">
     <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wide">Search Existing Specimens</h2>
-    <span class="text-[10px] text-slate-500 font-semibold bg-slate-200 px-2 py-0.5 uppercase">Reference Data ({formattedGbifCount} Records)</span>
+    <div class="flex gap-2">
+      <span class="text-[10px] text-slate-500 font-semibold bg-slate-200 px-2 py-0.5 uppercase">Reference Data ({formattedGbifCount} Records)</span>
+      <span class="text-[10px] text-slate-500 font-semibold bg-slate-200 px-2 py-0.5 uppercase">WCVP v12 ({formattedWcvpCount} Taxa)</span>
+    </div>
   </div>
 
   <!-- Search Filter Form -->

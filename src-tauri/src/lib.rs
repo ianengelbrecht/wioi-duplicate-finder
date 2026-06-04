@@ -17,6 +17,11 @@ use db::{get_db_path, init_database, hash_password, shutdown_database};
 // -------------------------------------------------------------
 
 #[tauri::command]
+fn initialize_database(app: AppHandle) -> Result<(), String> {
+    init_database(&app)
+}
+
+#[tauri::command]
 fn register_user(app: AppHandle, username: String, password: String) -> Result<String, String> {
     let db_path = get_db_path(&app);
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
@@ -205,7 +210,8 @@ fn search_reference(app: AppHandle, filters: serde_json::Value) -> Result<Vec<se
         "SELECT recordedBy, recordNumber, locality, locationRemarks, verbatimLocality, 
                 scientificName, family, country, stateProvince, year, month, day,
                 identificationQualifier, collectionCode, decimalLatitude, decimalLongitude,
-                verbatimCoordinates
+                verbatimCoordinates, verbatimElevation, elevation, habitat, occurrenceRemarks,
+                fieldNotes
          FROM gbif WHERE 1=1"
     );
     let mut params_vec: Vec<serde_json::Value> = Vec::new();
@@ -313,6 +319,11 @@ fn search_reference(app: AppHandle, filters: serde_json::Value) -> Result<Vec<se
         let decimal_latitude: Option<f64> = row.get(14)?;
         let decimal_longitude: Option<f64> = row.get(15)?;
         let verbatim_coordinates: Option<String> = row.get(16)?;
+        let verbatim_elevation: Option<String> = row.get(17)?;
+        let elevation: Option<String> = row.get(18)?;
+        let habitat: Option<String> = row.get(19)?;
+        let occurrence_remarks: Option<String> = row.get(20)?;
+        let field_notes: Option<String> = row.get(21)?;
         
         Ok(json!({
             "id": serde_json::Value::Null,
@@ -336,6 +347,11 @@ fn search_reference(app: AppHandle, filters: serde_json::Value) -> Result<Vec<se
             "decimalLatitude": decimal_latitude,
             "decimalLongitude": decimal_longitude,
             "verbatimCoordinates": verbatim_coordinates.unwrap_or_default(),
+            "verbatimElevation": verbatim_elevation.unwrap_or_default(),
+            "elevation": elevation.unwrap_or_default(),
+            "habitat": habitat.unwrap_or_default(),
+            "occurrenceRemarks": occurrence_remarks.unwrap_or_default(),
+            "fieldNotes": field_notes.unwrap_or_default(),
         }))
     }).map_err(|e| e.to_string())?;
     
@@ -391,9 +407,14 @@ fn autocomplete_scientific_name(app: AppHandle, query: String) -> Result<Vec<ser
         let authors: Option<String> = row.get(5)?;
         let rank: Option<String> = row.get(6)?;
         
+        let full_name = match &authors {
+            Some(a) if !a.trim().is_empty() => format!("{} {}", name, a.trim()),
+            _ => name,
+        };
+        
         Ok(json!({
             "taxonID": id,
-            "scientificName": name,
+            "scientificName": full_name,
             "family": family.unwrap_or_default(),
             "genus": genus.unwrap_or_default(),
             "specificEpithet": species.unwrap_or_default(),
@@ -509,6 +530,7 @@ fn save_captured_record(app: AppHandle, record: serde_json::Value) -> Result<ser
     
     let habitat = record.get("habitat").and_then(|v| v.as_str()).unwrap_or("").trim();
     let occurrence_remarks = record.get("occurrenceRemarks").and_then(|v| v.as_str()).unwrap_or("").trim();
+    let field_notes = record.get("fieldNotes").and_then(|v| v.as_str()).unwrap_or("").trim();
     
     let type_status = record.get("typeStatus").and_then(|v| v.as_str()).unwrap_or("").trim();
     let id_qualifier = record.get("identificationQualifier").and_then(|v| v.as_str()).unwrap_or("").trim();
@@ -530,15 +552,15 @@ fn save_captured_record(app: AppHandle, record: serde_json::Value) -> Result<ser
                 collectionCode=?1, catalogNumber=?2, duplicates=?3, recordNumber=?4, recordedBy=?5,
                 verbatimEventDate=?6, year=?7, month=?8, day=?9, country=?10,
                 stateProvince=?11, county=?12, municipality=?13, locality=?14, locationRemarks=?15,
-                verbatimCoordinates=?16, verbatimElevation=?17, habitat=?18, occurrenceRemarks=?19, typeStatus=?20,
-                identificationQualifier=?21, scientificName=?22, identifiedBy=?23, yearIdentified=?24, monthIdentified=?25,
-                dayIdentified=?26, identificationRemarks=?27, taxonID=?28
-             WHERE id = ?29 AND session_id = ?30",
+                verbatimCoordinates=?16, verbatimElevation=?17, habitat=?18, occurrenceRemarks=?19, fieldNotes=?20, typeStatus=?21,
+                identificationQualifier=?22, scientificName=?23, identifiedBy=?24, yearIdentified=?25, monthIdentified=?26,
+                dayIdentified=?27, identificationRemarks=?28, taxonID=?29
+             WHERE id = ?30 AND session_id = ?31",
             params![
                 collection_code, catalog_number, duplicates, record_number, recorded_by,
                 verbatim_event_date, year, month, day, country,
                 state_province, county, municipality, locality, location_remarks,
-                verbatim_coordinates, verbatim_elevation, habitat, occurrence_remarks, type_status,
+                verbatim_coordinates, verbatim_elevation, habitat, occurrence_remarks, field_notes, type_status,
                 id_qualifier, scientific_name, identified_by, year_identified, month_identified,
                 day_identified, id_remarks, taxon_id, existing_id, session_id
             ]
@@ -551,14 +573,14 @@ fn save_captured_record(app: AppHandle, record: serde_json::Value) -> Result<ser
             "INSERT INTO captured_records (
                 session_id, collectionCode, catalogNumber, duplicates, recordNumber, recordedBy,
                 verbatimEventDate, year, month, day, country, stateProvince, county, municipality,
-                locality, locationRemarks, verbatimCoordinates, verbatimElevation, habitat, occurrenceRemarks,
+                locality, locationRemarks, verbatimCoordinates, verbatimElevation, habitat, occurrenceRemarks, fieldNotes,
                 typeStatus, identificationQualifier, scientificName, identifiedBy, yearIdentified,
                 monthIdentified, dayIdentified, identificationRemarks, taxonID
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29)",
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30)",
             params![
                 session_id, collection_code, catalog_number, duplicates, record_number, recorded_by,
                 verbatim_event_date, year, month, day, country, state_province, county, municipality,
-                locality, location_remarks, verbatim_coordinates, verbatim_elevation, habitat, occurrence_remarks,
+                locality, location_remarks, verbatim_coordinates, verbatim_elevation, habitat, occurrence_remarks, field_notes,
                 type_status, id_qualifier, scientific_name, identified_by, year_identified,
                 month_identified, day_identified, id_remarks, taxon_id
             ]
@@ -578,7 +600,7 @@ fn get_captured_records(app: AppHandle, session_id: i32) -> Result<Vec<serde_jso
         .prepare(
             "SELECT id, collectionCode, catalogNumber, duplicates, recordNumber, recordedBy, 
                     verbatimEventDate, year, month, day, country, stateProvince, county, municipality, 
-                    locality, locationRemarks, verbatimCoordinates, verbatimElevation, habitat, occurrenceRemarks, 
+                    locality, locationRemarks, verbatimCoordinates, verbatimElevation, habitat, occurrenceRemarks, fieldNotes,
                     typeStatus, identificationQualifier, scientificName, identifiedBy, yearIdentified, 
                     monthIdentified, dayIdentified, identificationRemarks, taxonID 
              FROM captured_records 
@@ -587,7 +609,7 @@ fn get_captured_records(app: AppHandle, session_id: i32) -> Result<Vec<serde_jso
         )
         .map_err(|e| e.to_string())?;
         
-    let rows = stmt.query_map(params![session_id], |row| {
+     let rows = stmt.query_map(params![session_id], |row| {
         let id: i32 = row.get(0)?;
         let collection_code: Option<String> = row.get(1)?;
         let catalog_number: Option<String> = row.get(2)?;
@@ -608,15 +630,16 @@ fn get_captured_records(app: AppHandle, session_id: i32) -> Result<Vec<serde_jso
         let verbatim_elevation: Option<String> = row.get(17)?;
         let habitat: Option<String> = row.get(18)?;
         let occurrence_remarks: Option<String> = row.get(19)?;
-        let type_status: Option<String> = row.get(20)?;
-        let id_qualifier: Option<String> = row.get(21)?;
-        let scientific_name: Option<String> = row.get(22)?;
-        let identified_by: Option<String> = row.get(23)?;
-        let year_identified: Option<i32> = row.get(24)?;
-        let month_identified: Option<i32> = row.get(25)?;
-        let day_identified: Option<i32> = row.get(26)?;
-        let id_remarks: Option<String> = row.get(27)?;
-        let taxon_id: Option<String> = row.get(28)?;
+        let field_notes: Option<String> = row.get(20)?;
+        let type_status: Option<String> = row.get(21)?;
+        let id_qualifier: Option<String> = row.get(22)?;
+        let scientific_name: Option<String> = row.get(23)?;
+        let identified_by: Option<String> = row.get(24)?;
+        let year_identified: Option<i32> = row.get(25)?;
+        let month_identified: Option<i32> = row.get(26)?;
+        let day_identified: Option<i32> = row.get(27)?;
+        let id_remarks: Option<String> = row.get(28)?;
+        let taxon_id: Option<String> = row.get(29)?;
         
         Ok(json!({
             "id": id,
@@ -640,6 +663,7 @@ fn get_captured_records(app: AppHandle, session_id: i32) -> Result<Vec<serde_jso
             "verbatimElevation": verbatim_elevation.unwrap_or_default(),
             "habitat": habitat.unwrap_or_default(),
             "occurrenceRemarks": occurrence_remarks.unwrap_or_default(),
+            "fieldNotes": field_notes.unwrap_or_default(),
             "typeStatus": type_status.unwrap_or_default(),
             "identificationQualifier": id_qualifier.unwrap_or_default(),
             "scientificName": scientific_name.unwrap_or_default(),
@@ -786,7 +810,7 @@ fn export_session_csv(app: AppHandle, session_id: i32, filepath: String) -> Resu
             "SELECT id, session_id, collectionCode, catalogNumber, duplicates, recordNumber, 
                     recordedBy, verbatimEventDate, year, month, day, country, stateProvince, 
                     county, municipality, locality, locationRemarks, verbatimCoordinates, 
-                    verbatimElevation, habitat, occurrenceRemarks, typeStatus, identificationQualifier, 
+                    verbatimElevation, habitat, occurrenceRemarks, fieldNotes, typeStatus, identificationQualifier, 
                     scientificName, identifiedBy, yearIdentified, monthIdentified, dayIdentified, 
                     identificationRemarks, taxonID, created_at, modified_at 
              FROM captured_records 
@@ -817,17 +841,18 @@ fn export_session_csv(app: AppHandle, session_id: i32, filepath: String) -> Resu
         let verbatim_elevation: Option<String> = row.get(18)?;
         let habitat: Option<String> = row.get(19)?;
         let occurrence_remarks: Option<String> = row.get(20)?;
-        let type_status: Option<String> = row.get(21)?;
-        let id_qualifier: Option<String> = row.get(22)?;
-        let scientific_name: Option<String> = row.get(23)?;
-        let identified_by: Option<String> = row.get(24)?;
-        let year_identified: Option<i32> = row.get(25)?;
-        let month_identified: Option<i32> = row.get(26)?;
-        let day_identified: Option<i32> = row.get(27)?;
-        let id_remarks: Option<String> = row.get(28)?;
-        let taxon_id: Option<String> = row.get(29)?;
-        let created_at: Option<String> = row.get(30)?;
-        let modified_at: Option<String> = row.get(31)?;
+        let field_notes: Option<String> = row.get(21)?;
+        let type_status: Option<String> = row.get(22)?;
+        let id_qualifier: Option<String> = row.get(23)?;
+        let scientific_name: Option<String> = row.get(24)?;
+        let identified_by: Option<String> = row.get(25)?;
+        let year_identified: Option<i32> = row.get(26)?;
+        let month_identified: Option<i32> = row.get(27)?;
+        let day_identified: Option<i32> = row.get(28)?;
+        let id_remarks: Option<String> = row.get(29)?;
+        let taxon_id: Option<String> = row.get(30)?;
+        let created_at: Option<String> = row.get(31)?;
+        let modified_at: Option<String> = row.get(32)?;
         
         Ok(vec![
             id.map(|x| x.to_string()).unwrap_or_default(),
@@ -851,6 +876,7 @@ fn export_session_csv(app: AppHandle, session_id: i32, filepath: String) -> Resu
             verbatim_elevation.unwrap_or_default(),
             habitat.unwrap_or_default(),
             occurrence_remarks.unwrap_or_default(),
+            field_notes.unwrap_or_default(),
             type_status.unwrap_or_default(),
             id_qualifier.unwrap_or_default(),
             scientific_name.unwrap_or_default(),
@@ -878,7 +904,7 @@ fn export_session_csv(app: AppHandle, session_id: i32, filepath: String) -> Resu
         "id", "session_id", "collectionCode", "catalogNumber", "duplicates", "recordNumber",
         "recordedBy", "verbatimEventDate", "year", "month", "day", "country", "stateProvince",
         "county", "municipality", "locality", "locationRemarks", "verbatimCoordinates",
-        "verbatimElevation", "habitat", "occurrenceRemarks", "typeStatus", "identificationQualifier",
+        "verbatimElevation", "habitat", "occurrenceRemarks", "fieldNotes", "typeStatus", "identificationQualifier",
         "scientificName", "identifiedBy", "yearIdentified", "monthIdentified", "dayIdentified",
         "identificationRemarks", "taxonID", "created_at", "modified_at"
     ];
@@ -1014,14 +1040,19 @@ fn autocomplete_geography(
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .setup(|app| {
-            // Initialize database on startup
-            if let Err(e) = init_database(app.handle()) {
-                println!("Error initializing SQLite database: {}", e);
-            }
+        .plugin(tauri_plugin_log::Builder::new()
+            .targets([
+                tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+                tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
+                    file_name: Some("app".to_string()),
+                }),
+            ])
+            .build())
+        .setup(|_app| {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            initialize_database,
             register_user,
             login_user,
             create_session,
