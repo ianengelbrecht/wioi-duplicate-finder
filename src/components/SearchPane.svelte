@@ -392,31 +392,31 @@
   </div>
 
   <!-- Search Results Listing -->
-  <div class="flex-1 overflow-y-auto min-h-0">
+  <div class="flex-1 flex flex-col min-h-0">
     {#if errorMessage}
-      <div class="p-4 text-sm text-red-600 bg-red-50 border-b border-red-200">
+      <div class="p-4 text-sm text-red-600 bg-red-50 border-b border-red-200 shrink-0">
         Error: {errorMessage}
       </div>
     {/if}
     
     {#if searchMessage}
-      <div class="px-4 py-2 text-[10px] uppercase font-bold tracking-wider text-slate-500 bg-slate-50 border-b border-slate-200">
+      <div class="px-4 py-2 text-[10px] uppercase font-bold tracking-wider text-slate-500 bg-slate-50 border-b border-slate-200 shrink-0">
         {searchMessage}
       </div>
     {/if}
 
     {#if results.length > 0}
-      <div class="overflow-x-auto">
+      <div class="overflow-auto flex-1 min-h-0">
         <table class="w-full text-left text-xs border-collapse">
           <thead>
-            <tr class="bg-slate-100 border-b border-slate-300 text-slate-600 font-bold uppercase tracking-wider">
-              <th class="p-3">HERB</th>
-              <th class="p-3">Collector</th>
-              <th class="p-3">Taxon Name</th>
-              <th class="p-3">Locality</th>
-              <th class="p-3">Geo</th>
-              <th class="p-3">Date</th>
-              <th class="p-3">Coords</th>
+            <tr class="border-b border-slate-300 text-slate-600 font-bold uppercase tracking-wider">
+              <th class="p-3 sticky top-0 bg-slate-100 z-10">HERB</th>
+              <th class="p-3 sticky top-0 bg-slate-100 z-10">Collector</th>
+              <th class="p-3 sticky top-0 bg-slate-100 z-10">Taxon Name</th>
+              <th class="p-3 sticky top-0 bg-slate-100 z-10">Locality</th>
+              <th class="p-3 sticky top-0 bg-slate-100 z-10">Geo</th>
+              <th class="p-3 sticky top-0 bg-slate-100 z-10">Date</th>
+              <th class="p-3 sticky top-0 bg-slate-100 z-10">Coords</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-200">

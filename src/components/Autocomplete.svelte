@@ -9,7 +9,11 @@ import { onDestroy } from "svelte";
     id = "",
     oninput = () => {},
     onselect = () => {},
-    delay = 0
+    onfocus = () => {},
+    delay = 0,
+    customSelect = false,
+    extraInputClass = "",
+    inputRef = $bindable(null)
   } = $props();
 
   let showDropdown = $state(false);
@@ -74,7 +78,9 @@ import { onDestroy } from "svelte";
       selectedText = suggestion.scientificName || "";
     }
     
-    value = selectedText;
+    if (!customSelect) {
+      value = selectedText;
+    }
     showDropdown = false;
     activeIndex = -1;
     onselect(suggestion);
@@ -103,14 +109,18 @@ import { onDestroy } from "svelte";
   {/if}
   
   <input
+    bind:this={inputRef}
     {id}
     type="text"
     {placeholder}
     {value}
     oninput={handleInput}
     onkeydown={handleKeyDown}
-    onfocus={() => { if (suggestions.length > 0) showDropdown = true; }}
-    class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+    onfocus={() => {
+      onfocus();
+      if (suggestions.length > 0) showDropdown = true;
+    }}
+    class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all {extraInputClass}"
     autocomplete="off"
   />
 

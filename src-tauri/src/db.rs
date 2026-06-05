@@ -35,6 +35,26 @@ pub fn get_db_path(app: &AppHandle) -> PathBuf {
     app_dir.join("reference.db")
 }
 
+fn get_last_quick_check_date(conn: &Connection) -> Option<NaiveDate> {
+    let query = "SELECT value FROM app_metadata WHERE key = 'last_quick_check';";
+    if let Ok(val_str) = conn.query_row(query, [], |r| r.get::<_, String>(0)) {
+        if val_str.len() >= 10 {
+            if let Ok(date) = NaiveDate::parse_from_str(&val_str[0..10], "%Y-%m-%d") {
+                return Some(date);
+            }
+        }
+    }
+    None
+}
+
+fn set_last_quick_check_datetime(conn: &Connection) {
+    let now_str = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let _ = conn.execute(
+        "INSERT OR REPLACE INTO app_metadata (key, value) VALUES ('last_quick_check', ?1);",
+        [&now_str],
+    );
+}
+
 /// Initializes the database on startup.
 /// Copies the bundled reference database if not present, runs migrations, and seeds fallback test data.
 pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
@@ -64,13 +84,35 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
     let _ = conn.execute("PRAGMA journal_mode=WAL;", []);
     let _ = conn.execute("PRAGMA synchronous=NORMAL;", []);
     
-    // Run quick integrity check on startup
-    if let Ok(res) = conn.query_row("PRAGMA quick_check;", [], |r| r.get::<_, String>(0)) {
-        if res != "ok" {
-            warn!("Database quick_check failed on startup: {}", res);
-        } else {
-            info!("Database quick_check passed on startup.");
+    // Ensure app_metadata table exists so we can store quick check datetime
+    let _ = conn.execute(
+        "CREATE TABLE IF NOT EXISTS app_metadata (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        );",
+        [],
+    );
+    
+    // Run quick integrity check on startup only if not already run today
+    let today = Local::now().date_naive();
+    let last_check = get_last_quick_check_date(&conn);
+    let should_check = match last_check {
+        Some(date) => date != today,
+        None => true,
+    };
+    
+    if should_check {
+        info!("Running startup database integrity quick_check...");
+        if let Ok(res) = conn.query_row("PRAGMA quick_check;", [], |r| r.get::<_, String>(0)) {
+            if res != "ok" {
+                warn!("Database quick_check failed on startup: {}", res);
+            } else {
+                info!("Database quick_check passed on startup.");
+                set_last_quick_check_datetime(&conn);
+            }
         }
+    } else {
+        info!("Skipping database quick_check on startup (already run today).");
     }
     
     // Setup tables
@@ -101,6 +143,7 @@ pub fn shutdown_database(app: &AppHandle) {
                     warn!("Database quick_check failed on shutdown: {}", res);
                 } else {
                     info!("Database quick_check passed on shutdown.");
+                    set_last_quick_check_datetime(&conn);
                 }
             }
             Err(e) => {
@@ -418,6 +461,14 @@ fn run_migrations(conn: &Connection) -> Result<()> {
             format TEXT NOT NULL,
             mappings TEXT NOT NULL,
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        );",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS app_metadata (
+            key TEXT PRIMARY KEY,
+            value TEXT
         );",
         [],
     )?;

@@ -2,6 +2,7 @@
   import { onDestroy } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { convert } from 'geo-coordinates-parser';
+  import { titleCase, SMALL_WORDS } from "title-case";
   import Autocomplete from "./Autocomplete.svelte";
   import MultiSelectAutocomplete from "./MultiSelectAutocomplete.svelte";
 
@@ -75,7 +76,7 @@
     const end = verbatimLocalityRef.selectionEnd;
     let textToCopy = "";
     
-    if (start !== end) {
+    if (start !== null && end !== null && start !== end) {
       textToCopy = verbatimLocalityRef.value.substring(start, end);
     } else {
       textToCopy = form.verbatimLocality || "";
@@ -98,7 +99,111 @@
 
   onDestroy(() => {
     if (copyTimeoutId) clearTimeout(copyTimeoutId);
+    if (localityCopyTimeout) clearTimeout(localityCopyTimeout);
+    if (locationNotesCopyTimeout) clearTimeout(locationNotesCopyTimeout);
   });
+
+  let localityInputRef = $state(/** @type {HTMLInputElement|null} */ (null));
+  let localityCopied = $state(false);
+  /** @type {any} */
+  let localityCopyTimeout = null;
+
+  function handleCopyLocality() {
+    if (!localityInputRef) return;
+    const start = localityInputRef.selectionStart;
+    const end = localityInputRef.selectionEnd;
+    let textToCopy = "";
+    if (start !== null && end !== null && start !== end) {
+      textToCopy = localityInputRef.value.substring(start, end);
+    } else {
+      textToCopy = form.locality || "";
+    }
+    if (textToCopy) {
+      navigator.clipboard.writeText(textToCopy)
+        .then(() => {
+          localityCopied = true;
+          if (localityCopyTimeout) clearTimeout(localityCopyTimeout);
+          localityCopyTimeout = setTimeout(() => {
+            localityCopied = false;
+          }, 2000);
+        })
+        .catch(err => console.error(err));
+    }
+  }
+
+  async function handlePasteLocality() {
+    if (!localityInputRef) return;
+    try {
+      const clipboardText = await navigator.clipboard.readText();
+      if (!clipboardText) return;
+      
+      const start = localityInputRef.selectionStart || 0;
+      const end = localityInputRef.selectionEnd || 0;
+      const val = form.locality || "";
+      
+      form.locality = val.substring(0, start) + clipboardText + val.substring(end);
+      
+      setTimeout(() => {
+        if (localityInputRef) {
+          localityInputRef.focus();
+          localityInputRef.setSelectionRange(start + clipboardText.length, start + clipboardText.length);
+        }
+      }, 0);
+    } catch (err) {
+      console.error("Failed to paste from clipboard:", err);
+    }
+  }
+
+  let locationNotesRef = $state(/** @type {HTMLTextAreaElement|null} */ (null));
+  let locationNotesCopied = $state(false);
+  /** @type {any} */
+  let locationNotesCopyTimeout = null;
+
+  function handleCopyLocationNotes() {
+    if (!locationNotesRef) return;
+    const start = locationNotesRef.selectionStart;
+    const end = locationNotesRef.selectionEnd;
+    let textToCopy = "";
+    if (start !== null && end !== null && start !== end) {
+      textToCopy = locationNotesRef.value.substring(start, end);
+    } else {
+      textToCopy = form.locationNotes || "";
+    }
+    if (textToCopy) {
+      navigator.clipboard.writeText(textToCopy)
+        .then(() => {
+          locationNotesCopied = true;
+          if (locationNotesCopyTimeout) clearTimeout(locationNotesCopyTimeout);
+          locationNotesCopyTimeout = setTimeout(() => {
+            locationNotesCopied = false;
+          }, 2000);
+        })
+        .catch(err => console.error(err));
+    }
+  }
+
+  async function handlePasteLocationNotes() {
+    if (!locationNotesRef) return;
+    try {
+      const clipboardText = await navigator.clipboard.readText();
+      if (!clipboardText) return;
+      
+      const start = locationNotesRef.selectionStart || 0;
+      const end = locationNotesRef.selectionEnd || 0;
+      const val = form.locationNotes || "";
+      
+      form.locationNotes = val.substring(0, start) + clipboardText + val.substring(end);
+      
+      setTimeout(() => {
+        if (locationNotesRef) {
+          locationNotesRef.focus();
+          locationNotesRef.setSelectionRange(start + clipboardText.length, start + clipboardText.length);
+        }
+      }, 0);
+    } catch (err) {
+      console.error("Failed to paste from clipboard:", err);
+    }
+  }
 
   // Dropdown suggestions lists
   let taxonSuggestions = $state(/** @type {any[]} */ ([]));
@@ -114,6 +219,19 @@
   // Custom suggestion list for duplicates
   let duplicateSuggestions = $state(/** @type {any[]} */ ([]));
   const duplicateCodes = ["P", "K", "MO", "MAU"];
+
+  let typeStatusSuggestions = $state(/** @type {string[]} */ ([]));
+  const typeStatuses = [
+    "type",  
+    "isotype",
+    "holotype",
+    "syntype",
+    "isosyntype",
+    "isolectotype",
+    "paratype",
+    "lectotype",
+    "paralectotype"
+  ];
 
   // Helper to load collectionCode from active session owner's export settings
   async function loadCollectionCode() {
@@ -191,6 +309,7 @@
       form.identificationRemarks = activeRecord.identificationRemarks || "";
       form.occurrenceRemarks = activeRecord.occurrenceRemarks || "";
       form.fieldNotes = activeRecord.fieldNotes || "";
+      clearTitleCasedStates();
       
       statusMessage = "";
     }
@@ -218,6 +337,19 @@
   function handleTaxonSelect(/** @type {any} */ sug) {
     form.scientificName = sug.scientificName || "";
     form.taxonID = sug.taxonID || "";
+  }
+
+  function handleTypeStatusInput(/** @type {string} */ val) {
+    if (!val) {
+      typeStatusSuggestions = typeStatuses;
+      return;
+    }
+    const lowerVal = val.toLowerCase();
+    typeStatusSuggestions = typeStatuses.filter(t => t.toLowerCase().includes(lowerVal));
+  }
+
+  function handleTypeStatusFocus() {
+    typeStatusSuggestions = typeStatuses;
   }
 
   async function handleLocalityInput(/** @type {any} */ val) {
@@ -396,6 +528,12 @@
     duplicateSuggestions = [];
   }
 
+  function handleDuplicateFocus() {
+    let parts = form.duplicates.split(",");
+    duplicateSuggestions = duplicateCodes
+      .filter(code => !parts.map(p => p.trim().toUpperCase()).includes(code));
+  }
+
   // Verbatim Event Date Parser
   function parseVerbatimDate() {
     let dateStr = form.verbatimEventDate.trim();
@@ -473,18 +611,90 @@
    * @param {string} str
    * @returns {string}
    */
-  function toProperCase(str) {
+  function totitleCase(str) {
     if (!str) return "";
-    return str
-      .toLowerCase()
-      .replace(/\b([a-z])/g, (m) => m.toUpperCase());
+    const smallWords = new Set([
+      ...SMALL_WORDS,
+      "along", "from", "towards", "above", "below", "road", "km", "mi", "m", "ft", "side", "slope", "bank", "valley", "ridge", "peak", "mountain", "hill",
+      "island", "peninsula", "cape", "bay", "gulf", "strait", "channel", "canyon", "cliff", "plateau", "desert", "forest", "wood", "swamp", "marsh",
+        "river", "creek", "stream", "lake", "pond", "spring", "waterfall", "glacier", "volcano", "harbor", "fjord", "delta", "ocean", "sea", "beach", 
+        "coast", "shore", "isle", "avenue", "street", "boulevard", "drive", "lane", "court", "square", "parkway", "trail", "terrace", "place",
+        "le long de", "de", "vers", "au-dessus de", "au-dessous de",
+  "route", "rd", "rd.",   "hwy", "hwy.",  "st", "st.",  "ave", "ave.",  "blvd", "blvd.",  "dr", "dr.",  "ln", "ln.",  "ct", "ct.",  "sq", "sq.",  "pkwy", "pkwy.",
+  "trl", "trl.",  "ter", "ter.",  "pl", "pl.",  "mt", "mt.",  "mtn", "mtn.",  "mts", "mts.",  "pk", "pk.",  "pt", "pt.",  "isl", "isl.",  "is", "is.",  "pen", "pen.",
+  "riv", "riv.",   "cr", "cr.",  "ck", "ck.",  "str", "str.",  "lk", "lk.",  "pd", "pd.",  "spr", "spr.",  "falls",  "val", "val.",  "vly", "vly.",  "rdg", "rdg.",
+  "cl", "cl.",   "plt", "plt.",  "for", "for.",  "wd", "wd.",  "sw", "sw.",  "mar", "mar.",  "har", "har.",  "fj", "fj.",  "del", "del.",  "oc", "oc.",  "sea",
+  "bch", "bch.",  "cst", "cst.",  "shr", "shr.",  "n", "s", "e", "w",  "ne", "nw", "se", "sw",  "nne", "ene", "ese", "sse",  "ssw", "wsw", "wnw", "nnw",
+  "km", "mi", "m", "ft",   
+  "côté", "pente", "rive", "vallée", "crête", "sommet", "montagne", "colline",  
+  "île", "péninsule", "cap", "baie", "golfe", "détroit", "chenal", "canyon",
+  "falaise", "plateau", "désert", "forêt", "bois", "marécage", "marais",
+  "rivière", "ruisseau", "cours d'eau", "lac", "étang", "source", "cascade",
+  "glacier", "volcan", "port", "fjord", "delta", "océan", "mer", "plage",
+  "côte", "rivage", "îlot",
+  "avenue", "rue", "boulevard", "allée", "voie", "cour", "place",
+  "promenade", "sentier", "terrasse", "lieu",
+  "riv.", "mt", "ste", "st", "rte", "av."
+    ]);
+    const directions = [
+      'N', 'S', 'E', 'W',
+      'NE', 'NW', 'SE', 'SW',
+      'NNE', 'ENE', 'ESE', 'SSE',
+      'SSW', 'WSW', 'WNW', 'NNW'
+    ];
+    const regex = new RegExp(`\\b(${directions.join('|')})\\b`, 'gi');
+
+    return titleCase(str.toLowerCase(), { smallWords }).replace(regex, match => match.toUpperCase());
+
   }
 
-  function properCaseField(/** @type {string} */ field) {
+  // Title Casing Undo state tracking
+  let titleCasedStates = $state({
+    country: { original: "", titleCased: "" },
+    stateProvince: { original: "", titleCased: "" },
+    county: { original: "", titleCased: "" },
+    municipality: { original: "", titleCased: "" },
+    locality: { original: "", titleCased: "" },
+    locationNotes: { original: "", titleCased: "" },
+    habitat: { original: "", titleCased: "" },
+    fieldNotes: { original: "", titleCased: "" },
+    occurrenceRemarks: { original: "", titleCased: "" }
+  });
+
+  function clearTitleCasedStates() {
+    titleCasedStates = {
+      country: { original: "", titleCased: "" },
+      stateProvince: { original: "", titleCased: "" },
+      county: { original: "", titleCased: "" },
+      municipality: { original: "", titleCased: "" },
+      locality: { original: "", titleCased: "" },
+      locationNotes: { original: "", titleCased: "" },
+      habitat: { original: "", titleCased: "" },
+      fieldNotes: { original: "", titleCased: "" },
+      occurrenceRemarks: { original: "", titleCased: "" }
+    };
+  }
+
+  function undoTitleCaseField(/** @type {string} */ field) {
+    let formObj = /** @type {any} */ (form);
+    let stateObj = /** @type {any} */ (titleCasedStates)[field];
+    if (stateObj && stateObj.original !== undefined) {
+      formObj[field] = stateObj.original;
+      /** @type {any} */ (titleCasedStates)[field] = { original: "", titleCased: "" };
+    }
+  }
+
+  function titleCaseField(/** @type {string} */ field) {
     let formObj = /** @type {any} */ (form);
     let val = formObj[field];
     if (typeof val === "string") {
-      formObj[field] = toProperCase(val);
+      const originalValue = val;
+      const titleCasedValue = totitleCase(val);
+      /** @type {any} */ (titleCasedStates)[field] = {
+        original: originalValue,
+        titleCased: titleCasedValue
+      };
+      formObj[field] = titleCasedValue;
     }
   }
 
@@ -639,6 +849,8 @@
     localitySuggestions = [];
     collectorSuggestions = [];
     duplicateSuggestions = [];
+    typeStatusSuggestions = [];
+    clearTitleCasedStates();
   }
 
   function handleShowPreviousRecord() {
@@ -748,6 +960,8 @@
           suggestions={duplicateSuggestions}
           oninput={handleDuplicateInput}
           onselect={handleDuplicateSelect}
+          onfocus={handleDuplicateFocus}
+          customSelect={true}
         />
       </div>
     </div>
@@ -837,7 +1051,7 @@
       </div>
     </div>
 
-    <!-- Row 3: Geography with Proper-case buttons -->
+    <!-- Row 3: Geography with Title-case buttons -->
     <div class="space-y-3 pt-2">
       <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">Geographic Locality</h3>
       
@@ -855,14 +1069,31 @@
               onselect={onCountryChanged}
               delay={300}
             />
-            <button
-              type="button"
-              onclick={() => properCaseField("country")}
-              title="Proper case Country"
-              class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold z-10"
-            >
-              Aa
-            </button>
+            {#if form.country === titleCasedStates.country.titleCased && titleCasedStates.country.titleCased !== ""}
+              <button
+                type="button"
+                onclick={() => undoTitleCaseField("country")}
+                title="Undo Title case"
+                class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
+                tabindex="-1"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                  <path d="M232,144a64.07,64.07,0,0,1-64,64H80a8,8,0,0,1,0-16h88a48,48,0,0,0,0-96H51.31l34.35,34.34a8,8,0,0,1-11.32,11.32l-48-48a8,8,0,0,1,0-11.32l48-48A8,8,0,0,1,85.66,45.66L51.31,80H168A64.07,64.07,0,0,1,232,144Z"></path>
+                </svg>
+              </button>
+            {:else}
+              <button
+                type="button"
+                onclick={() => titleCaseField("country")}
+                title="Title case Country"
+                class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
+                tabindex="-1"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                  <path d="M87.24,52.59a8,8,0,0,0-14.48,0l-64,136a8,8,0,1,0,14.48,6.81L39.9,160h80.2l16.66,35.4a8,8,0,1,0,14.48-6.81ZM47.43,144,80,74.79,112.57,144ZM200,96c-12.76,0-22.73,3.47-29.63,10.32a8,8,0,0,0,11.26,11.36c3.8-3.77,10-5.68,18.37-5.68,13.23,0,24,9,24,20v3.22A42.76,42.76,0,0,0,200,128c-22.06,0-40,16.15-40,36s17.94,36,40,36a42.73,42.73,0,0,0,24-7.25,8,8,0,0,0,16-.75V132C240,112.15,222.06,96,200,96Zm0,88c-13.23,0-24-9-24-20s10.77-20,24-20,24,9,24,20S213.23,184,200,184Z"></path>
+                </svg>
+              </button>
+            {/if}
           </div>
         </div>
 
@@ -879,14 +1110,31 @@
               onselect={onStateProvinceChanged}
               delay={300}
             />
-            <button
-              type="button"
-              onclick={() => properCaseField("stateProvince")}
-              title="Proper case Admin 2"
-              class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold z-10"
-            >
-              Aa
-            </button>
+            {#if form.stateProvince === titleCasedStates.stateProvince.titleCased && titleCasedStates.stateProvince.titleCased !== ""}
+              <button
+                type="button"
+                onclick={() => undoTitleCaseField("stateProvince")}
+                title="Undo Title case"
+                class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
+                tabindex="-1"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                  <path d="M232,144a64.07,64.07,0,0,1-64,64H80a8,8,0,0,1,0-16h88a48,48,0,0,0,0-96H51.31l34.35,34.34a8,8,0,0,1-11.32,11.32l-48-48a8,8,0,0,1,0-11.32l48-48A8,8,0,0,1,85.66,45.66L51.31,80H168A64.07,64.07,0,0,1,232,144Z"></path>
+                </svg>
+              </button>
+            {:else}
+              <button
+                type="button"
+                onclick={() => titleCaseField("stateProvince")}
+                title="Title case Admin 2"
+                class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
+                tabindex="-1"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                  <path d="M87.24,52.59a8,8,0,0,0-14.48,0l-64,136a8,8,0,1,0,14.48,6.81L39.9,160h80.2l16.66,35.4a8,8,0,1,0,14.48-6.81ZM47.43,144,80,74.79,112.57,144ZM200,96c-12.76,0-22.73,3.47-29.63,10.32a8,8,0,0,0,11.26,11.36c3.8-3.77,10-5.68,18.37-5.68,13.23,0,24,9,24,20v3.22A42.76,42.76,0,0,0,200,128c-22.06,0-40,16.15-40,36s17.94,36,40,36a42.73,42.73,0,0,0,24-7.25,8,8,0,0,0,16-.75V132C240,112.15,222.06,96,200,96Zm0,88c-13.23,0-24-9-24-20s10.77-20,24-20,24,9,24,20S213.23,184,200,184Z"></path>
+                </svg>
+              </button>
+            {/if}
           </div>
         </div>
 
@@ -903,14 +1151,31 @@
               onselect={onCountyChanged}
               delay={300}
             />
-            <button
-              type="button"
-              onclick={() => properCaseField("county")}
-              title="Proper case Admin 3"
-              class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold z-10"
-            >
-              Aa
-            </button>
+            {#if form.county === titleCasedStates.county.titleCased && titleCasedStates.county.titleCased !== ""}
+              <button
+                type="button"
+                onclick={() => undoTitleCaseField("county")}
+                title="Undo Title case"
+                class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
+                tabindex="-1"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                  <path d="M232,144a64.07,64.07,0,0,1-64,64H80a8,8,0,0,1,0-16h88a48,48,0,0,0,0-96H51.31l34.35,34.34a8,8,0,0,1-11.32,11.32l-48-48a8,8,0,0,1,0-11.32l48-48A8,8,0,0,1,85.66,45.66L51.31,80H168A64.07,64.07,0,0,1,232,144Z"></path>
+                </svg>
+              </button>
+            {:else}
+              <button
+                type="button"
+                onclick={() => titleCaseField("county")}
+                title="Title case Admin 3"
+                class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
+                tabindex="-1"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                  <path d="M87.24,52.59a8,8,0,0,0-14.48,0l-64,136a8,8,0,1,0,14.48,6.81L39.9,160h80.2l16.66,35.4a8,8,0,1,0,14.48-6.81ZM47.43,144,80,74.79,112.57,144ZM200,96c-12.76,0-22.73,3.47-29.63,10.32a8,8,0,0,0,11.26,11.36c3.8-3.77,10-5.68,18.37-5.68,13.23,0,24,9,24,20v3.22A42.76,42.76,0,0,0,200,128c-22.06,0-40,16.15-40,36s17.94,36,40,36a42.73,42.73,0,0,0,24-7.25,8,8,0,0,0,16-.75V132C240,112.15,222.06,96,200,96Zm0,88c-13.23,0-24-9-24-20s10.77-20,24-20,24,9,24,20S213.23,184,200,184Z"></path>
+                </svg>
+              </button>
+            {/if}
           </div>
         </div>
 
@@ -926,14 +1191,31 @@
               oninput={handleMunicipalityInput}
               delay={300}
             />
-            <button
-              type="button"
-              onclick={() => properCaseField("municipality")}
-              title="Proper case Admin 4"
-              class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold z-10"
-            >
-              Aa
-            </button>
+            {#if form.municipality === titleCasedStates.municipality.titleCased && titleCasedStates.municipality.titleCased !== ""}
+              <button
+                type="button"
+                onclick={() => undoTitleCaseField("municipality")}
+                title="Undo Title case"
+                class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
+                tabindex="-1"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                  <path d="M232,144a64.07,64.07,0,0,1-64,64H80a8,8,0,0,1,0-16h88a48,48,0,0,0,0-96H51.31l34.35,34.34a8,8,0,0,1-11.32,11.32l-48-48a8,8,0,0,1,0-11.32l48-48A8,8,0,0,1,85.66,45.66L51.31,80H168A64.07,64.07,0,0,1,232,144Z"></path>
+                </svg>
+              </button>
+            {:else}
+              <button
+                type="button"
+                onclick={() => titleCaseField("municipality")}
+                title="Title case Admin 4"
+                class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
+                tabindex="-1"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                  <path d="M87.24,52.59a8,8,0,0,0-14.48,0l-64,136a8,8,0,1,0,14.48,6.81L39.9,160h80.2l16.66,35.4a8,8,0,1,0,14.48-6.81ZM47.43,144,80,74.79,112.57,144ZM200,96c-12.76,0-22.73,3.47-29.63,10.32a8,8,0,0,0,11.26,11.36c3.8-3.77,10-5.68,18.37-5.68,13.23,0,24,9,24,20v3.22A42.76,42.76,0,0,0,200,128c-22.06,0-40,16.15-40,36s17.94,36,40,36a42.73,42.73,0,0,0,24-7.25,8,8,0,0,0,16-.75V132C240,112.15,222.06,96,200,96Zm0,88c-13.23,0-24-9-24-20s10.77-20,24-20,24,9,24,20S213.23,184,200,184Z"></path>
+                </svg>
+              </button>
+            {/if}
           </div>
         </div>
       </div>
@@ -943,7 +1225,7 @@
     <div class="space-y-3">
       <div>
         <label for="capture-locality" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Locality</label>
-        <div class="relative flex items-center">
+        <div class="relative flex items-center w-full">
           <Autocomplete
             id="capture-locality"
             label=""
@@ -951,38 +1233,135 @@
             bind:value={form.locality}
             suggestions={localitySuggestions}
             oninput={handleLocalityInput}
+            bind:inputRef={localityInputRef}
+            extraInputClass="pr-24"
             delay={300}
           />
-          <button
-            type="button"
-            onclick={() => properCaseField("locality")}
-            title="Proper case Locality"
-            class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold z-10"
-          >
-            Aa
-          </button>
+          <div class="absolute right-2 top-2 flex items-center gap-1 z-10 bg-white pl-1">
+            {#if form.locality === titleCasedStates.locality.titleCased && titleCasedStates.locality.titleCased !== ""}
+              <button
+                type="button"
+                onclick={() => undoTitleCaseField("locality")}
+                title="Undo Title case"
+                class="px-1.5 py-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded-none flex items-center justify-center"
+                tabindex="-1"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                  <path d="M232,144a64.07,64.07,0,0,1-64,64H80a8,8,0,0,1,0-16h88a48,48,0,0,0,0-96H51.31l34.35,34.34a8,8,0,0,1-11.32,11.32l-48-48a8,8,0,0,1,0-11.32l48-48A8,8,0,0,1,85.66,45.66L51.31,80H168A64.07,64.07,0,0,1,232,144Z"></path>
+                </svg>
+              </button>
+            {:else}
+              <button
+                type="button"
+                onclick={() => titleCaseField("locality")}
+                title="Title case Locality"
+                class="px-1.5 py-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded-none flex items-center justify-center"
+                tabindex="-1"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                  <path d="M87.24,52.59a8,8,0,0,0-14.48,0l-64,136a8,8,0,1,0,14.48,6.81L39.9,160h80.2l16.66,35.4a8,8,0,1,0,14.48-6.81ZM47.43,144,80,74.79,112.57,144ZM200,96c-12.76,0-22.73,3.47-29.63,10.32a8,8,0,0,0,11.26,11.36c3.8-3.77,10-5.68,18.37-5.68,13.23,0,24,9,24,20v3.22A42.76,42.76,0,0,0,200,128c-22.06,0-40,16.15-40,36s17.94,36,40,36a42.73,42.73,0,0,0,24-7.25,8,8,0,0,0,16-.75V132C240,112.15,222.06,96,200,96Zm0,88c-13.23,0-24-9-24-20s10.77-20,24-20,24,9,24,20S213.23,184,200,184Z"></path>
+                </svg>
+              </button>
+            {/if}
+            <button
+              type="button"
+              onclick={handleCopyLocality}
+              title={localityCopied ? "Copied!" : "Copy selection or entire text"}
+              class="p-1 transition-colors cursor-pointer rounded-none flex items-center justify-center {localityCopied ? 'text-green-600' : 'text-slate-400 hover:text-slate-600'}"
+              tabindex="-1"
+            >
+              {#if localityCopied}
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                  <path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"></path>
+                </svg>
+              {:else}
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                  <path d="M184,64H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H184a8,8,0,0,0,8-8V72A8,8,0,0,0,184,64Zm-8,144H48V80H176ZM224,40V184a8,8,0,0,1-16,0V48H72a8,8,0,0,1,0-16H216A8,8,0,0,1,224,40Z"></path>
+                </svg>
+              {/if}
+            </button>
+            <button
+              type="button"
+              onclick={handlePasteLocality}
+              title="Paste clipboard contents"
+              class="p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded-none flex items-center justify-center"
+              tabindex="-1"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                <path d="M168,152a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,152Zm-8-40H96a8,8,0,0,0,0,16h64a8,8,0,0,0,0-16Zm56-64V216a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V48A16,16,0,0,1,56,32H92.26a47.92,47.92,0,0,1,71.48,0H200A16,16,0,0,1,216,48ZM96,64h64a32,32,0,0,0-64,0ZM200,48H173.25A47.93,47.93,0,0,1,176,64v8a8,8,0,0,1-8,8H88a8,8,0,0,1-8-8V64a47.93,47.93,0,0,1,2.75-16H56V216H200Z"></path>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
       <!-- Row 5: Locality Notes (locationNotes) -->
       <div>
         <label for="capture-locationNotes" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Locality Notes</label>
-        <div class="relative flex items-start">
+        <div class="relative flex items-start w-full">
           <textarea
+            bind:this={locationNotesRef}
             id="capture-locationNotes"
             rows="2"
             placeholder="eg '12 km south, main ravine'"
             bind:value={form.locationNotes}
-            class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all resize-none"
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-24 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all resize-none"
           ></textarea>
-          <button
-            type="button"
-            onclick={() => properCaseField("locationNotes")}
-            title="Proper case Locality Notes"
-            class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold"
-          >
-            Aa
-          </button>
+          <div class="absolute right-2 top-2 flex items-center gap-1 z-10 bg-white pl-1">
+            {#if form.locationNotes === titleCasedStates.locationNotes.titleCased && titleCasedStates.locationNotes.titleCased !== ""}
+              <button
+                type="button"
+                onclick={() => undoTitleCaseField("locationNotes")}
+                title="Undo Title case"
+                class="px-1.5 py-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded-none flex items-center justify-center"
+                tabindex="-1"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                  <path d="M232,144a64.07,64.07,0,0,1-64,64H80a8,8,0,0,1,0-16h88a48,48,0,0,0,0-96H51.31l34.35,34.34a8,8,0,0,1-11.32,11.32l-48-48a8,8,0,0,1,0-11.32l48-48A8,8,0,0,1,85.66,45.66L51.31,80H168A64.07,64.07,0,0,1,232,144Z"></path>
+                </svg>
+              </button>
+            {:else}
+              <button
+                type="button"
+                onclick={() => titleCaseField("locationNotes")}
+                title="Title case Locality Notes"
+                class="px-1.5 py-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded-none flex items-center justify-center"
+                tabindex="-1"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                  <path d="M87.24,52.59a8,8,0,0,0-14.48,0l-64,136a8,8,0,1,0,14.48,6.81L39.9,160h80.2l16.66,35.4a8,8,0,1,0,14.48-6.81ZM47.43,144,80,74.79,112.57,144ZM200,96c-12.76,0-22.73,3.47-29.63,10.32a8,8,0,0,0,11.26,11.36c3.8-3.77,10-5.68,18.37-5.68,13.23,0,24,9,24,20v3.22A42.76,42.76,0,0,0,200,128c-22.06,0-40,16.15-40,36s17.94,36,40,36a42.73,42.73,0,0,0,24-7.25,8,8,0,0,0,16-.75V132C240,112.15,222.06,96,200,96Zm0,88c-13.23,0-24-9-24-20s10.77-20,24-20,24,9,24,20S213.23,184,200,184Z"></path>
+                </svg>
+              </button>
+            {/if}
+            <button
+              type="button"
+              onclick={handleCopyLocationNotes}
+              title={locationNotesCopied ? "Copied!" : "Copy selection or entire text"}
+              class="p-1 transition-colors cursor-pointer rounded-none flex items-center justify-center {locationNotesCopied ? 'text-green-600' : 'text-slate-400 hover:text-slate-600'}"
+              tabindex="-1"
+            >
+              {#if locationNotesCopied}
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                  <path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"></path>
+                </svg>
+              {:else}
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                  <path d="M184,64H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H184a8,8,0,0,0,8-8V72A8,8,0,0,0,184,64Zm-8,144H48V80H176ZM224,40V184a8,8,0,0,1-16,0V48H72a8,8,0,0,1,0-16H216A8,8,0,0,1,224,40Z"></path>
+                </svg>
+              {/if}
+            </button>
+            <button
+              type="button"
+              onclick={handlePasteLocationNotes}
+              title="Paste clipboard contents"
+              class="p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded-none flex items-center justify-center"
+              tabindex="-1"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                <path d="M168,152a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,152Zm-8-40H96a8,8,0,0,0,0,16h64a8,8,0,0,0,0-16Zm56-64V216a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V48A16,16,0,0,1,56,32H92.26a47.92,47.92,0,0,1,71.48,0H200A16,16,0,0,1,216,48ZM96,64h64a32,32,0,0,0-64,0ZM200,48H173.25A47.93,47.93,0,0,1,176,64v8a8,8,0,0,1-8,8H88a8,8,0,0,1-8-8V64a47.93,47.93,0,0,1,2.75-16H56V216H200Z"></path>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1024,6 +1403,7 @@
           onclick={handleCopyVerbatimLocality}
           title={verbatimLocalityCopied ? "Copied!" : "Copy selection or entire text"}
           class="absolute right-2 top-2 p-1.5 bg-white border transition-colors cursor-pointer rounded-none flex items-center justify-center {verbatimLocalityCopied ? 'border-green-300 text-green-600 hover:text-green-600 hover:border-green-300 shadow-xs' : 'border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-350 shadow-xs'}"
+          tabindex="-1"
         >
           {#if verbatimLocalityCopied}
             <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
@@ -1060,14 +1440,31 @@
             bind:value={form.habitat}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
-          <button
-            type="button"
-            onclick={() => properCaseField("habitat")}
-            title="Proper case Habitat"
-            class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold z-10"
-          >
-            Aa
-          </button>
+          {#if form.habitat === titleCasedStates.habitat.titleCased && titleCasedStates.habitat.titleCased !== ""}
+            <button
+              type="button"
+              onclick={() => undoTitleCaseField("habitat")}
+              title="Undo Title case"
+              class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
+              tabindex="-1"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                <path d="M232,144a64.07,64.07,0,0,1-64,64H80a8,8,0,0,1,0-16h88a48,48,0,0,0,0-96H51.31l34.35,34.34a8,8,0,0,1-11.32,11.32l-48-48a8,8,0,0,1,0-11.32l48-48A8,8,0,0,1,85.66,45.66L51.31,80H168A64.07,64.07,0,0,1,232,144Z"></path>
+              </svg>
+            </button>
+          {:else}
+            <button
+              type="button"
+              onclick={() => titleCaseField("habitat")}
+              title="Title case Habitat"
+              class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
+              tabindex="-1"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                <path d="M87.24,52.59a8,8,0,0,0-14.48,0l-64,136a8,8,0,1,0,14.48,6.81L39.9,160h80.2l16.66,35.4a8,8,0,1,0,14.48-6.81ZM47.43,144,80,74.79,112.57,144ZM200,96c-12.76,0-22.73,3.47-29.63,10.32a8,8,0,0,0,11.26,11.36c3.8-3.77,10-5.68,18.37-5.68,13.23,0,24,9,24,20v3.22A42.76,42.76,0,0,0,200,128c-22.06,0-40,16.15-40,36s17.94,36,40,36a42.73,42.73,0,0,0,24-7.25,8,8,0,0,0,16-.75V132C240,112.15,222.06,96,200,96Zm0,88c-13.23,0-24-9-24-20s10.77-20,24-20,24,9,24,20S213.23,184,200,184Z"></path>
+              </svg>
+            </button>
+          {/if}
         </div>
       </div>
     </div>
@@ -1083,14 +1480,31 @@
           bind:value={form.fieldNotes}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all resize-none"
         ></textarea>
-        <button
-          type="button"
-          onclick={() => properCaseField("fieldNotes")}
-          title="Proper case Plant description"
-          class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold"
-        >
-          Aa
-        </button>
+        {#if form.fieldNotes === titleCasedStates.fieldNotes.titleCased && titleCasedStates.fieldNotes.titleCased !== ""}
+          <button
+            type="button"
+            onclick={() => undoTitleCaseField("fieldNotes")}
+            title="Undo Title case"
+            class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
+            tabindex="-1"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+              <path d="M232,144a64.07,64.07,0,0,1-64,64H80a8,8,0,0,1,0-16h88a48,48,0,0,0,0-96H51.31l34.35,34.34a8,8,0,0,1-11.32,11.32l-48-48a8,8,0,0,1,0-11.32l48-48A8,8,0,0,1,85.66,45.66L51.31,80H168A64.07,64.07,0,0,1,232,144Z"></path>
+            </svg>
+          </button>
+        {:else}
+          <button
+            type="button"
+            onclick={() => titleCaseField("fieldNotes")}
+            title="Title case Plant description"
+            class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
+            tabindex="-1"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+              <path d="M87.24,52.59a8,8,0,0,0-14.48,0l-64,136a8,8,0,1,0,14.48,6.81L39.9,160h80.2l16.66,35.4a8,8,0,1,0,14.48-6.81ZM47.43,144,80,74.79,112.57,144ZM200,96c-12.76,0-22.73,3.47-29.63,10.32a8,8,0,0,0,11.26,11.36c3.8-3.77,10-5.68,18.37-5.68,13.23,0,24,9,24,20v3.22A42.76,42.76,0,0,0,200,128c-22.06,0-40,16.15-40,36s17.94,36,40,36a42.73,42.73,0,0,0,24-7.25,8,8,0,0,0,16-.75V132C240,112.15,222.06,96,200,96Zm0,88c-13.23,0-24-9-24-20s10.77-20,24-20,24,9,24,20S213.23,184,200,184Z"></path>
+            </svg>
+          </button>
+        {/if}
       </div>
     </div>
 
@@ -1105,14 +1519,31 @@
           bind:value={form.occurrenceRemarks}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all resize-none"
         ></textarea>
-        <button
-          type="button"
-          onclick={() => properCaseField("occurrenceRemarks")}
-          title="Proper case General Notes"
-          class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 font-mono text-[10px] font-bold"
-        >
-          Aa
-        </button>
+        {#if form.occurrenceRemarks === titleCasedStates.occurrenceRemarks.titleCased && titleCasedStates.occurrenceRemarks.titleCased !== ""}
+          <button
+            type="button"
+            onclick={() => undoTitleCaseField("occurrenceRemarks")}
+            title="Undo Title case"
+            class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
+            tabindex="-1"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+              <path d="M232,144a64.07,64.07,0,0,1-64,64H80a8,8,0,0,1,0-16h88a48,48,0,0,0,0-96H51.31l34.35,34.34a8,8,0,0,1-11.32,11.32l-48-48a8,8,0,0,1,0-11.32l48-48A8,8,0,0,1,85.66,45.66L51.31,80H168A64.07,64.07,0,0,1,232,144Z"></path>
+            </svg>
+          </button>
+        {:else}
+          <button
+            type="button"
+            onclick={() => titleCaseField("occurrenceRemarks")}
+            title="Title case General Notes"
+            class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
+            tabindex="-1"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+              <path d="M87.24,52.59a8,8,0,0,0-14.48,0l-64,136a8,8,0,1,0,14.48,6.81L39.9,160h80.2l16.66,35.4a8,8,0,1,0,14.48-6.81ZM47.43,144,80,74.79,112.57,144ZM200,96c-12.76,0-22.73,3.47-29.63,10.32a8,8,0,0,0,11.26,11.36c3.8-3.77,10-5.68,18.37-5.68,13.23,0,24,9,24,20v3.22A42.76,42.76,0,0,0,200,128c-22.06,0-40,16.15-40,36s17.94,36,40,36a42.73,42.73,0,0,0,24-7.25,8,8,0,0,0,16-.75V132C240,112.15,222.06,96,200,96Zm0,88c-13.23,0-24-9-24-20s10.77-20,24-20,24,9,24,20S213.23,184,200,184Z"></path>
+            </svg>
+          </button>
+        {/if}
       </div>
     </div>
 
@@ -1150,23 +1581,19 @@
           />
         </div>
 
-        <!-- Type Status single-select dropdown -->
+        <!-- Type Status autocomplete -->
         <div class="col-span-3">
           <label for="capture-typeStatus" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Type Status</label>
-          <select
+          <Autocomplete
             id="capture-typeStatus"
+            label=""
+            placeholder="eg holotype"
             bind:value={form.typeStatus}
-            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
-          >
-            <option value="">(None)</option>
-            <option value="holotype">holotype</option>
-            <option value="isotype">isotype</option>
-            <option value="syntype">syntype</option>
-            <option value="paratype">paratype</option>
-            <option value="lectotype">lectotype</option>
-            <option value="neotype">neotype</option>
-            <option value="epitype">epitype</option>
-          </select>
+            suggestions={typeStatusSuggestions}
+            oninput={handleTypeStatusInput}
+            onfocus={handleTypeStatusFocus}
+            delay={0}
+          />
         </div>
       </div>
     </div>
