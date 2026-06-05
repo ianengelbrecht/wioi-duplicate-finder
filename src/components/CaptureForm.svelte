@@ -1,4 +1,5 @@
 <script>
+  import { onDestroy } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { convert } from 'geo-coordinates-parser';
   import Autocomplete from "./Autocomplete.svelte";
@@ -61,6 +62,43 @@
   let saving = $state(false);
   let statusMessage = $state("");
   let statusType = $state(""); // "success" or "error"
+
+  let verbatimLocalityRef = $state(/** @type {HTMLTextAreaElement|null} */ (null));
+  let verbatimLocalityCopied = $state(false);
+  /** @type {any} */
+  let copyTimeoutId = null;
+
+  function handleCopyVerbatimLocality() {
+    if (!verbatimLocalityRef) return;
+    
+    const start = verbatimLocalityRef.selectionStart;
+    const end = verbatimLocalityRef.selectionEnd;
+    let textToCopy = "";
+    
+    if (start !== end) {
+      textToCopy = verbatimLocalityRef.value.substring(start, end);
+    } else {
+      textToCopy = form.verbatimLocality || "";
+    }
+    
+    if (textToCopy) {
+      navigator.clipboard.writeText(textToCopy)
+        .then(() => {
+          verbatimLocalityCopied = true;
+          if (copyTimeoutId) clearTimeout(copyTimeoutId);
+          copyTimeoutId = setTimeout(() => {
+            verbatimLocalityCopied = false;
+          }, 2000);
+        })
+        .catch(err => {
+          console.error("Failed to copy text:", err);
+        });
+    }
+  }
+
+  onDestroy(() => {
+    if (copyTimeoutId) clearTimeout(copyTimeoutId);
+  });
 
   // Dropdown suggestions lists
   let taxonSuggestions = $state(/** @type {any[]} */ ([]));
@@ -688,7 +726,7 @@
           type="text"
           readonly
           bind:value={form.collectionCode}
-          class="w-full bg-slate-100 border border-slate-300 text-slate-500 text-sm px-3 py-2 cursor-not-allowed outline-none rounded-none font-semibold"
+          class="w-full bg-slate-100 border border-slate-300 text-slate-500 text-sm px-3 py-2 outline-none rounded-none font-semibold"
         />
       </div>
       <div class="col-span-4">
@@ -970,15 +1008,34 @@
 
     <!-- Row 6: Verbatim Locality (grayed-out read-only) -->
     <div>
-      <label for="capture-verbatimLocality" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Verbatim Locality (copy data above)</label>
-      <textarea
-        id="capture-verbatimLocality"
-        rows="2"
-        readonly
-        placeholder="Read-only imported value"
-        bind:value={form.verbatimLocality}
-        class="w-full bg-slate-100 border border-slate-300 text-slate-500 text-sm px-3 py-2 cursor-not-allowed outline-none rounded-none"      >
-      </textarea>
+      <label for="capture-verbatimLocality" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Verbatim Locality (copy data above)</label>
+      <div class="relative">
+        <textarea
+          bind:this={verbatimLocalityRef}
+          id="capture-verbatimLocality"
+          rows="2"
+          readonly
+          placeholder="Read-only imported value"
+          bind:value={form.verbatimLocality}
+          class="w-full bg-slate-100 border border-slate-300 text-slate-500 text-sm px-3 py-2 outline-none rounded-none pr-10"      >
+        </textarea>
+        <button
+          type="button"
+          onclick={handleCopyVerbatimLocality}
+          title={verbatimLocalityCopied ? "Copied!" : "Copy selection or entire text"}
+          class="absolute right-2 top-2 p-1.5 bg-white border transition-colors cursor-pointer rounded-none flex items-center justify-center {verbatimLocalityCopied ? 'border-green-300 text-green-600 hover:text-green-600 hover:border-green-300 shadow-xs' : 'border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-350 shadow-xs'}"
+        >
+          {#if verbatimLocalityCopied}
+            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+              <path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"></path>
+            </svg>
+          {:else}
+            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+              <path d="M184,64H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H184a8,8,0,0,0,8-8V72A8,8,0,0,0,184,64Zm-8,144H48V80H176ZM224,40V184a8,8,0,0,1-16,0V48H72a8,8,0,0,1,0-16H216A8,8,0,0,1,224,40Z"></path>
+            </svg>
+          {/if}
+        </button>
+      </div>
     </div>
 
     <!-- Row 6b: Verbatim Elevation & Habitat -->
