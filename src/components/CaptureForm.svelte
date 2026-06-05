@@ -88,6 +88,7 @@
       
       if (activeRecord.recordedBy) {
         let rawStr = activeRecord.recordedBy;
+        /** @type {string[]} */
         let collectors = [];
         if (rawStr.includes("|")) {
           collectors = rawStr.split("|");
@@ -428,16 +429,6 @@
     
     saving = true;
     statusMessage = "";
-    
-    // Validate required fields
-    // TODO add others if needed
-    const atLeastOneOf = ['scientificName', 'country', 'locality', 'recordedBy'];
-    if (!atLeastOneOf.some(field => form[field] && form[field].trim().length > 0)) {
-      statusMessage = "Please fill in at least one of the following fields: Scientific Name, Country, Locality, or Recorded By.";
-      statusType = "error";
-      saving = false;
-      return;
-    }
     
     let primaryCollector = form.recordedBy.trim();
     let additionalCollectors = form.additionalCollectors.trim();
