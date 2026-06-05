@@ -16,6 +16,7 @@
     catalogNumber: "",
     duplicates: "",
     recordedBy: "",
+    additionalCollectors: "",
     recordNumber: "",
     verbatimEventDate: "",
     year: "",
@@ -84,7 +85,27 @@
       form.collectionCode = activeRecord.collectionCode || form.collectionCode || "WIOI";
       form.catalogNumber = activeRecord.catalogNumber || "";
       form.duplicates = activeRecord.duplicates ? String(activeRecord.duplicates) : "";
-      form.recordedBy = activeRecord.recordedBy || "";
+      
+      if (activeRecord.recordedBy) {
+        let rawStr = activeRecord.recordedBy;
+        let collectors = [];
+        if (rawStr.includes("|")) {
+          collectors = rawStr.split("|");
+        } else if (rawStr.includes(";")) {
+          collectors = rawStr.split(";");
+        } else if (rawStr.includes(",")) {
+          collectors = rawStr.split(",");
+        } else {
+          collectors = [rawStr];
+        }
+        collectors = collectors.map((c) => c.trim()).filter(Boolean);
+        form.recordedBy = collectors[0] || "";
+        form.additionalCollectors = collectors.slice(1).join("; ");
+      } else {
+        form.recordedBy = "";
+        form.additionalCollectors = "";
+      }
+      
       form.recordNumber = activeRecord.recordNumber || "";
       form.verbatimEventDate = activeRecord.verbatimEventDate || "";
       form.year = activeRecord.year !== null && activeRecord.year !== undefined ? activeRecord.year.toString() : "";
@@ -411,15 +432,27 @@
     // Validate required fields
     // TODO add others if needed
     const atLeastOneOf = ['scientificName', 'country', 'locality', 'recordedBy'];
-    if (form.scientificName.trim().length === 0) {
-      statusMessage = "Error: Scientific Name is required.";
+    if (!atLeastOneOf.some(field => form[field] && form[field].trim().length > 0)) {
+      statusMessage = "Please fill in at least one of the following fields: Scientific Name, Country, Locality, or Recorded By.";
       statusType = "error";
       saving = false;
       return;
     }
     
+    let primaryCollector = form.recordedBy.trim();
+    let additionalCollectors = form.additionalCollectors.trim();
+    let combinedRecordedBy = primaryCollector;
+    if (additionalCollectors) {
+      if (combinedRecordedBy) {
+        combinedRecordedBy += "; " + additionalCollectors;
+      } else {
+        combinedRecordedBy = additionalCollectors;
+      }
+    }
+
     let recordPayload = {
       ...form,
+      recordedBy: combinedRecordedBy,
       sessionId: sessionId,
       duplicates: form.duplicates.trim().replace(/,\s*$/, "").split(",").map(p => p.trim()).filter(Boolean).length || null, // Convert string duplicates list to number of duplicates for DB
       year: form.year !== "" ? parseInt(form.year) : null,
@@ -465,6 +498,7 @@
       catalogNumber: "",
       duplicates: "",
       recordedBy: "",
+      additionalCollectors: "",
       recordNumber: "",
       verbatimEventDate: "",
       year: "",
@@ -602,7 +636,7 @@
       <div class="col-span-3">
         <Autocomplete
           id="capture-recordedBy"
-          label="Collector/s"
+          label="Primary Collector"
           placeholder="Partial eg 'Raza'"
           bind:value={form.recordedBy}
           suggestions={collectorSuggestions}
@@ -611,7 +645,7 @@
         />
       </div>
       <div class="col-span-2">
-        <label for="capture-recordNumber" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Collector No.</label>
+        <label for="capture-recordNumber" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Collector No.</label>
         <input
           id="capture-recordNumber"
           type="text"
@@ -622,7 +656,7 @@
       </div>
       
       <div class="col-span-3">
-        <label for="capture-verbatimEventDate" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Verbatim Date</label>
+        <label for="capture-verbatimEventDate" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Verbatim Date</label>
         <input
           id="capture-verbatimEventDate"
           type="text"
@@ -634,7 +668,7 @@
       </div>
       <div class="col-span-4 flex gap-2">
         <div class="flex-1">
-          <label for="capture-year" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Year</label>
+          <label for="capture-year" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Year</label>
           <input
             id="capture-year"
             type="number"
@@ -643,7 +677,7 @@
           />
         </div>
         <div class="flex-1">
-          <label for="capture-month" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Month</label>
+          <label for="capture-month" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Month</label>
           <input
             id="capture-month"
             type="number"
@@ -654,7 +688,7 @@
           />
         </div>
         <div class="flex-1">
-          <label for="capture-day" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Day</label>
+          <label for="capture-day" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Day</label>
           <input
             id="capture-day"
             type="number"
@@ -664,6 +698,20 @@
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
         </div>
+      </div>
+    </div>
+
+    <!-- Row 2.5: Additional Collectors -->
+    <div class="grid grid-cols-12 gap-3 pt-1">
+      <div class="col-span-12">
+        <label for="capture-additionalCollectors" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Additional Collectors</label>
+        <input
+          id="capture-additionalCollectors"
+          type="text"
+          placeholder="eg Jane Doe, Alan Turing"
+          bind:value={form.additionalCollectors}
+          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+        />
       </div>
     </div>
 
