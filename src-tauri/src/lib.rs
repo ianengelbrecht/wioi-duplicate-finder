@@ -467,6 +467,68 @@ fn autocomplete_recorded_by(app: AppHandle, query: String) -> Result<Vec<String>
 }
 
 #[tauri::command]
+fn autocomplete_agent(app: AppHandle, query: String) -> Result<Vec<String>, String> {
+    let db_path = get_db_path(&app);
+    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+    
+    let q_clean = query.trim();
+    if q_clean.is_empty() {
+        return Ok(Vec::new());
+    }
+    
+    let normalized = normalize_search_recorded_by(q_clean);
+    
+    let mut stmt = conn
+        .prepare("SELECT agentName FROM agents WHERE searchAgentName LIKE ?1 LIMIT 10")
+        .map_err(|e| e.to_string())?;
+        
+    let rows = stmt.query_map(params![format!("{}%", normalized)], |row| {
+        let name: String = row.get(0)?;
+        Ok(name)
+    }).map_err(|e| e.to_string())?;
+    
+    let mut list = Vec::new();
+    for r in rows {
+        list.push(r.map_err(|e| e.to_string())?);
+    }
+    Ok(list)
+}
+
+#[tauri::command]
+fn check_agent_exists(app: AppHandle, name: String) -> Result<bool, String> {
+    let db_path = get_db_path(&app);
+    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+    let clean = name.trim();
+    if clean.is_empty() {
+        return Ok(true);
+    }
+    let normalized = normalize_search_recorded_by(clean);
+    let mut stmt = conn
+        .prepare("SELECT 1 FROM agents WHERE searchAgentName = ?1")
+        .map_err(|e| e.to_string())?;
+    let exists = stmt.exists(params![normalized]).map_err(|e| e.to_string())?;
+    Ok(exists)
+}
+
+#[tauri::command]
+fn add_agent(app: AppHandle, name: String) -> Result<(), String> {
+    let db_path = get_db_path(&app);
+    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+    let clean = name.trim();
+    if clean.is_empty() {
+        return Ok(());
+    }
+    let search_name = normalize_search_recorded_by(clean);
+    conn.execute(
+        "INSERT OR IGNORE INTO agents (agentName, searchAgentName) VALUES (?1, ?2)",
+        params![clean, search_name],
+    ).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+
+
+#[tauri::command]
 fn autocomplete_locality(app: AppHandle, query: String) -> Result<Vec<String>, String> {
     let db_path = get_db_path(&app);
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
@@ -546,6 +608,18 @@ fn save_captured_record(app: AppHandle, record: serde_json::Value) -> Result<ser
     
     let id_remarks = record.get("identificationRemarks").and_then(|v| v.as_str()).unwrap_or("").trim();
     let taxon_id = record.get("taxonID").and_then(|v| v.as_str()).unwrap_or("").trim();
+
+    // Insert new unique names into agents table
+    let new_recorded_by_agents: Vec<&str> = recorded_by.split(';').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+    for name in new_recorded_by_agents {
+        let search_name = normalize_search_recorded_by(name);
+        let _ = conn.execute("INSERT OR IGNORE INTO agents (agentName, searchAgentName) VALUES (?1, ?2)", params![name, search_name]);
+    }
+    let new_identified_by_agents: Vec<&str> = identified_by.split(';').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+    for name in new_identified_by_agents {
+        let search_name = normalize_search_recorded_by(name);
+        let _ = conn.execute("INSERT OR IGNORE INTO agents (agentName, searchAgentName) VALUES (?1, ?2)", params![name, search_name]);
+    }
     
     if let Some(existing_id) = id {
         // Update existing record
@@ -1062,6 +1136,9 @@ pub fn run() {
             search_reference,
             autocomplete_scientific_name,
             autocomplete_recorded_by,
+            autocomplete_agent,
+            check_agent_exists,
+            add_agent,
             autocomplete_locality,
             save_captured_record,
             get_captured_records,

@@ -2,6 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { convert } from 'geo-coordinates-parser';
   import Autocomplete from "./Autocomplete.svelte";
+  import MultiSelectAutocomplete from "./MultiSelectAutocomplete.svelte";
 
   let {
     sessionId = null,
@@ -11,12 +12,12 @@
   } = $props();
 
   let form = $state({
-    id: null,
+    id: /** @type {number|null} */ (null),
     collectionCode: "",
     catalogNumber: "",
     duplicates: "",
     recordedBy: "",
-    additionalCollectors: "",
+    additionalCollectors: /** @type {string[]} */ ([]),
     recordNumber: "",
     verbatimEventDate: "",
     year: "",
@@ -38,7 +39,7 @@
     scientificName: "",
     taxonID: "",
     typeStatus: "",
-    identifiedBy: "",
+    identifiedBy: /** @type {string[]} */ ([]),
     yearIdentified: "",
     monthIdentified: "",
     dayIdentified: "",
@@ -48,6 +49,7 @@
   });
 
   let coordinatesError = $state(false);
+  let lastSavedRecord = $state(/** @type {any} */ (null));
 
   let isAnyGeoPopulated = $derived(
     !!((form.country && form.country.trim().length > 0) ||
@@ -64,6 +66,8 @@
   let taxonSuggestions = $state(/** @type {any[]} */ ([]));
   let localitySuggestions = $state(/** @type {any[]} */ ([]));
   let collectorSuggestions = $state(/** @type {any[]} */ ([]));
+  let additionalCollectorsSuggestions = $state(/** @type {any[]} */ ([]));
+  let identifiedBySuggestions = $state(/** @type {any[]} */ ([]));
   let countrySuggestions = $state(/** @type {any[]} */ ([]));
   let stateProvinceSuggestions = $state(/** @type {any[]} */ ([]));
   let countySuggestions = $state(/** @type {any[]} */ ([]));
@@ -87,24 +91,12 @@
       form.duplicates = activeRecord.duplicates ? String(activeRecord.duplicates) : "";
       
       if (activeRecord.recordedBy) {
-        let rawStr = activeRecord.recordedBy;
-        /** @type {string[]} */
-        let collectors = [];
-        if (rawStr.includes("|")) {
-          collectors = rawStr.split("|");
-        } else if (rawStr.includes(";")) {
-          collectors = rawStr.split(";");
-        } else if (rawStr.includes(",")) {
-          collectors = rawStr.split(",");
-        } else {
-          collectors = [rawStr];
-        }
-        collectors = collectors.map((c) => c.trim()).filter(Boolean);
+        let collectors = splitNames(activeRecord.recordedBy);
         form.recordedBy = collectors[0] || "";
-        form.additionalCollectors = collectors.slice(1).join("; ");
+        form.additionalCollectors = collectors.slice(1);
       } else {
         form.recordedBy = "";
-        form.additionalCollectors = "";
+        form.additionalCollectors = [];
       }
       
       form.recordNumber = activeRecord.recordNumber || "";
@@ -148,7 +140,13 @@
       form.scientificName = activeRecord.scientificName || "";
       form.taxonID = activeRecord.taxonID || "";
       form.typeStatus = activeRecord.typeStatus || "";
-      form.identifiedBy = activeRecord.identifiedBy || "";
+      
+      if (activeRecord.identifiedBy) {
+        form.identifiedBy = splitNames(activeRecord.identifiedBy);
+      } else {
+        form.identifiedBy = [];
+      }
+      
       form.yearIdentified = activeRecord.yearIdentified !== null && activeRecord.yearIdentified !== undefined ? activeRecord.yearIdentified.toString() : "";
       form.monthIdentified = activeRecord.monthIdentified !== null && activeRecord.monthIdentified !== undefined ? activeRecord.monthIdentified.toString() : "";
       form.dayIdentified = activeRecord.dayIdentified !== null && activeRecord.dayIdentified !== undefined ? activeRecord.dayIdentified.toString() : "";
@@ -202,7 +200,40 @@
       return;
     }
     try {
-      collectorSuggestions = /** @type {any[]} */ (await invoke("autocomplete_recorded_by", { query: val }));
+      const res = /** @type {any[]} */ (await invoke("autocomplete_agent", { query: val }));
+      // Exclude already selected additional collectors
+      collectorSuggestions = res.filter(name => !form.additionalCollectors.includes(name));
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function handleAdditionalCollectorsInput(/** @type {any} */ val) {
+    if (val.trim().length < 2) {
+      additionalCollectorsSuggestions = [];
+      return;
+    }
+    try {
+      const res = /** @type {any[]} */ (await invoke("autocomplete_agent", { query: val }));
+      // Exclude primary collector and already selected additional collectors
+      additionalCollectorsSuggestions = res.filter(name => 
+        name !== form.recordedBy && 
+        !form.additionalCollectors.includes(name)
+      );
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function handleIdentifiedByInput(/** @type {any} */ val) {
+    if (val.trim().length < 2) {
+      identifiedBySuggestions = [];
+      return;
+    }
+    try {
+      const res = /** @type {any[]} */ (await invoke("autocomplete_agent", { query: val }));
+      // Exclude already selected identifiedBy agents
+      identifiedBySuggestions = res.filter(name => !form.identifiedBy.includes(name));
     } catch (e) {
       console.error(e);
     }
@@ -419,6 +450,42 @@
     }
   }
 
+  function isInitials(/** @type {string} */ str) {
+    const tokens = str.split(/[\s\.]+/).filter(Boolean);
+    if (tokens.length === 0) return false;
+    return tokens.every(t => t.length === 1);
+  }
+
+  function splitNames(/** @type {string} */ rawStr) {
+    if (!rawStr) return [];
+    let trimmed = rawStr.trim();
+    if (!trimmed) return [];
+
+    let parts = [];
+    if (trimmed.includes("|")) {
+      parts = trimmed.split("|");
+    } else if (trimmed.includes(";")) {
+      parts = trimmed.split(";");
+    } else if (trimmed.includes(",")) {
+      const commaCount = (trimmed.match(/,/g) || []).length;
+      if (commaCount === 1) {
+        const tempParts = trimmed.split(",");
+        const partAfter = tempParts[1].trim();
+        if (isInitials(partAfter)) {
+          parts = [trimmed];
+        } else {
+          parts = tempParts;
+        }
+      } else {
+        parts = trimmed.split(",");
+      }
+    } else {
+      parts = [trimmed];
+    }
+
+    return parts.map(p => p.trim()).filter(Boolean);
+  }
+
   async function handleSave(/** @type {any} */ e) {
     if (e) e.preventDefault();
     if (!sessionId) {
@@ -431,19 +498,24 @@
     statusMessage = "";
     
     let primaryCollector = form.recordedBy.trim();
-    let additionalCollectors = form.additionalCollectors.trim();
+    let additionalCollectorsList = form.additionalCollectors.map(s => s.trim()).filter(Boolean);
     let combinedRecordedBy = primaryCollector;
-    if (additionalCollectors) {
+    if (additionalCollectorsList.length > 0) {
+      const joinedAdd = additionalCollectorsList.join("; ");
       if (combinedRecordedBy) {
-        combinedRecordedBy += "; " + additionalCollectors;
+        combinedRecordedBy += "; " + joinedAdd;
       } else {
-        combinedRecordedBy = additionalCollectors;
+        combinedRecordedBy = joinedAdd;
       }
     }
+
+    let identifiedByList = form.identifiedBy.map(s => s.trim()).filter(Boolean);
+    let combinedIdentifiedBy = identifiedByList.join("; ");
 
     let recordPayload = {
       ...form,
       recordedBy: combinedRecordedBy,
+      identifiedBy: combinedIdentifiedBy,
       sessionId: sessionId,
       duplicates: form.duplicates.trim().replace(/,\s*$/, "").split(",").map(p => p.trim()).filter(Boolean).length || null, // Convert string duplicates list to number of duplicates for DB
       year: form.year !== "" ? parseInt(form.year) : null,
@@ -464,6 +536,10 @@
         if (!form.id) {
           form.id = res.id;
         }
+        lastSavedRecord = {
+          ...recordPayload,
+          id: res.id
+        };
         
         onSaveSuccess();
         
@@ -489,7 +565,7 @@
       catalogNumber: "",
       duplicates: "",
       recordedBy: "",
-      additionalCollectors: "",
+      additionalCollectors: [],
       recordNumber: "",
       verbatimEventDate: "",
       year: "",
@@ -511,7 +587,7 @@
       scientificName: "",
       taxonID: "",
       typeStatus: "",
-      identifiedBy: "",
+      identifiedBy: [],
       yearIdentified: "",
       monthIdentified: "",
       dayIdentified: "",
@@ -525,6 +601,22 @@
     localitySuggestions = [];
     collectorSuggestions = [];
     duplicateSuggestions = [];
+  }
+
+  function handleShowPreviousRecord() {
+    if (!lastSavedRecord) return;
+    
+    activeRecord = lastSavedRecord;
+    lastSavedRecord = null;
+    statusMessage = "Loaded last saved record.";
+    statusType = "success";
+    
+    // Clear status message after 3 seconds
+    setTimeout(() => {
+      if (statusMessage === "Loaded last saved record.") {
+        statusMessage = "";
+      }
+    }, 3000);
   }
 
   // Keyboard shortcut listener (Ctrl+S to save)
@@ -695,13 +787,14 @@
     <!-- Row 2.5: Additional Collectors -->
     <div class="grid grid-cols-12 gap-3 pt-1">
       <div class="col-span-12">
-        <label for="capture-additionalCollectors" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Additional Collectors</label>
-        <input
+        <MultiSelectAutocomplete
           id="capture-additionalCollectors"
-          type="text"
-          placeholder="eg Jane Doe, Alan Turing"
-          bind:value={form.additionalCollectors}
-          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          label="Additional Collectors"
+          placeholder="Type name and press Enter..."
+          bind:selectedValues={form.additionalCollectors}
+          suggestions={additionalCollectorsSuggestions}
+          oninput={handleAdditionalCollectorsInput}
+          delay={300}
         />
       </div>
     </div>
@@ -1024,13 +1117,14 @@
     <!-- Row 8: Identified By, Year, Month, Day Identified -->
     <div class="grid grid-cols-12 gap-3">
       <div class="col-span-6">
-        <label for="capture-identifiedBy" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Identified By</label>
-        <input
+        <MultiSelectAutocomplete
           id="capture-identifiedBy"
-          type="text"
-          placeholder="Partial search eg 'Raza'"
-          bind:value={form.identifiedBy}
-          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          label="Identified By"
+          placeholder="Type name and press Enter..."
+          bind:selectedValues={form.identifiedBy}
+          suggestions={identifiedBySuggestions}
+          oninput={handleIdentifiedByInput}
+          delay={300}
         />
       </div>
       <div class="col-span-2">
@@ -1083,8 +1177,16 @@
   </form>
 
   <!-- Save Action Footer -->
-  <div class="p-4 border-t  border-slate-300 bg-slate-50 ">
-    <div class="w-1/2 ml-auto flex justify-between gap-2" >
+  <div class="p-4 border-t flex justify-between  border-slate-300 bg-slate-50 ">
+    <button
+        type="button"
+        onclick={handleShowPreviousRecord}
+        disabled={!lastSavedRecord}
+        class="bg-slate-200 hover:bg-slate-300 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed text-slate-700 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors"
+      >
+        Show Previous
+      </button>
+    <div class="w-1/2 flex justify-between gap-2" >
       <button
         type="button"
         onclick={handleReset}

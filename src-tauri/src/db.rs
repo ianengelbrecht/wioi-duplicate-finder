@@ -7,7 +7,7 @@ use sha2::Sha256;
 use chrono::{Local, NaiveDate, NaiveDateTime, Datelike};
 
 
-use crate::parser::{normalize_taxon_name, normalize_locality};
+use crate::parser::{normalize_taxon_name, normalize_locality, normalize_search_recorded_by};
 use log::{info, warn, error};
 
 /// Encodes binary data to standard hex string.
@@ -78,6 +78,9 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
     
     // Auto-normalize imported CSV reference records if they exist and are empty
     auto_normalize_reference_data(&mut conn).map_err(|e| e.to_string())?;
+
+    // Startup population of the agents table
+    populate_agents_table(&mut conn).map_err(|e| e.to_string())?;
     
     Ok(())
 }
@@ -483,6 +486,16 @@ fn run_migrations(conn: &Connection) -> Result<()> {
 
     recreate_wcvp_triggers(conn)?;
 
+    // Create agents table
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS agents (
+            agentName TEXT PRIMARY KEY,
+            searchAgentName TEXT NOT NULL
+        );",
+        [],
+    )?;
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_agents_searchAgentName ON agents(searchAgentName);", [])?;
+
     Ok(())
 }
 
@@ -762,6 +775,97 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
         info!("WCVP normalization and index rebuild completed!");
     }
 
+    Ok(())
+}
+
+fn is_initials(s: &str) -> bool {
+    let tokens: Vec<&str> = s.split(|c| c == ' ' || c == '.').filter(|t| !t.is_empty()).collect();
+    if tokens.is_empty() {
+        return false;
+    }
+    tokens.iter().all(|t| t.chars().count() == 1)
+}
+
+pub fn split_names(raw_str: &str) -> Vec<String> {
+    let raw_str = raw_str.trim();
+    if raw_str.is_empty() {
+        return Vec::new();
+    }
+
+    let parts = if raw_str.contains('|') {
+        raw_str.split('|').map(|s| s.to_string()).collect()
+    } else if raw_str.contains(';') {
+        raw_str.split(';').map(|s| s.to_string()).collect()
+    } else if raw_str.contains(',') {
+        let comma_count = raw_str.matches(',').count();
+        if comma_count == 1 {
+            let temp_parts: Vec<&str> = raw_str.split(',').collect();
+            let part_after = temp_parts[1].trim();
+            if is_initials(part_after) {
+                vec![raw_str.to_string()]
+            } else {
+                temp_parts.iter().map(|s| s.to_string()).collect()
+            }
+        } else {
+            raw_str.split(',').map(|s| s.to_string()).collect()
+        }
+    } else {
+        vec![raw_str.to_string()]
+    };
+
+    parts.into_iter()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+pub fn populate_agents_table(conn: &mut Connection) -> std::result::Result<(), String> {
+    // Check if agents table is empty
+    let count: i64 = conn.query_row("SELECT COUNT(*) FROM agents", [], |r| r.get(0)).map_err(|e| e.to_string())?;
+    if count > 0 {
+        return Ok(());
+    }
+
+    info!("Agents table is empty. Populating from gbif...");
+
+    let mut agents = std::collections::HashSet::new();
+
+    {
+        // Fetch all non-null recordedBy and identifiedBy values from gbif
+        let mut stmt = conn.prepare("SELECT DISTINCT recordedBy, identifiedBy FROM gbif").map_err(|e| e.to_string())?;
+        let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
+
+        while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            let recorded_by: Option<String> = row.get(0).map_err(|e| e.to_string())?;
+            let identified_by: Option<String> = row.get(1).map_err(|e| e.to_string())?;
+
+            if let Some(rb) = recorded_by {
+                for agent in split_names(&rb) {
+                    agents.insert(agent);
+                }
+            }
+            if let Some(ib) = identified_by {
+                for agent in split_names(&ib) {
+                    agents.insert(agent);
+                }
+            }
+        }
+    }
+
+    // Insert all unique agent names into agents table
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    {
+        let mut insert_stmt = tx.prepare_cached("INSERT OR IGNORE INTO agents (agentName, searchAgentName) VALUES (?1, ?2)").map_err(|e| e.to_string())?;
+        for agent in agents {
+            if !agent.is_empty() {
+                let search_name = normalize_search_recorded_by(&agent);
+                let _ = insert_stmt.execute(params![agent, search_name]);
+            }
+        }
+    }
+    tx.commit().map_err(|e| e.to_string())?;
+
+    info!("Agents table populated successfully!");
     Ok(())
 }
 
