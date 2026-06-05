@@ -409,6 +409,8 @@
     statusMessage = "";
     
     // Validate required fields
+    // TODO add others if needed
+    const atLeastOneOf = ['scientificName', 'country', 'locality', 'recordedBy'];
     if (form.scientificName.trim().length === 0) {
       statusMessage = "Error: Scientific Name is required.";
       statusType = "error";
@@ -560,10 +562,10 @@
       </div>
     {/if}
 
-    <!-- Row 1: Collection Code (read-only), catalogNumber, duplicates -->
+    <!-- Row 1: Home Herbarium (read-only), catalogNumber, duplicates -->
     <div class="grid grid-cols-12 gap-3">
       <div class="col-span-3">
-        <label for="capture-collectionCode" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Collection Code</label>
+        <label for="capture-collectionCode" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Home Herbarium</label>
         <input
           id="capture-collectionCode"
           type="text"

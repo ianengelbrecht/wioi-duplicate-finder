@@ -478,11 +478,13 @@ fn autocomplete_locality(app: AppHandle, query: String) -> Result<Vec<String>, S
     
     let mut stmt = conn
         .prepare(
-            "SELECT DISTINCT locality FROM (
+            "SELECT MIN(TRIM(locality)) AS uniq_locality FROM (
                 SELECT locality FROM gbif WHERE locality LIKE ?1
-                UNION
+                UNION ALL
                 SELECT locality FROM captured_records WHERE locality LIKE ?1
-             ) WHERE locality IS NOT NULL AND locality != '' LIMIT 10"
+             ) WHERE locality IS NOT NULL AND TRIM(locality) != ''
+             GROUP BY LOWER(TRIM(locality))
+             LIMIT 10"
         )
         .map_err(|e| e.to_string())?;
         
