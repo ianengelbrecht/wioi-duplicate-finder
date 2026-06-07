@@ -92,6 +92,11 @@
   let pendingDeleteRecordId = $state(/** @type {number|null} */ (null));
   let pendingDeleteRecordDetails = $state("");
 
+  // Custom delete session modal state
+  let showDeleteSessionModal = $state(false);
+  let pendingDeleteSessionId = $state(/** @type {number|null} */ (null));
+  let pendingDeleteSessionName = $state("");
+
   // -------------------------------------------------------------
   // Authentication Logic
   // -------------------------------------------------------------
@@ -300,10 +305,19 @@
     showDeleteRecordModal = false;
   }
 
-  async function handleDeleteSession(/** @type {number} */ id, /** @type {string} */ name, /** @type {any} */ e) {
+  function promptDeleteSession(/** @type {number} */ id, /** @type {string} */ name, /** @type {any} */ e) {
     if (e) e.stopPropagation();
-    let msg = `WARNING: Are you sure you want to permanently delete the capture session "${name}"?\n\nThis will permanently delete all captured records associated with this session. Have you downloaded/exported the data for this session?`;
-    if (!confirm(msg)) return;
+    pendingDeleteSessionId = id;
+    pendingDeleteSessionName = name;
+    showDeleteSessionModal = true;
+  }
+
+  async function confirmDeleteSession() {
+    if (pendingDeleteSessionId === null) return;
+    
+    const id = pendingDeleteSessionId;
+    pendingDeleteSessionId = null;
+    showDeleteSessionModal = false;
     
     try {
       await invoke("delete_session", { id });
@@ -324,6 +338,12 @@
     } catch (err) {
       alert("Error deleting session: " + (/** @type {any} */ (err)).toString());
     }
+  }
+
+  function cancelDeleteSession() {
+    pendingDeleteSessionId = null;
+    pendingDeleteSessionName = "";
+    showDeleteSessionModal = false;
   }
 
   function formatISO8601Date(/** @type {number|string|null} */ year, /** @type {number|string|null} */ month, /** @type {number|string|null} */ day) {
@@ -977,7 +997,7 @@
                           </div>
                         </div>
                         <button
-                          onclick={(e) => handleDeleteSession(ses.id, ses.name, e)}
+                          onclick={(e) => promptDeleteSession(ses.id, ses.name, e)}
                           class="bg-red-50 hover:bg-red-100 text-red-650 border border-red-200 px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors ml-2"
                         >
                           Delete
@@ -1253,6 +1273,63 @@
           <button
             type="button"
             onclick={confirmDeleteCapturedRecord}
+            class="px-3.5 py-1.5 text-xs font-semibold text-white bg-red-650 bg-red-400 hover:bg-red-700 transition-colors cursor-pointer rounded-none"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+  {#if showDeleteSessionModal}
+    <div 
+      class="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      onclick={(e) => { if (e.target === e.currentTarget) cancelDeleteSession(); }}
+      onkeydown={(e) => { 
+        if (e.key === "Escape") {
+          e.preventDefault();
+          cancelDeleteSession(); 
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          confirmDeleteSession();
+        }
+      }}
+    >
+      <div class="bg-white border border-slate-200 shadow-2xl max-w-sm w-full p-5 flex flex-col gap-4 rounded-none">
+        <div class="flex items-start gap-3">
+          <div class="p-2 bg-red-50 text-red-650 rounded-full shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-5 h-5">
+              <path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.09,88.09,0,0,1,128,216Zm-8-80V80a8,8,0,0,1,16,0v56a8,8,0,0,1-16,0Zm20,36a12,12,0,1,1-12-12A12,12,0,0,1,140,172Z"></path>
+            </svg>
+          </div>
+          <div class="space-y-2">
+            <h3 class="font-bold text-red-700">Delete Capture Session</h3>
+            <p class="text-sm text-slate-500 leading-relaxed">
+              Are you sure you want to permanently delete this capture session?
+            </p>
+            <p class="text-xs font-semibold text-slate-700 bg-slate-50 p-2 border border-slate-150 break-all">
+              Session: {pendingDeleteSessionName}
+            </p>
+            <p class="text-xs text-red-600 font-medium leading-relaxed mt-1">
+              WARNING: This will permanently delete all captured records associated with this session.
+            </p>
+          </div>
+        </div>
+        
+        <div class="flex justify-end gap-2 mt-2">
+          <button
+            type="button"
+            onclick={cancelDeleteSession}
+            class="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 border border-slate-200 transition-colors cursor-pointer rounded-none"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onclick={confirmDeleteSession}
             class="px-3.5 py-1.5 text-xs font-semibold text-white bg-red-650 bg-red-400 hover:bg-red-700 transition-colors cursor-pointer rounded-none"
           >
             Delete
