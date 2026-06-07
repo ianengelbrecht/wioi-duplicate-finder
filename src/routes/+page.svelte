@@ -81,6 +81,11 @@
   let exportMessage = $state("");
   let exportError = $state("");
   let searchPaneRef = $state(/** @type {any} */ (null));
+  
+  // Custom delete record modal state
+  let showDeleteRecordModal = $state(false);
+  let pendingDeleteRecordId = $state(/** @type {number|null} */ (null));
+  let pendingDeleteRecordDetails = $state("");
 
   // -------------------------------------------------------------
   // Authentication Logic
@@ -226,9 +231,20 @@
     activeRecord = { ...rec };
   }
 
-  async function handleDeleteCapturedRecord(/** @type {any} */ id, /** @type {any} */ e) {
+  function promptDeleteCapturedRecord(/** @type {any} */ rec, /** @type {any} */ e) {
     if (e) e.stopPropagation();
-    if (!confirm("Are you sure you want to delete this captured specimen?")) return;
+    pendingDeleteRecordId = rec.id;
+    pendingDeleteRecordDetails = `${rec.recordedBy || 'N/A'} ${rec.recordNumber ? '#' + rec.recordNumber : ''} - ${rec.scientificName}`;
+    showDeleteRecordModal = true;
+  }
+
+  async function confirmDeleteCapturedRecord() {
+    if (pendingDeleteRecordId === null) return;
+    
+    const id = pendingDeleteRecordId;
+    pendingDeleteRecordId = null;
+    showDeleteRecordModal = false;
+    
     try {
       await invoke("delete_captured_record", { id });
       await loadCapturedRecords();
@@ -236,6 +252,11 @@
     } catch (err) {
       alert("Error deleting record: " + (/** @type {any} */ (err)).toString());
     }
+  }
+
+  function cancelDeleteCapturedRecord() {
+    pendingDeleteRecordId = null;
+    showDeleteRecordModal = false;
   }
 
   async function handleDeleteSession(/** @type {number} */ id, /** @type {string} */ name, /** @type {any} */ e) {
@@ -726,7 +747,7 @@
                       <td class="p-2 text-slate-650">{rec.year ? `${rec.year}-${rec.month || '?'}-${rec.day || '?'}` : 'N/A'}</td>
                       <td class="p-2 text-right">
                         <button
-                          onclick={(e) => handleDeleteCapturedRecord(rec.id, e)}
+                          onclick={(e) => promptDeleteCapturedRecord(rec, e)}
                           class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-2 py-0.5 text-[10px] uppercase font-bold tracking-wide transition-colors"
                         >
                           Delete
@@ -745,5 +766,57 @@
         </div>
       </div>
     {/if}
+  {#if showDeleteRecordModal}
+    <div 
+      class="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      onclick={(e) => { if (e.target === e.currentTarget) cancelDeleteCapturedRecord(); }}
+      onkeydown={(e) => { 
+        if (e.key === "Escape") {
+          e.preventDefault();
+          cancelDeleteCapturedRecord(); 
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          confirmDeleteCapturedRecord();
+        }
+      }}
+    >
+      <div class="bg-white border border-slate-200 shadow-2xl max-w-sm w-full p-5 flex flex-col gap-4 rounded-none">
+        <div class="flex items-start gap-3">
+          <div class="p-2 bg-red-50 text-red-650 rounded-full shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-5 h-5">
+              <path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.09,88.09,0,0,1,128,216Zm-8-80V80a8,8,0,0,1,16,0v56a8,8,0,0,1-16,0Zm20,36a12,12,0,1,1-12-12A12,12,0,0,1,140,172Z"></path>
+            </svg>
+          </div>
+          <div class="space-y-1">
+            <h3 class="font-bold text-red-700">Delete Specimen Record</h3>
+            <p class="text-sm text-slate-500 leading-relaxed">
+              Are you sure you want to permanently delete this captured record?
+            </p>
+            <p class="text-xs font-semibold text-slate-700 bg-slate-50 p-2 border border-slate-150 break-all">{pendingDeleteRecordDetails}</p>
+          </div>
+        </div>
+        
+        <div class="flex justify-end gap-2 mt-2">
+          <button
+            type="button"
+            onclick={cancelDeleteCapturedRecord}
+            class="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 border border-slate-200 transition-colors cursor-pointer rounded-none"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onclick={confirmDeleteCapturedRecord}
+            class="px-3.5 py-1.5 text-xs font-semibold text-white bg-red-650 bg-red-400 hover:bg-red-700 transition-colors cursor-pointer rounded-none"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
   </main>
 </div>
