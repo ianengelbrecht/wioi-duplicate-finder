@@ -8,14 +8,13 @@
 
   let {
     sessionId = null,
-    collectionCode = "WIOI",
+    collectionCode, // no default, this must be set
     activeRecord = $bindable(null), // The selected record to edit (or empty for new)
     onSaveSuccess = () => {}
   } = $props();
 
   let form = $state({
     id: /** @type {number|null} */ (null),
-    collectionCode: "",
     catalogNumber: "",
     duplicates: "",
     recordedBy: "",
@@ -233,16 +232,11 @@
     "paralectotype"
   ];
 
-  // Helper to load collectionCode from active session owner's export settings
-  async function loadCollectionCode() {
-    form.collectionCode = collectionCode || "WIOI";
-  }
-
   // Watch activeRecord changes (when a search result is clicked, copy it to the form!)
   $effect(() => {
     if (activeRecord) {
       form.id = activeRecord.id && activeRecord.sessionId ? activeRecord.id : null; // Only reuse id if it is a previously captured record, not a reference database record
-      form.collectionCode = activeRecord.collectionCode || form.collectionCode || "WIOI";
+      // do not copy the collection code, this must always be the value from the active session settings
       form.catalogNumber = activeRecord.catalogNumber || "";
       form.duplicates = activeRecord.duplicates ? String(activeRecord.duplicates) : "";
       
@@ -312,12 +306,6 @@
       clearTitleCasedStates();
       
       statusMessage = "";
-    }
-  });
-
-  $effect(() => {
-    if (sessionId) {
-      loadCollectionCode();
     }
   });
 
@@ -762,6 +750,7 @@
 
     let recordPayload = {
       ...form,
+      collectionCode,
       recordedBy: combinedRecordedBy,
       identifiedBy: combinedIdentifiedBy,
       sessionId: sessionId,
@@ -809,7 +798,6 @@
   function handleReset() {
     form = {
       id: null,
-      collectionCode: collectionCode || "WIOI",
       catalogNumber: "",
       duplicates: "",
       recordedBy: "",
@@ -937,7 +925,7 @@
           id="capture-collectionCode"
           type="text"
           readonly
-          bind:value={form.collectionCode}
+          bind:value={collectionCode}
           class="w-full bg-slate-100 border border-slate-300 text-slate-500 text-sm px-3 py-2 outline-none rounded-none font-semibold"
         />
       </div>

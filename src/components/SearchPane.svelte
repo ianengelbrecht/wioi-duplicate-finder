@@ -223,12 +223,12 @@
     <div class="flex flex-col gap-3">
       <!-- Row 1: Collector, Collector No, Year, Month, Day (narrow date inputs) -->
       <div class="grid grid-cols-12 gap-3">
-        <div class="col-span-3">
+        <div class="col-span-4">
           <label for="search-recordedBy" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Collector</label>
           <input
             id="search-recordedBy"
             type="text"
-            placeholder="Partial eg 'Raza'"
+            placeholder="Partial eg 'Raza' (no initials)"
             bind:value={filters.recordedBy}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />

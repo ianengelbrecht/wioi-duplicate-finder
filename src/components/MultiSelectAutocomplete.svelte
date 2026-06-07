@@ -148,6 +148,138 @@
     }
   }
 
+  // Edit chip in-place state
+  let editingIndex = $state(-1);
+  let editInputValue = $state("");
+  let editSuggestions = $state(/** @type {string[]} */ ([]));
+  let showEditDropdown = $state(false);
+  let editActiveIndex = $state(-1);
+  let editInputRef = $state(/** @type {HTMLInputElement|null} */ (null));
+
+  function startEdit(/** @type {number} */ index) {
+    editingIndex = index;
+    editInputValue = selectedValues[index];
+    editSuggestions = [];
+    showEditDropdown = false;
+    editActiveIndex = -1;
+    setTimeout(() => {
+      if (editInputRef) {
+        editInputRef.focus();
+        editInputRef.select();
+      }
+    }, 50);
+  }
+
+  async function handleEditInput(/** @type {any} */ e) {
+    editInputValue = e.target.value;
+    showEditDropdown = true;
+    editActiveIndex = -1;
+
+    if (editInputValue.trim().length < 2) {
+      editSuggestions = [];
+      return;
+    }
+
+    try {
+      const res = /** @type {string[]} */ (await invoke("autocomplete_agent", { query: editInputValue }));
+      // Exclude already selected values unless it is the one currently being edited
+      editSuggestions = res.filter(name => 
+        name === selectedValues[editingIndex] || !selectedValues.includes(name)
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function handleEditFocus() {
+    showEditDropdown = true;
+    if (editInputValue.trim().length >= 2) {
+      try {
+        const res = /** @type {string[]} */ (await invoke("autocomplete_agent", { query: editInputValue }));
+        editSuggestions = res.filter(name => 
+          name === selectedValues[editingIndex] || !selectedValues.includes(name)
+        );
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  }
+
+  function selectEditSuggestion(/** @type {string} */ sug) {
+    editInputValue = sug;
+    showEditDropdown = false;
+    editActiveIndex = -1;
+    saveEdit(editingIndex, sug);
+  }
+
+  async function saveEdit(/** @type {number} */ index, /** @type {string} */ newValue) {
+    const trimmed = newValue.trim();
+    if (!trimmed) {
+      // If empty, remove the item
+      selectedValues = selectedValues.filter((_, i) => i !== index);
+      editingIndex = -1;
+      return;
+    }
+
+    if (trimmed === selectedValues[index]) {
+      editingIndex = -1;
+      return;
+    }
+
+    if (selectedValues.includes(trimmed)) {
+      alert("This name is already in the list.");
+      return;
+    }
+
+    // Check if new agent to database
+    try {
+      const exists = await invoke("check_agent_exists", { name: trimmed });
+      if (!exists) {
+        const confirmed = await confirmNewName(trimmed);
+        if (!confirmed) {
+          return;
+        }
+        await invoke("add_agent", { name: trimmed });
+      }
+    } catch (err) {
+      console.error("Error checking or adding agent:", err);
+    }
+
+    selectedValues[index] = trimmed;
+    selectedValues = [...selectedValues];
+    editingIndex = -1;
+  }
+
+  function handleEditKeyDown(/** @type {any} */ e) {
+    if (showConfirmModal) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (editSuggestions.length > 0) {
+        editActiveIndex = (editActiveIndex + 1) % editSuggestions.length;
+      }
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (editSuggestions.length > 0) {
+        editActiveIndex = (editActiveIndex - 1 + editSuggestions.length) % editSuggestions.length;
+      }
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (showEditDropdown && editActiveIndex >= 0 && editActiveIndex < editSuggestions.length) {
+        selectEditSuggestion(editSuggestions[editActiveIndex]);
+      } else {
+        saveEdit(editingIndex, editInputValue);
+      }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      if (showEditDropdown) {
+        showEditDropdown = false;
+      } else {
+        editingIndex = -1;
+      }
+    }
+  }
+
   function focusInput() {
     if (inputRef) inputRef.focus();
   }
@@ -155,6 +287,7 @@
   function handleDocumentClick(/** @type {any} */ e) {
     if (containerRef && !containerRef.contains(e.target)) {
       showDropdown = false;
+      showEditDropdown = false;
     }
   }
 
@@ -179,13 +312,19 @@
     onclick={focusInput}
     role="presentation"
   >
-    {#each selectedValues as val}
-      <span class="bg-slate-100 text-slate-800 text-xs px-2 py-0.5 m-0.5 border border-slate-250 flex items-center gap-1 font-medium select-none">
+    {#each selectedValues as val, idx}
+      <span 
+        onclick={(e) => { e.stopPropagation(); startEdit(idx); }}
+        class="bg-slate-100 text-slate-800 text-xs px-2 py-0.5 m-0.5 border border-slate-250 flex items-center gap-1 font-medium select-none cursor-pointer hover:bg-slate-200 transition-all animate-fade-in"
+        role="button"
+        tabindex="0"
+        onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); startEdit(idx); } }}
+      >
         {val}
         <button
           type="button"
           onclick={(e) => { e.stopPropagation(); removeValue(val); }}
-          class="text-slate-400 hover:text-slate-600 font-bold focus:outline-none text-[10px]"
+          class="text-slate-400 hover:text-slate-600 font-bold focus:outline-none text-[10px] cursor-pointer"
         >
           &times;
         </button>
@@ -221,6 +360,73 @@
       {/each}
     </ul>
   {/if}
+  {#if editingIndex >= 0}
+    <div 
+      class="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      onclick={(e) => { if (e.target === e.currentTarget) editingIndex = -1; }}
+      onkeydown={(e) => { if (e.key === "Escape") editingIndex = -1; }}
+    >
+      <div class="bg-white border border-slate-200 shadow-2xl max-w-md w-full p-5 flex flex-col gap-4 rounded-none z-[80] relative">
+        <div class="space-y-1">
+          <h3 class="font-bold text-slate-800">Edit Name</h3>
+          <p class="text-xs text-slate-500">
+            Modify the selected name. Emptying the field removes it from the list.
+          </p>
+        </div>
+
+        <div class="relative w-full">
+          <input
+            bind:this={editInputRef}
+            type="text"
+            value={editInputValue}
+            oninput={handleEditInput}
+            onkeydown={handleEditKeyDown}
+            onfocus={handleEditFocus}
+            class="w-full bg-white border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:ring-1 focus:ring-slate-500 outline-none transition-all rounded-none text-slate-850"
+            autocomplete="off"
+            placeholder="Enter name..."
+          />
+
+          {#if showEditDropdown && editSuggestions.length > 0}
+            <ul class="absolute z-[90] left-0 right-0 top-full mt-[-1px] bg-white border border-slate-300 shadow-md max-h-60 overflow-y-auto rounded-none divide-y divide-slate-100">
+              {#each editSuggestions as sug, i}
+                <li>
+                  <button
+                    type="button"
+                    onclick={() => selectEditSuggestion(sug)}
+                    class="w-full text-left px-3 py-2 text-xs transition-colors rounded-none outline-none {i === editActiveIndex ? 'bg-slate-100 text-slate-900 font-medium' : 'text-slate-700 hover:bg-slate-50'}"
+                  >
+                    {sug}
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
+
+        <div class="flex justify-end gap-2 mt-2">
+          <button
+            type="button"
+            onclick={() => editingIndex = -1}
+            class="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 border border-slate-200 transition-colors cursor-pointer rounded-none"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onclick={() => saveEdit(editingIndex, editInputValue)}
+            class="px-3.5 py-1.5 text-xs font-semibold text-white bg-slate-800 hover:bg-slate-900 transition-colors cursor-pointer rounded-none"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
   {#if showConfirmModal}
     <div 
       class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
