@@ -105,7 +105,7 @@ fn get_sessions(app: AppHandle, user_id: i32) -> Result<Vec<serde_json::Value>, 
     
     let mut stmt = conn
         .prepare(
-            "SELECT s.id, s.name, COUNT(r.id) as count 
+            "SELECT s.id, s.name, COUNT(r.id) as count, MAX(r.modified_at) as last_record, s.last_exported_at 
              FROM sessions s 
              LEFT JOIN captured_records r ON s.id = r.session_id 
              WHERE s.user_id = ?1 
@@ -118,10 +118,14 @@ fn get_sessions(app: AppHandle, user_id: i32) -> Result<Vec<serde_json::Value>, 
         let id: i32 = row.get(0)?;
         let name: String = row.get(1)?;
         let record_count: i64 = row.get(2)?;
+        let last_record: Option<String> = row.get(3)?;
+        let last_exported_at: Option<String> = row.get(4)?;
         Ok(json!({
             "id": id,
             "name": name,
-            "recordCount": record_count
+            "recordCount": record_count,
+            "lastRecordAt": last_record,
+            "lastExportedAt": last_exported_at
         }))
     }).map_err(|e| e.to_string())?;
     
@@ -590,6 +594,24 @@ fn save_captured_record(app: AppHandle, record: serde_json::Value) -> Result<ser
     let location_remarks = record.get("locationNotes").and_then(|v| v.as_str()).unwrap_or("").trim(); // UI locationNotes -> locationRemarks
     
     let verbatim_coordinates = record.get("verbatimCoordinates").and_then(|v| v.as_str()).unwrap_or("").trim();
+    let decimal_latitude = record.get("decimalLatitude").and_then(|v| {
+        if v.is_number() {
+            v.as_f64()
+        } else if let Some(s) = v.as_str() {
+            s.trim().parse::<f64>().ok()
+        } else {
+            None
+        }
+    });
+    let decimal_longitude = record.get("decimalLongitude").and_then(|v| {
+        if v.is_number() {
+            v.as_f64()
+        } else if let Some(s) = v.as_str() {
+            s.trim().parse::<f64>().ok()
+        } else {
+            None
+        }
+    });
     let verbatim_elevation = record.get("verbatimElevation").and_then(|v| v.as_str()).unwrap_or("").trim();
     
     let habitat = record.get("habitat").and_then(|v| v.as_str()).unwrap_or("").trim();
@@ -628,17 +650,19 @@ fn save_captured_record(app: AppHandle, record: serde_json::Value) -> Result<ser
                 collectionCode=?1, catalogNumber=?2, duplicates=?3, recordNumber=?4, recordedBy=?5,
                 verbatimEventDate=?6, year=?7, month=?8, day=?9, country=?10,
                 stateProvince=?11, county=?12, municipality=?13, locality=?14, locationRemarks=?15,
-                verbatimCoordinates=?16, verbatimElevation=?17, habitat=?18, occurrenceRemarks=?19, fieldNotes=?20, typeStatus=?21,
-                identificationQualifier=?22, scientificName=?23, identifiedBy=?24, yearIdentified=?25, monthIdentified=?26,
-                dayIdentified=?27, identificationRemarks=?28, taxonID=?29
-             WHERE id = ?30 AND session_id = ?31",
+                verbatimCoordinates=?16, decimalLatitude=?17, decimalLongitude=?18, verbatimElevation=?19, habitat=?20, 
+                occurrenceRemarks=?21, fieldNotes=?22, typeStatus=?23, identificationQualifier=?24, scientificName=?25, 
+                identifiedBy=?26, yearIdentified=?27, monthIdentified=?28, dayIdentified=?29, identificationRemarks=?30, 
+                taxonID=?31
+             WHERE id = ?32 AND session_id = ?33",
             params![
                 collection_code, catalog_number, duplicates, record_number, recorded_by,
                 verbatim_event_date, year, month, day, country,
                 state_province, county, municipality, locality, location_remarks,
-                verbatim_coordinates, verbatim_elevation, habitat, occurrence_remarks, field_notes, type_status,
-                id_qualifier, scientific_name, identified_by, year_identified, month_identified,
-                day_identified, id_remarks, taxon_id, existing_id, session_id
+                verbatim_coordinates, decimal_latitude, decimal_longitude, verbatim_elevation, habitat, 
+                occurrence_remarks, field_notes, type_status, id_qualifier, scientific_name, 
+                identified_by, year_identified, month_identified, day_identified, id_remarks, 
+                taxon_id, existing_id, session_id
             ]
         ).map_err(|e| e.to_string())?;
         
@@ -649,14 +673,14 @@ fn save_captured_record(app: AppHandle, record: serde_json::Value) -> Result<ser
             "INSERT INTO captured_records (
                 session_id, collectionCode, catalogNumber, duplicates, recordNumber, recordedBy,
                 verbatimEventDate, year, month, day, country, stateProvince, county, municipality,
-                locality, locationRemarks, verbatimCoordinates, verbatimElevation, habitat, occurrenceRemarks, fieldNotes,
+                locality, locationRemarks, verbatimCoordinates, decimalLatitude, decimalLongitude, verbatimElevation, habitat, occurrenceRemarks, fieldNotes,
                 typeStatus, identificationQualifier, scientificName, identifiedBy, yearIdentified,
                 monthIdentified, dayIdentified, identificationRemarks, taxonID
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30)",
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32)",
             params![
                 session_id, collection_code, catalog_number, duplicates, record_number, recorded_by,
                 verbatim_event_date, year, month, day, country, state_province, county, municipality,
-                locality, location_remarks, verbatim_coordinates, verbatim_elevation, habitat, occurrence_remarks, field_notes,
+                locality, location_remarks, verbatim_coordinates, decimal_latitude, decimal_longitude, verbatim_elevation, habitat, occurrence_remarks, field_notes,
                 type_status, id_qualifier, scientific_name, identified_by, year_identified,
                 month_identified, day_identified, id_remarks, taxon_id
             ]
@@ -676,7 +700,7 @@ fn get_captured_records(app: AppHandle, session_id: i32) -> Result<Vec<serde_jso
         .prepare(
             "SELECT id, collectionCode, catalogNumber, duplicates, recordNumber, recordedBy, 
                     verbatimEventDate, year, month, day, country, stateProvince, county, municipality, 
-                    locality, locationRemarks, verbatimCoordinates, verbatimElevation, habitat, occurrenceRemarks, fieldNotes,
+                    locality, locationRemarks, verbatimCoordinates, decimalLatitude, decimalLongitude, verbatimElevation, habitat, occurrenceRemarks, fieldNotes,
                     typeStatus, identificationQualifier, scientificName, identifiedBy, yearIdentified, 
                     monthIdentified, dayIdentified, identificationRemarks, taxonID 
              FROM captured_records 
@@ -703,19 +727,21 @@ fn get_captured_records(app: AppHandle, session_id: i32) -> Result<Vec<serde_jso
         let locality: Option<String> = row.get(14)?;
         let location_notes: Option<String> = row.get(15)?;
         let verbatim_coordinates: Option<String> = row.get(16)?;
-        let verbatim_elevation: Option<String> = row.get(17)?;
-        let habitat: Option<String> = row.get(18)?;
-        let occurrence_remarks: Option<String> = row.get(19)?;
-        let field_notes: Option<String> = row.get(20)?;
-        let type_status: Option<String> = row.get(21)?;
-        let id_qualifier: Option<String> = row.get(22)?;
-        let scientific_name: Option<String> = row.get(23)?;
-        let identified_by: Option<String> = row.get(24)?;
-        let year_identified: Option<i32> = row.get(25)?;
-        let month_identified: Option<i32> = row.get(26)?;
-        let day_identified: Option<i32> = row.get(27)?;
-        let id_remarks: Option<String> = row.get(28)?;
-        let taxon_id: Option<String> = row.get(29)?;
+        let decimal_latitude: Option<f64> = row.get(17)?;
+        let decimal_longitude: Option<f64> = row.get(18)?;
+        let verbatim_elevation: Option<String> = row.get(19)?;
+        let habitat: Option<String> = row.get(20)?;
+        let occurrence_remarks: Option<String> = row.get(21)?;
+        let field_notes: Option<String> = row.get(22)?;
+        let type_status: Option<String> = row.get(23)?;
+        let id_qualifier: Option<String> = row.get(24)?;
+        let scientific_name: Option<String> = row.get(25)?;
+        let identified_by: Option<String> = row.get(26)?;
+        let year_identified: Option<i32> = row.get(27)?;
+        let month_identified: Option<i32> = row.get(28)?;
+        let day_identified: Option<i32> = row.get(29)?;
+        let id_remarks: Option<String> = row.get(30)?;
+        let taxon_id: Option<String> = row.get(31)?;
         
         Ok(json!({
             "id": id,
@@ -736,6 +762,8 @@ fn get_captured_records(app: AppHandle, session_id: i32) -> Result<Vec<serde_jso
             "locality": locality.unwrap_or_default(),
             "locationNotes": location_notes.unwrap_or_default(), // locationRemarks mapped to locationNotes
             "verbatimCoordinates": verbatim_coordinates.unwrap_or_default(),
+            "decimalLatitude": decimal_latitude,
+            "decimalLongitude": decimal_longitude,
             "verbatimElevation": verbatim_elevation.unwrap_or_default(),
             "habitat": habitat.unwrap_or_default(),
             "occurrenceRemarks": occurrence_remarks.unwrap_or_default(),
@@ -886,7 +914,7 @@ fn export_session_csv(app: AppHandle, session_id: i32, filepath: String) -> Resu
             "SELECT id, session_id, collectionCode, catalogNumber, duplicates, recordNumber, 
                     recordedBy, verbatimEventDate, year, month, day, country, stateProvince, 
                     county, municipality, locality, locationRemarks, verbatimCoordinates, 
-                    verbatimElevation, habitat, occurrenceRemarks, fieldNotes, typeStatus, identificationQualifier, 
+                    decimalLatitude, decimalLongitude, verbatimElevation, habitat, occurrenceRemarks, fieldNotes, typeStatus, identificationQualifier, 
                     scientificName, identifiedBy, yearIdentified, monthIdentified, dayIdentified, 
                     identificationRemarks, taxonID, created_at, modified_at 
              FROM captured_records 
@@ -914,21 +942,23 @@ fn export_session_csv(app: AppHandle, session_id: i32, filepath: String) -> Resu
         let locality: Option<String> = row.get(15)?;
         let location_remarks: Option<String> = row.get(16)?;
         let verbatim_coordinates: Option<String> = row.get(17)?;
-        let verbatim_elevation: Option<String> = row.get(18)?;
-        let habitat: Option<String> = row.get(19)?;
-        let occurrence_remarks: Option<String> = row.get(20)?;
-        let field_notes: Option<String> = row.get(21)?;
-        let type_status: Option<String> = row.get(22)?;
-        let id_qualifier: Option<String> = row.get(23)?;
-        let scientific_name: Option<String> = row.get(24)?;
-        let identified_by: Option<String> = row.get(25)?;
-        let year_identified: Option<i32> = row.get(26)?;
-        let month_identified: Option<i32> = row.get(27)?;
-        let day_identified: Option<i32> = row.get(28)?;
-        let id_remarks: Option<String> = row.get(29)?;
-        let taxon_id: Option<String> = row.get(30)?;
-        let created_at: Option<String> = row.get(31)?;
-        let modified_at: Option<String> = row.get(32)?;
+        let decimal_latitude: Option<f64> = row.get(18)?;
+        let decimal_longitude: Option<f64> = row.get(19)?;
+        let verbatim_elevation: Option<String> = row.get(20)?;
+        let habitat: Option<String> = row.get(21)?;
+        let occurrence_remarks: Option<String> = row.get(22)?;
+        let field_notes: Option<String> = row.get(23)?;
+        let type_status: Option<String> = row.get(24)?;
+        let id_qualifier: Option<String> = row.get(25)?;
+        let scientific_name: Option<String> = row.get(26)?;
+        let identified_by: Option<String> = row.get(27)?;
+        let year_identified: Option<i32> = row.get(28)?;
+        let month_identified: Option<i32> = row.get(29)?;
+        let day_identified: Option<i32> = row.get(30)?;
+        let id_remarks: Option<String> = row.get(31)?;
+        let taxon_id: Option<String> = row.get(32)?;
+        let created_at: Option<String> = row.get(33)?;
+        let modified_at: Option<String> = row.get(34)?;
         
         Ok(vec![
             id.map(|x| x.to_string()).unwrap_or_default(),
@@ -949,6 +979,8 @@ fn export_session_csv(app: AppHandle, session_id: i32, filepath: String) -> Resu
             locality.unwrap_or_default(),
             location_remarks.unwrap_or_default(),
             verbatim_coordinates.unwrap_or_default(),
+            decimal_latitude.map(|x| x.to_string()).unwrap_or_default(),
+            decimal_longitude.map(|x| x.to_string()).unwrap_or_default(),
             verbatim_elevation.unwrap_or_default(),
             habitat.unwrap_or_default(),
             occurrence_remarks.unwrap_or_default(),
@@ -980,7 +1012,7 @@ fn export_session_csv(app: AppHandle, session_id: i32, filepath: String) -> Resu
         "id", "session_id", "collectionCode", "catalogNumber", "duplicates", "recordNumber",
         "recordedBy", "verbatimEventDate", "year", "month", "day", "country", "stateProvince",
         "county", "municipality", "locality", "locationRemarks", "verbatimCoordinates",
-        "verbatimElevation", "habitat", "occurrenceRemarks", "fieldNotes", "typeStatus", "identificationQualifier",
+        "decimalLatitude", "decimalLongitude", "verbatimElevation", "habitat", "occurrenceRemarks", "fieldNotes", "typeStatus", "identificationQualifier",
         "scientificName", "identifiedBy", "yearIdentified", "monthIdentified", "dayIdentified",
         "identificationRemarks", "taxonID", "created_at", "modified_at"
     ];
@@ -1000,6 +1032,11 @@ fn export_session_csv(app: AppHandle, session_id: i32, filepath: String) -> Resu
     }
     
     fs::write(&filepath, csv_content).map_err(|e| e.to_string())?;
+    
+    conn.execute(
+        "UPDATE sessions SET last_exported_at = CURRENT_TIMESTAMP WHERE id = ?1",
+        params![session_id],
+    ).map_err(|e| e.to_string())?;
     
     Ok(format!("Successfully exported {} records to {}", escaped_headers.len(), filepath))
 }

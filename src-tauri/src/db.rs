@@ -394,14 +394,14 @@ fn run_migrations(conn: &Connection) -> Result<()> {
             user_id INTEGER NOT NULL,
             name TEXT NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_exported_at TEXT,
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
         );",
         [],
     )?;
 
-    // Drop old captured_records trigger and table if it exists to align with new schema
-    let _ = conn.execute("DROP TRIGGER IF EXISTS captured_records_modified_at", []);
-    let _ = conn.execute("DROP TABLE IF EXISTS captured_records", []);
+    // Add last_exported_at column to sessions if it doesn't exist
+    let _ = conn.execute("ALTER TABLE sessions ADD COLUMN last_exported_at TEXT", []);
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS captured_records (
@@ -423,6 +423,8 @@ fn run_migrations(conn: &Connection) -> Result<()> {
             locality TEXT,
             locationRemarks TEXT,
             verbatimCoordinates TEXT,
+            decimalLatitude REAL,
+            decimalLongitude REAL,
             verbatimElevation TEXT,
             habitat TEXT,
             occurrenceRemarks TEXT,

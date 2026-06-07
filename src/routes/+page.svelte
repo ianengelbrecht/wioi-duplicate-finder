@@ -1,5 +1,6 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
+  import { friendlyDate } from "friendly-date";
   import SearchPane from "../components/SearchPane.svelte";
   import CaptureForm from "../components/CaptureForm.svelte";
 
@@ -17,7 +18,6 @@
       if (storedUser) {
         currentUser = JSON.parse(storedUser);
         await loadSessions();
-        await loadExportSettings();
         
         const storedSession = localStorage.getItem("lastActiveSession");
         if (storedSession) {
@@ -108,7 +108,6 @@
           localStorage.setItem("currentUser", JSON.stringify(user));
           view = "dashboard";
           await loadSessions();
-          await loadExportSettings();
         } else {
           authError = "Invalid username or password.";
         }
@@ -128,6 +127,15 @@
     } catch (e) {
       console.error(e);
     }
+  }
+
+  function isExportWarning(/** @type {any} */ ses) {
+    if (!ses.lastRecordAt) return false;
+    if (!ses.lastExportedAt) return ses.recordCount > 0;
+    
+    const recordTime = new Date(ses.lastRecordAt.replace(' ', 'T') + 'Z').getTime();
+    const exportTime = new Date(ses.lastExportedAt.replace(' ', 'T') + 'Z').getTime();
+    return exportTime < recordTime;
   }
 
   async function handleCreateSession(/** @type {any} */ e) {
@@ -192,52 +200,11 @@
     await loadCapturedRecords();
   }
 
-  // -------------------------------------------------------------
-  // Export Settings Mappings Logic
-  // -------------------------------------------------------------
-  async function loadExportSettings() {
-    if (!currentUser) return;
-    try {
-      let settings = /** @type {any} */ (await invoke("get_export_settings", { userId: currentUser.id }));
-      exportFormat = settings.format || "DwC";
-      if (settings.mappings) {
-        let maps = JSON.parse(settings.mappings);
-        workingCollectionCode = maps.collectionCode || "WIOI";
-        customMappings = {
-          recordedBy: maps.recordedBy || "",
-          recordNumber: maps.recordNumber || "",
-          locality: maps.locality || "",
-          scientificName: maps.scientificName || "",
-          family: maps.family || "",
-          genus: maps.genus || "",
-          specificEpithet: maps.specificEpithet || "",
-          country: maps.country || "",
-          stateProvince: maps.stateProvince || "",
-          year: maps.year || "",
-          month: maps.month || "",
-          day: maps.day || ""
-        };
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  }
-
-  async function handleSaveSettings() {
-    if (!currentUser) return;
-    settingsMessage = "";
-    try {
-      let mappingsObj = { ...customMappings, collectionCode: workingCollectionCode };
-      await invoke("save_export_settings", {
-        userId: currentUser.id,
-        format: exportFormat,
-        mappings: JSON.stringify(mappingsObj)
-      });
-      settingsMessage = "Settings saved successfully!";
-      setTimeout(() => { settingsMessage = ""; }, 3000);
-    } catch (e) {
-      settingsMessage = "Error saving settings: " + (/** @type {any} */ (e)).toString();
-    }
+  async function returnToDashboard() {
+    view = "dashboard";
+    activeSession = null;
+    localStorage.removeItem("lastActiveSession");
+    await loadSessions();
   }
 
   // -------------------------------------------------------------
@@ -455,13 +422,13 @@
             onclick={() => activeTab = "sessions"}
             class="w-full text-left px-4 py-3 text-xs font-bold uppercase tracking-wider border rounded-none transition-all {activeTab === 'sessions' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}"
           >
-            📂 Capture Sessions
+            Capture Sessions
           </button>
           <button
             onclick={() => activeTab = "settings"}
             class="w-full text-left px-4 py-3 text-xs font-bold uppercase tracking-wider border rounded-none transition-all {activeTab === 'settings' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}"
           >
-            ⚙️ CSV Export Settings
+            Export Settings
           </button>
         </div>
 
@@ -527,13 +494,46 @@
                                 {ses.name}
                               </span>
                             {/if}
-                            <span class="text-[10px] text-slate-400 font-semibold uppercase">ID: {ses.id}</span>
+                            <div class="flex flex-wrap items-center gap-3 mt-1 text-[10px] text-slate-500">
+                              {#if ses.lastRecordAt}
+                                <span>
+                                  Last record:
+                                  <strong class="text-slate-700 font-semibold">
+                                    {friendlyDate(ses.lastRecordAt.replace(' ', 'T') + 'Z')}
+                                  </strong>
+                                </span>
+                              {:else}
+                                <span class="text-slate-400 italic">
+                                  No records captured
+                                </span>
+                              {/if}
+
+                              {#if ses.recordCount > 0}
+                                {#if ses.lastExportedAt}
+                                  <span>
+                                    Last export:
+                                    <span
+                                      class="px-1 py-0.5 rounded-none font-medium {isExportWarning(ses)
+                                        ? 'bg-red-50 text-red-700 border border-red-200'
+                                        : 'text-slate-700'}"
+                                    >
+                                      {friendlyDate(ses.lastExportedAt.replace(' ', 'T') + 'Z')}
+                                    </span>
+                                  </span>
+                                {:else}
+                                  <span>
+                                    <span class="px-1 py-0.5 rounded-none font-medium bg-red-50 text-red-700 border border-red-200">
+                                      Never exported
+                                    </span>
+                                  </span>
+                                {/if}
+                              {/if}
+                            </div>
                           </div>
                           <div class="flex items-center gap-3">
                             <span class="text-xs bg-slate-100 font-bold px-2 py-1 border border-slate-300">
                               {ses.recordCount} specimens
                             </span>
-                            <span class="text-slate-400 font-bold text-sm">→</span>
                           </div>
                         </div>
                         <button
@@ -554,12 +554,12 @@
               </div>
             </div>
 
-          <!-- TAB 2.2: EXPORT MAPPINGS CONFIG -->
+          <!-- TAB 2.2: APP SETTINGS -->
           {:else if activeTab === "settings"}
             <div class="space-y-6">
               <div>
-                <h2 class="text-md font-bold text-slate-900 uppercase tracking-wide">CSV Field Mapping Settings</h2>
-                <p class="text-xs text-slate-500 mt-1">Configure the output format to match mappings required by herbaria databases (e.g. BRAHMS).</p>
+                <h2 class="text-md font-bold text-slate-900 uppercase tracking-wide">Application settings</h2>
+                <p class="text-xs text-slate-500 mt-1">Configure the collection code and export format for your herbarium.</p>
               </div>
 
               {#if settingsMessage}
@@ -574,7 +574,7 @@
                 <input
                   id="settings-collectionCode"
                   type="text"
-                  placeholder="e.g. WIOI"
+                  placeholder="e.g. TAN"
                   bind:value={workingCollectionCode}
                   class="w-full sm:w-64 bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
                 />
@@ -582,7 +582,11 @@
 
               <!-- Format Choice -->
               <div class="space-y-2">
-                <span class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Export Protocol Format</span>
+                <div>
+                  <span class="text-xs font-bold text-slate-700 uppercase tracking-wider">Export Format </span>
+                  <span class="text-xs text-slate-500">(files are exported as comma separated values -- CSV).</span>
+                </div>
+                
                 <div class="flex gap-4">
                   <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
                     <input
@@ -592,7 +596,7 @@
                       bind:group={exportFormat}
                       class="text-slate-800"
                     />
-                    <span>Darwin Core Standard (DwC Headers)</span>
+                    <span>Darwin Core</span>
                   </label>
                   <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
                     <input
@@ -602,58 +606,11 @@
                       bind:group={exportFormat}
                       class="text-slate-800"
                     />
-                    <span>BRAHMS (Predefined Mappings)</span>
+                    <span>BRAHMS</span>
                   </label>
                 </div>
               </div>
 
-              <!-- Custom Mappings form -->
-              {#if exportFormat === "DwC"}
-                <div class="space-y-3 pt-2">
-                  <div class="border-b border-slate-200 pb-2">
-                    <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Custom Header Overrides</h3>
-                    <p class="text-[10px] text-slate-400">Leave blank to output standard Darwin Core headers, or enter custom header strings.</p>
-                  </div>
-
-                  <div class="grid grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-2">
-                    {#each Object.keys(customMappings) as field}
-                      <div class="flex flex-col">
-                        <span class="text-[10px] font-bold text-slate-500">{field}</span>
-                        <input
-                          type="text"
-                          placeholder={field}
-                          bind:value={customMappings[field]}
-                          class="bg-white border border-slate-300 text-slate-800 text-xs px-2 py-1.5 outline-none focus:border-slate-500 rounded-none transition-all mt-1"
-                        />
-                      </div>
-                    {/each}
-                  </div>
-                </div>
-              {:else if exportFormat === "BRAHMS"}
-                <div class="bg-slate-50 border border-slate-200 p-4 space-y-2 text-xs text-slate-600 leading-relaxed">
-                  <span class="font-bold text-slate-800 uppercase tracking-wider block mb-1">Predefined BRAHMS Mappings Active</span>
-                  <span>When exporting your CSV, headers will automatically be transformed into the BRAHMS layout:</span>
-                  <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] mt-2 font-mono bg-white p-2 border border-slate-200">
-                    <div>recordedBy → COLLECTOR</div>
-                    <div>recordNumber → NUMBER</div>
-                    <div>locality → LOCALITY</div>
-                    <div>locationNotes → LOC_NOTES</div>
-                    <div>scientificName → TAXON</div>
-                    <div>stateProvince → PROVINCE</div>
-                  </div>
-                </div>
-              {/if}
-
-              <!-- Save settings button -->
-              <div class="pt-4 border-t border-slate-100 flex justify-end">
-                <button
-                  type="button"
-                  onclick={handleSaveSettings}
-                  class="bg-slate-800 hover:bg-slate-900 text-white px-6 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors"
-                >
-                  Save Settings Mappings
-                </button>
-              </div>
             </div>
           {/if}
         </div>
@@ -666,15 +623,13 @@
         <div class="px-6 py-3 bg-slate-800 text-white flex justify-between items-center shrink-0">
           <div class="flex items-center gap-3">
             <button
-              onclick={async () => {
-                view = "dashboard";
-                activeSession = null;
-                localStorage.removeItem("lastActiveSession");
-                await loadSessions();
-              }}
+              onclick={returnToDashboard}
+              title = "Return to Sessions"
               class="bg-slate-700 hover:bg-slate-600 text-xs font-bold uppercase px-3 py-1.5 tracking-wide rounded-none transition-colors"
             >
-              ← Dashboard
+              <span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H59.31l58.35,58.34a8,8,0,0,1-11.32,11.32l-72-72a8,8,0,0,1,0-11.32l72-72a8,8,0,0,1,11.32,11.32L59.31,120H216A8,8,0,0,1,224,128Z"></path></svg>
+              </span> 
             </button>
             <div>
               <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-semibold">Active Session</span>
