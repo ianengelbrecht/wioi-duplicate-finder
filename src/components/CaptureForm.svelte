@@ -62,6 +62,7 @@
   let saving = $state(false);
   let statusMessage = $state("");
   let statusType = $state(""); // "success" or "error"
+  let formRef = $state(/** @type {HTMLFormElement|null} */ (null));
 
   let verbatimLocalityRef = $state(/** @type {HTMLTextAreaElement|null} */ (null));
   let verbatimLocalityCopied = $state(false);
@@ -766,19 +767,23 @@
     try {
       let res = /** @type {any} */ (await invoke("save_captured_record", { record: recordPayload }));
       if (res.success) {
-        statusMessage = form.id ? "Record updated successfully!" : "Specimen saved successfully!";
-        statusType = "success";
+        const isUpdate = !!form.id;
         
-        // If it was a new record, update the local ID so subsequent saves edit it instead of inserting duplicates!
-        if (!form.id) {
-          form.id = res.id;
-        }
         lastSavedRecord = {
           ...recordPayload,
           id: res.id
         };
         
+        handleReset();
+        
+        statusMessage = isUpdate ? "Record updated successfully!" : "Specimen saved successfully!";
+        statusType = "success";
+        
         onSaveSuccess();
+        
+        if (formRef) {
+          formRef.scrollTop = 0;
+        }
         
         // Hide success message after 3 seconds
         setTimeout(() => {
@@ -910,7 +915,7 @@
   </div>
 
   <!-- Form Fields -->
-  <form onsubmit={handleSave} class="flex-1 overflow-y-auto p-4 space-y-4">
+  <form bind:this={formRef} onsubmit={handleSave} class="flex-1 overflow-y-auto p-4 space-y-4">
     {#if statusMessage}
       <div class="p-3 text-xs border font-medium {statusType === 'success' ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-red-50 border-red-300 text-red-800'}">
         {statusMessage}

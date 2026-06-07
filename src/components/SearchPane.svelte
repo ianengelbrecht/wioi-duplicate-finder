@@ -151,6 +151,10 @@
     searchMessage = "";
   }
 
+  export function clearSearch() {
+    handleClear();
+  }
+
   // ISO8601 formatting for partial dates (e.g. YYYY, YYYY-MM, YYYY-MM-DD)
   /**
    * @param {number|string|null} year

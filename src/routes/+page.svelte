@@ -80,6 +80,7 @@
   let capturedRecords = $state(/** @type {any[]} */ ([])); // Records captured in the current session
   let exportMessage = $state("");
   let exportError = $state("");
+  let searchPaneRef = $state(/** @type {any} */ (null));
 
   // -------------------------------------------------------------
   // Authentication Logic
@@ -717,7 +718,7 @@
         <div class="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 p-4 min-h-0 overflow-y-auto">
           <!-- Left Pane (Search) -->
           <div class="flex flex-col h-[650px] min-h-0">
-            <SearchPane onSelectRecord={handleSelectSearchResult} />
+            <SearchPane bind:this={searchPaneRef} onSelectRecord={handleSelectSearchResult} />
           </div>
 
           <!-- Right Pane (Specimen Capture Form) -->
@@ -726,7 +727,13 @@
               sessionId={activeSession.id} 
               collectionCode={workingCollectionCode}
               bind:activeRecord={activeRecord} 
-              onSaveSuccess={async () => { await loadCapturedRecords(); await loadSessions(); }} 
+              onSaveSuccess={async () => {
+                await loadCapturedRecords();
+                await loadSessions();
+                if (searchPaneRef) {
+                  searchPaneRef.clearSearch();
+                }
+              }} 
             />
           </div>
         </div>
