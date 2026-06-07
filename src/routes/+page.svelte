@@ -3,6 +3,7 @@
   import { friendlyDate } from "friendly-date";
   import SearchPane from "../components/SearchPane.svelte";
   import CaptureForm from "../components/CaptureForm.svelte";
+  import {parseElevation} from "../utils/parseVerbatimElevation.js";
 
   // State Management
   let currentUser = $state(/** @type {any} */ (null)); // { id, username }
@@ -18,6 +19,7 @@
       if (storedUser) {
         currentUser = JSON.parse(storedUser);
         await loadSessions();
+        await loadExportSettings();
         
         const storedSession = localStorage.getItem("lastActiveSession");
         if (storedSession) {
@@ -113,6 +115,7 @@
           localStorage.setItem("currentUser", JSON.stringify(user));
           view = "dashboard";
           await loadSessions();
+          await loadExportSettings();
         } else {
           authError = "Invalid username or password.";
         }
@@ -210,6 +213,40 @@
     activeSession = null;
     localStorage.removeItem("lastActiveSession");
     await loadSessions();
+  }
+
+  // -------------------------------------------------------------
+  // Export Settings Mappings Logic
+  // -------------------------------------------------------------
+  async function loadExportSettings() {
+    if (!currentUser) return;
+    try {
+      let settings = /** @type {any} */ (await invoke("get_export_settings", { userId: currentUser.id }));
+      exportFormat = settings.format || "DwC";
+      if (settings.mappings) {
+        let maps = JSON.parse(settings.mappings);
+        workingCollectionCode = maps.collectionCode || "WIOI";
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function handleSaveSettings() {
+    if (!currentUser) return;
+    settingsMessage = "";
+    try {
+      let mappingsObj = { ...customMappings, collectionCode: workingCollectionCode };
+      await invoke("save_export_settings", {
+        userId: currentUser.id,
+        format: exportFormat,
+        mappings: JSON.stringify(mappingsObj)
+      });
+      settingsMessage = "Settings saved successfully!";
+      setTimeout(() => { settingsMessage = ""; }, 3000);
+    } catch (e) {
+      settingsMessage = "Error saving settings: " + (/** @type {any} */ (e)).toString();
+    }
   }
 
   // -------------------------------------------------------------
@@ -630,6 +667,17 @@
                     <span>BRAHMS</span>
                   </label>
                 </div>
+              </div>
+
+              <!-- Save settings button -->
+              <div class="pt-4 border-t border-slate-100 flex justify-end">
+                <button
+                  type="button"
+                  onclick={handleSaveSettings}
+                  class="bg-slate-800 hover:bg-slate-900 text-white px-6 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors"
+                >
+                  Save Settings
+                </button>
               </div>
 
             </div>
