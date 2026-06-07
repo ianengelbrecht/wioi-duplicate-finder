@@ -1,9 +1,11 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
+  import Papa from "papaparse";
   import { friendlyDate } from "friendly-date";
   import SearchPane from "../components/SearchPane.svelte";
   import CaptureForm from "../components/CaptureForm.svelte";
   import {parseElevation} from "../utils/parseVerbatimElevation.js";
+  import {coordsToQDS } from "../utils/coordsToQDS.js";
 
   // State Management
   let currentUser = $state(/** @type {any} */ (null)); // { id, username }
@@ -61,6 +63,7 @@
   // Export Settings state
   let exportFormat = $state("DwC"); // "DwC" or "BRAHMS"
   let workingCollectionCode = $state("WIOI");
+  let includeGridReference = $state(false);
   let customMappings = $state(/** @type {any} */ ({
     recordedBy: "",
     recordNumber: "",
@@ -226,6 +229,7 @@
       if (settings.mappings) {
         let maps = JSON.parse(settings.mappings);
         workingCollectionCode = maps.collectionCode || "WIOI";
+        includeGridReference = maps.includeGridReference || false;
       }
     } catch (e) {
       console.error(e);
@@ -236,7 +240,7 @@
     if (!currentUser) return;
     settingsMessage = "";
     try {
-      let mappingsObj = { ...customMappings, collectionCode: workingCollectionCode };
+      let mappingsObj = { ...customMappings, collectionCode: workingCollectionCode, includeGridReference };
       await invoke("save_export_settings", {
         userId: currentUser.id,
         format: exportFormat,
@@ -322,22 +326,400 @@
     }
   }
 
+  function formatISO8601Date(/** @type {number|string|null} */ year, /** @type {number|string|null} */ month, /** @type {number|string|null} */ day) {
+    if (!year) return "";
+    let dateStr = String(year);
+    if (month) {
+      let m = String(month).padStart(2, "0");
+      dateStr += `-${m}`;
+      if (day) {
+        let d = String(day).padStart(2, "0");
+        dateStr += `-${d}`;
+      }
+    }
+    return dateStr;
+  }
+
+  function parseCollectorNumber(/** @type {string|null|undefined} */ recordNumber) {
+    const result = {
+      prefix: "",
+      number: "",
+      suffix: ""
+    };
+    if (!recordNumber) return result;
+    const str = recordNumber.trim();
+    
+    const yearSlashRegex = /^(.*?\b(?:19|20)?\d{2}\s*\/\s*)(\d+)(.*)$/;
+    const yearSlashMatch = str.match(yearSlashRegex);
+    if (yearSlashMatch) {
+      result.prefix = yearSlashMatch[1];
+      result.number = yearSlashMatch[2];
+      result.suffix = yearSlashMatch[3];
+      return result;
+    }
+    
+    const digitRegex = /^(.*?)(\d+)(.*)$/;
+    const digitMatch = str.match(digitRegex);
+    if (digitMatch) {
+      result.prefix = digitMatch[1];
+      result.number = digitMatch[2];
+      result.suffix = digitMatch[3];
+      return result;
+    }
+    
+    result.prefix = str;
+    return result;
+  }
+
+  function parseScientificName(/** @type {string|null|undefined} */ name) {
+    const result = {
+      genus: "",
+      sp1: "",
+      author1: "",
+      rank1: "",
+      sp2: "",
+      author2: ""
+    };
+    if (!name) return result;
+    const tokens = name.trim().split(/\s+/);
+    if (tokens.length === 0) return result;
+    
+    result.genus = tokens[0];
+    if (tokens.length === 1) return result;
+    
+    const isLowercase = (/** @type {string} */ str) => {
+      if (!str) return false;
+      const firstChar = str.charAt(0);
+      return firstChar >= 'a' && firstChar <= 'z';
+    };
+
+    const rankIndicators = [
+      "subsp.", "subsp", "var.", "var", "ssp.", "ssp", 
+      "forma", "form", "subg.", "subgenus", "sect.", "section",
+      "f.", "f"
+    ];
+    
+    let sp1Index = -1;
+    if (isLowercase(tokens[1]) || tokens[1] === "x" || tokens[1] === "×") {
+      result.sp1 = tokens[1];
+      sp1Index = 1;
+    }
+    
+    if (sp1Index === -1) {
+      result.author1 = tokens.slice(1).join(" ");
+      return result;
+    }
+    
+    let rankIndex = -1;
+    for (let i = 2; i < tokens.length; i++) {
+      if (rankIndicators.includes(tokens[i].toLowerCase())) {
+        rankIndex = i;
+        break;
+      }
+    }
+    
+    if (rankIndex === -1) {
+      result.author1 = tokens.slice(2).join(" ");
+    } else {
+      result.author1 = tokens.slice(2, rankIndex).join(" ");
+      result.rank1 = tokens[rankIndex];
+      if (rankIndex + 1 < tokens.length) {
+        result.sp2 = tokens[rankIndex + 1];
+        result.author2 = tokens.slice(rankIndex + 2).join(" ");
+      }
+    }
+    return result;
+  }
+
+  function coordinatesDiffer(/** @type {string|null|undefined} */ verbatim, /** @type {number|string|null|undefined} */ lat, /** @type {number|string|null|undefined} */ lon) {
+    if (!verbatim) return false;
+    if (lat === null || lat === undefined || lon === null || lon === undefined || lat === "" || lon === "") return true;
+    
+    const cleanVerbatim = verbatim.replace(/\s+/g, "");
+    const cleanDec = `${lat},${lon}`;
+    const cleanDecAbs = `${Math.abs(Number(lat))},${Math.abs(Number(lon))}`;
+    
+    if (cleanVerbatim === cleanDec || cleanVerbatim === cleanDecAbs) {
+      return false;
+    }
+    
+    const parts = verbatim.split(/[\s,]+/);
+    if (parts.length === 2) {
+      const vLat = parseFloat(parts[0]);
+      const vLon = parseFloat(parts[1]);
+      if (!isNaN(vLat) && !isNaN(vLon)) {
+        if (Math.abs(vLat - Number(lat)) < 0.00001 && Math.abs(vLon - Number(lon)) < 0.00001) {
+          return false;
+        }
+      }
+    }
+    
+    return true;
+  }
+
+  function isSimpleElevation(/** @type {string|null|undefined} */ verbatim) {
+    if (!verbatim) return true;
+    return /^\d+(?:\.\d+)?\s*m?$/i.test(verbatim.trim());
+  }
+
+  function generateCSVContent(/** @type {any[]} */ records, /** @type {string} */ format, /** @type {any} */ familyMap = {}, /** @type {boolean} */ includeQDS = false) {
+    if (format === "DwC") {
+      const headers = [
+        "dwc:collectionCode",
+        "dwc:catalogNumber",
+        "duplicates",
+        "dwc:recordNumber",
+        "dwc:recordedBy",
+        "dwc:verbatimEventDate",
+        "dwc:year",
+        "dwc:month",
+        "dwc:day",
+        "dwc:country",
+        "dwc:stateProvince",
+        "dwc:county",
+        "dwc:municipality",
+        "dwc:locality",
+        "dwc:locationRemarks",
+        "dwc:verbatimCoordinates",
+        "dwc:decimalLatitude",
+        "dwc:decimalLongitude",
+        "dwc:verbatimElevation",
+        "minElevation",
+        "maxElevation",
+        "elevation",
+        "elevationUncertainty",
+        "dwc:habitat",
+        "dwc:occurrenceRemarks",
+        "dwc:fieldNotes",
+        "dwc:typeStatus",
+        "dwc:identificationQualifier",
+        "dwc:scientificName",
+        "dwc:identifiedBy",
+        "dwc:dateIdentified",
+        "dwc:identificationRemarks",
+        "dwc:taxonID",
+        "cultivated"
+      ];
+
+      const data = records.map(rec => {
+        const elevParts = parseElevation(rec.verbatimElevation);
+        let dwcLocationRemarks = rec.locationNotes || "";
+        if (rec.cultivated) {
+          dwcLocationRemarks = dwcLocationRemarks ? `${dwcLocationRemarks}; cultivated` : "cultivated";
+        }
+        return [
+          rec.collectionCode || "",
+          rec.catalogNumber || "",
+          rec.duplicates !== null && rec.duplicates !== undefined ? rec.duplicates : "",
+          rec.recordNumber || "",
+          rec.recordedBy || "",
+          rec.verbatimEventDate || "",
+          rec.year !== null && rec.year !== undefined ? rec.year : "",
+          rec.month !== null && rec.month !== undefined ? rec.month : "",
+          rec.day !== null && rec.day !== undefined ? rec.day : "",
+          rec.country || "",
+          rec.stateProvince || "",
+          rec.county || "",
+          rec.municipality || "",
+          rec.locality || "",
+          dwcLocationRemarks, // locationRemarks maps to locationNotes in UI record
+          rec.verbatimCoordinates || "",
+          rec.decimalLatitude !== null && rec.decimalLatitude !== undefined ? rec.decimalLatitude : "",
+          rec.decimalLongitude !== null && rec.decimalLongitude !== undefined ? rec.decimalLongitude : "",
+          rec.verbatimElevation || "",
+          elevParts.minElevation !== null && elevParts.minElevation !== undefined ? elevParts.minElevation : "",
+          elevParts.maxElevation !== null && elevParts.maxElevation !== undefined ? elevParts.maxElevation : "",
+          elevParts.elevation !== null && elevParts.elevation !== undefined ? elevParts.elevation : "",
+          elevParts.elevationUncertainty !== null && elevParts.elevationUncertainty !== undefined ? elevParts.elevationUncertainty : "",
+          rec.habitat || "",
+          rec.occurrenceRemarks || "",
+          rec.fieldNotes || "",
+          rec.typeStatus || "",
+          rec.identificationQualifier || "",
+          rec.scientificName || "",
+          rec.identifiedBy || "",
+          formatISO8601Date(rec.yearIdentified, rec.monthIdentified, rec.dayIdentified),
+          rec.identificationRemarks || "",
+          rec.taxonID || "",
+          rec.cultivated ? "true" : "false"
+        ];
+      });
+
+      return Papa.unparse({ fields: headers, data });
+    } else {
+      // BRAHMS Export Format
+      const headers = [
+        "tag", "del", "barcode", "dups",
+        "collector", "addcol", "prefix", "number", "suffix",
+        "dd", "mm", "yy",
+        "family",
+        "type category",
+        "genus", "sp1", "author1", "rank1", "sp2", "author2",
+        "detdd", "detmm", "detyy", "detstatus",
+        "country", "majorarea", "minorarea", "gazetteer",
+        "lat", "long", "ns", "ew", "llunit"
+      ];
+      if (includeQDS) {
+        headers.push("qds");
+      }
+      headers.push(
+        "alt", "altunit",
+        "locality notes",
+        "habitat/site description",
+        "plant description", "cultivated",
+        "general notes"
+      );
+
+      const data = records.map(rec => {
+        const collectors = rec.recordedBy ? rec.recordedBy.split(';').map((/** @type {string} */ s) => s.trim()).filter(Boolean) : [];
+        const collector = collectors[0] || "";
+        const addcol = collectors.slice(1).join("; ");
+
+        const colNumParts = parseCollectorNumber(rec.recordNumber);
+
+        const family = familyMap[rec.id] || "";
+
+        const nameParts = parseScientificName(rec.scientificName);
+
+        let gazetteer = rec.locality || "";
+        if (rec.municipality && rec.municipality.trim()) {
+          const muni = rec.municipality.trim();
+          const locLower = (rec.locality || "").toLowerCase();
+          const remarksLower = (rec.locationNotes || "").toLowerCase();
+          if (!locLower.includes(muni.toLowerCase()) && !remarksLower.includes(muni.toLowerCase())) {
+            gazetteer = rec.locality ? `${muni}, ${rec.locality}` : muni;
+          }
+        }
+
+        const hasLat = rec.decimalLatitude !== null && rec.decimalLatitude !== undefined && rec.decimalLatitude !== "";
+        const hasLon = rec.decimalLongitude !== null && rec.decimalLongitude !== undefined && rec.decimalLongitude !== "";
+        const lat = hasLat ? Math.abs(Number(rec.decimalLatitude)) : "";
+        const long = hasLon ? Math.abs(Number(rec.decimalLongitude)) : "";
+        const ns = hasLat ? (Number(rec.decimalLatitude) >= 0 ? "N" : "S") : "";
+        const ew = hasLon ? (Number(rec.decimalLongitude) >= 0 ? "E" : "W") : "";
+
+        let qdsVal = "";
+        if (includeQDS) {
+          try {
+            qdsVal = coordsToQDS(rec.decimalLatitude, rec.decimalLongitude) || "";
+          } catch (e) {
+            qdsVal = "";
+          }
+        }
+
+        const elevParts = parseElevation(rec.verbatimElevation);
+        const alt = elevParts.elevation !== null && elevParts.elevation !== undefined ? elevParts.elevation : "";
+
+        let localityNotes = rec.locationNotes || "";
+        if (rec.cultivated) {
+          localityNotes = localityNotes ? `${localityNotes}; cultivated` : "cultivated";
+        }
+        if (coordinatesDiffer(rec.verbatimCoordinates, rec.decimalLatitude, rec.decimalLongitude)) {
+          const coordNote = `verbatim coordinates: ${rec.verbatimCoordinates}`;
+          localityNotes = localityNotes ? `${localityNotes}. ${coordNote}` : coordNote;
+        }
+        if (!isSimpleElevation(rec.verbatimElevation)) {
+          const elevNote = `verbatim elevation: ${rec.verbatimElevation}`;
+          localityNotes = localityNotes ? `${localityNotes}. ${elevNote}` : elevNote;
+        }
+
+        let generalNotes = rec.occurrenceRemarks || "";
+        if (rec.identificationRemarks && rec.identificationRemarks.trim()) {
+          const detNotes = `detnotes: ${rec.identificationRemarks.trim()}`;
+          generalNotes = generalNotes ? `${generalNotes}. ${detNotes}` : detNotes;
+        }
+
+        const row = [
+          "", // tag
+          "", // del
+          rec.catalogNumber || "", // barcode
+          rec.duplicates !== null && rec.duplicates !== undefined ? rec.duplicates : "", // dups
+          collector,
+          addcol,
+          colNumParts.prefix,
+          colNumParts.number,
+          colNumParts.suffix,
+          rec.day !== null && rec.day !== undefined ? rec.day : "",
+          rec.month !== null && rec.month !== undefined ? rec.month : "",
+          rec.year !== null && rec.year !== undefined ? rec.year : "",
+          family,
+          rec.typeStatus || "", // type category
+          nameParts.genus,
+          nameParts.sp1,
+          nameParts.author1,
+          nameParts.rank1,
+          nameParts.sp2,
+          nameParts.author2,
+          rec.dayIdentified !== null && rec.dayIdentified !== undefined ? rec.dayIdentified : "",
+          rec.monthIdentified !== null && rec.monthIdentified !== undefined ? rec.monthIdentified : "",
+          rec.yearIdentified !== null && rec.yearIdentified !== undefined ? rec.yearIdentified : "",
+          rec.identificationQualifier || "", // detstatus
+          rec.country || "",
+          rec.stateProvince || "", // majorarea
+          rec.county || "", // minorarea
+          gazetteer,
+          lat,
+          long,
+          ns,
+          ew,
+          "DD" // llunit
+        ];
+
+        if (includeQDS) {
+          row.push(qdsVal);
+        }
+
+        row.push(
+          alt,
+          "", // altunit
+          localityNotes,
+          rec.habitat || "", // habitat/site description
+          rec.fieldNotes || "", // plant description
+          rec.cultivated ? "true" : "false", // cultivated
+          generalNotes
+        );
+
+        return row;
+      });
+
+      return Papa.unparse({ fields: headers, data });
+    }
+  }
+
   async function handleExportCSV() {
     if (!activeSession) return;
     exportMessage = "";
     exportError = "";
     
     try {
-      let defaultName = `${activeSession.name.replace(/[^a-zA-Z0-9]/g, "_")}_captured.csv`;
+      const records = /** @type {any[]} */ (await invoke("get_captured_records", { sessionId: activeSession.id }));
+      if (!records || records.length === 0) {
+        exportError = "No records to export in this session.";
+        return;
+      }
+
+      const dt = new Date().toISOString().replace(/:/g, "-").split('.')[0] + 'Z';
+      let defaultName = `${activeSession.name.replace(/[^a-zA-Z0-9]/g, "_")}_${dt}.csv`;
       let path = await invoke("select_export_path", { defaultName });
       if (!path) {
         // User cancelled the dialog
         return;
       }
+
+      // Batch resolve families from WCVP database
+      const queries = records.map(rec => ({
+        id: rec.id,
+        taxonID: rec.taxonID,
+        scientificName: rec.scientificName
+      }));
+      const familyMap = await invoke("resolve_wcvp_families", { queries });
+      
+      const csvContent = generateCSVContent(records, exportFormat, familyMap, includeGridReference);
       
       let res = await invoke("export_session_csv", {
         sessionId: activeSession.id,
-        filepath: path
+        filepath: path,
+        csvContent
       });
       exportMessage = /** @type {string} */ (res);
     } catch (err) {
@@ -669,6 +1051,19 @@
                 </div>
               </div>
 
+              <!-- Grid Reference Setting -->
+              <div class="space-y-2 pt-2">
+                <label class="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wider cursor-pointer">
+                  <input
+                    id="settings-qds"
+                    type="checkbox"
+                    bind:checked={includeGridReference}
+                    class="w-4 h-4 text-slate-850 border-slate-300 rounded focus:ring-slate-500 focus:ring-1 cursor-pointer"
+                  />
+                  <span>Include grid reference (QDS)</span>
+                </label>
+              </div>
+
               <!-- Save settings button -->
               <div class="pt-4 border-t border-slate-100 flex justify-end">
                 <button
@@ -728,7 +1123,7 @@
         <!-- Export status notification -->
         {#if exportMessage}
           <div class="bg-emerald-50 border-b border-emerald-300 text-emerald-800 text-xs px-6 py-2 flex justify-between items-center">
-            <span>✨ {exportMessage}</span>
+            <span>{exportMessage}</span>
             <button onclick={() => { exportMessage = ""; }} class="font-bold">✕</button>
           </div>
         {:else if exportError}

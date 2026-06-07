@@ -46,7 +46,8 @@
     dayIdentified: "",
     identificationRemarks: "",
     occurrenceRemarks: "",
-    fieldNotes: ""
+    fieldNotes: "",
+    cultivated: false
   });
 
   let coordinatesError = $state(false);
@@ -304,6 +305,7 @@
       form.identificationRemarks = activeRecord.identificationRemarks || "";
       form.occurrenceRemarks = activeRecord.occurrenceRemarks || "";
       form.fieldNotes = activeRecord.fieldNotes || "";
+      form.cultivated = !!activeRecord.cultivated;
       clearTitleCasedStates();
       
       statusMessage = "";
@@ -834,7 +836,8 @@
       dayIdentified: "",
       identificationRemarks: "",
       occurrenceRemarks: "",
-      fieldNotes: ""
+      fieldNotes: "",
+      cultivated: false
     };
     activeRecord = null;
     statusMessage = "";
@@ -1216,7 +1219,9 @@
 
     <!-- Row 4: Locality (on its own row) & Verbatim Coordinates (on its own row) -->
     <div class="space-y-3">
-      <div>
+    <div class="grid grid-cols-4 gap-3">
+
+      <div class="col-span-3">
         <label for="capture-locality" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Locality</label>
         <div class="relative flex items-center w-full">
           <Autocomplete
@@ -1287,6 +1292,22 @@
           </div>
         </div>
       </div>
+      <div>
+        <label for="capture-cultivated" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+
+          <div class="flex items-end h-[38px] gap-2">
+            <input
+              id="capture-cultivated"
+              type="checkbox"
+              bind:checked={form.cultivated}
+              class="w-4 h-4 text-slate-800 border-slate-300 rounded focus:ring-slate-500 focus:ring-1 cursor-pointer"
+            />
+            cultivated
+          </div>
+        </label>
+      </div>
+
+    </div>
 
       <!-- Row 5: Locality Notes (locationNotes) -->
       <div>

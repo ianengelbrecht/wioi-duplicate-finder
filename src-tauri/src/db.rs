@@ -403,6 +403,9 @@ fn run_migrations(conn: &Connection) -> Result<()> {
     // Add last_exported_at column to sessions if it doesn't exist
     let _ = conn.execute("ALTER TABLE sessions ADD COLUMN last_exported_at TEXT", []);
 
+    // Add cultivated column to captured_records if it doesn't exist
+    let _ = conn.execute("ALTER TABLE captured_records ADD COLUMN cultivated INTEGER DEFAULT 0", []);
+
     conn.execute(
         "CREATE TABLE IF NOT EXISTS captured_records (
             id INTEGER PRIMARY KEY,
@@ -438,6 +441,7 @@ fn run_migrations(conn: &Connection) -> Result<()> {
             dayIdentified INTEGER,
             identificationRemarks TEXT,
             taxonID TEXT,
+            cultivated INTEGER DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             modified_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
@@ -495,6 +499,7 @@ fn run_migrations(conn: &Connection) -> Result<()> {
     conn.execute("CREATE INDEX IF NOT EXISTS idx_wcvp_taxonomy_accepted_plant_name_id ON wcvp_taxonomy(accepted_plant_name_id);", [])?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_wcvp_taxonomy_basionym_plant_name_id ON wcvp_taxonomy(basionym_plant_name_id);", [])?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_wcvp_taxonomy_parent_plant_name_id ON wcvp_taxonomy(parent_plant_name_id);", [])?;
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_wcvp_taxonomy_taxon_name ON wcvp_taxonomy(taxon_name);", [])?;
 
     // Drop gbif_fts and recreate if it does not have the normalized_locality column
     let fts_col_exists: bool = conn.query_row(
