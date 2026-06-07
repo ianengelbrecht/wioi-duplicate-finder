@@ -97,6 +97,13 @@
   let pendingDeleteSessionId = $state(/** @type {number|null} */ (null));
   let pendingDeleteSessionName = $state("");
 
+  // Localization state
+  let currentLanguage = $state(localStorage.getItem("currentLanguage") || "EN");
+
+  $effect(() => {
+    localStorage.setItem("currentLanguage", currentLanguage);
+  });
+
   // -------------------------------------------------------------
   // Authentication Logic
   // -------------------------------------------------------------
@@ -775,8 +782,40 @@
     </div>
 
     <!-- Active User & Session Control -->
-    {#if currentUser}
-      <div class="flex items-center gap-4 text-xs font-semibold">
+    <div class="flex items-center gap-4 text-xs font-semibold">
+      <!-- Language Selector -->
+      <div class="flex items-center border border-slate-300 divide-x divide-slate-300 select-none">
+        <button
+          type="button"
+          onclick={() => currentLanguage = "EN"}
+          class="px-2.5 py-1.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {currentLanguage === 'EN' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-650'}"
+        >
+          EN
+        </button>
+        <button
+          type="button"
+          onclick={() => currentLanguage = "FR"}
+          class="px-2.5 py-1.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {currentLanguage === 'FR' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-650'}"
+        >
+          FR
+        </button>
+        <button
+          type="button"
+          onclick={() => currentLanguage = "PT"}
+          class="px-2.5 py-1.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {currentLanguage === 'PT' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-650'}"
+        >
+          PT
+        </button>
+        <button
+          type="button"
+          onclick={() => currentLanguage = "MG"}
+          class="px-2.5 py-1.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {currentLanguage === 'MG' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-650'}"
+        >
+          MG
+        </button>
+      </div>
+
+      {#if currentUser}
         <div class="text-right">
           <span class="text-slate-400 block text-[9px] uppercase tracking-wider">Logged In As</span>
           <span class="text-slate-800 font-bold">{currentUser.username}</span>
@@ -787,8 +826,8 @@
         >
           Sign Out
         </button>
-      </div>
-    {/if}
+      {/if}
+    </div>
   </header>
 
   <!-- Content Router View -->

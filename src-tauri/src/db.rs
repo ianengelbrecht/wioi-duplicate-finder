@@ -4,7 +4,7 @@ use std::path::{PathBuf, Path};
 use std::fs;
 use pbkdf2::pbkdf2_hmac_array;
 use sha2::Sha256;
-use chrono::{Local, NaiveDate, NaiveDateTime, Datelike};
+use chrono::{Local, NaiveDate, NaiveDateTime};
 
 
 use crate::parser::{normalize_taxon_name, normalize_locality, normalize_search_recorded_by};
@@ -167,7 +167,6 @@ fn prune_database_backups(backups_dir: &Path, today: NaiveDate) {
     
     struct BackupFile {
         path: PathBuf,
-        date: NaiveDate,
         datetime: NaiveDateTime,
         age_days: i64,
     }
@@ -187,7 +186,6 @@ fn prune_database_backups(backups_dir: &Path, today: NaiveDate) {
                                 let age_days = (today - date).num_days();
                                 backups.push(BackupFile {
                                     path,
-                                    date,
                                     datetime: dt,
                                     age_days,
                                 });
@@ -202,40 +200,20 @@ fn prune_database_backups(backups_dir: &Path, today: NaiveDate) {
     // Sort backups by datetime descending (latest first)
     backups.sort_by(|a, b| b.datetime.cmp(&a.datetime));
     
-    let mut kept_days = std::collections::HashSet::new();
-    let mut kept_weeks = std::collections::HashSet::new();
-    let mut kept_months = std::collections::HashSet::new();
+    let mut kept_yesterday = false;
     
     for backup in backups {
         let mut keep = false;
         
-        // Rule 1: Keep everything from Today (age <= 0)
+        // Rule 1: Keep all backups for the current day (age <= 0)
         if backup.age_days <= 0 {
             keep = true;
         }
         
-        // Rule 2: Keep only the latest backup for any previous day, up to 14 days (daily backups)
-        if backup.age_days > 0 && backup.age_days <= 14 {
-            if !kept_days.contains(&backup.date) {
-                kept_days.insert(backup.date);
-                keep = true;
-            }
-        }
-        
-        // Rule 3: Keep only the latest backup for any week, up to 30 days (weekly backups)
-        if backup.age_days > 0 && backup.age_days <= 30 {
-            let week_key = (backup.date.year(), backup.date.iso_week().week());
-            if !kept_weeks.contains(&week_key) {
-                kept_weeks.insert(week_key);
-                keep = true;
-            }
-        }
-        
-        // Rule 4: Keep only the latest backup for any calendar month, up to 180 days (monthly backups)
-        if backup.age_days > 0 && backup.age_days <= 180 {
-            let month_key = (backup.date.year(), backup.date.month());
-            if !kept_months.contains(&month_key) {
-                kept_months.insert(month_key);
+        // Rule 2: Keep only the latest backup for the last day before today (age == 1)
+        if backup.age_days == 1 {
+            if !kept_yesterday {
+                kept_yesterday = true;
                 keep = true;
             }
         }
