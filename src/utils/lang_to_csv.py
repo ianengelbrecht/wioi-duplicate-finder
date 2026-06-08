@@ -4,6 +4,8 @@ import csv
 import os
 import argparse
 
+# for converting two translation JSON files into a single CSV table for easier editing and review
+
 def main():
     parser = argparse.ArgumentParser(description="Convert two translation JSON files into a single CSV table.")
     parser.add_argument("json1", help="Path to the first translation JSON file (e.g., static/lang/en.json)")

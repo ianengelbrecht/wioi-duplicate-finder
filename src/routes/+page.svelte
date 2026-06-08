@@ -2,7 +2,6 @@
   import { setContext } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import Papa from "papaparse";
-  import { friendlyDate } from "friendly-date";
   import SearchPane from "../components/SearchPane.svelte";
   import CaptureForm from "../components/CaptureForm.svelte";
   import {parseElevation} from "../utils/parseVerbatimElevation.js";
@@ -1018,7 +1017,13 @@
                                 <span>
                                   {t("last-record", "last record")}:
                                   <strong class="text-slate-700 font-semibold">
-                                    {friendlyDate(ses.lastRecordAt.replace(' ', 'T') + 'Z')}
+                                    {new Date(ses.lastRecordAt).toLocaleString(currentLanguage === "EN" ? "en-US" : currentLanguage.toLowerCase(), {
+                                      year: 'numeric',
+                                      month: 'short',
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
                                   </strong>
                                 </span>
                               {:else}
@@ -1036,7 +1041,13 @@
                                         ? 'bg-red-50 text-red-700 border border-red-200'
                                         : 'text-slate-700'}"
                                     >
-                                      {friendlyDate(ses.lastExportedAt.replace(' ', 'T') + 'Z')}
+                                      {new Date(ses.lastExportedAt).toLocaleString(currentLanguage === "EN" ? "en-US" : currentLanguage.toLowerCase(), {
+                                        year: 'numeric',
+                                        month: 'short',
+                                        day: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      })}
                                     </span>
                                   </span>
                                 {:else}
