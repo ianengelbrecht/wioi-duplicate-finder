@@ -390,7 +390,7 @@ fn run_migrations(conn: &Connection) -> Result<()> {
             session_id INTEGER NOT NULL,
             collectionCode TEXT,
             catalogNumber TEXT,
-            duplicates INTEGER,
+            duplicates TEXT,
             recordNumber TEXT,
             recordedBy TEXT,
             verbatimEventDate TEXT,

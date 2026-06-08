@@ -72,7 +72,7 @@
   "search-results-count": "resultados encontrados",
   "capture-heading": "Captura & Busca de Espécimes",
   "catalog-number-label": "Código de barras",
-  "duplicates-label": "Duplicatas",
+  "duplicates-label": "Duplicatas (vírgula separadas)",
   "recorded-by-label": "Coletor Principal",
   "add-collectors-label": "Coletores Adicionais",
   "record-number-label": "Número",

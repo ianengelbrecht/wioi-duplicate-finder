@@ -248,7 +248,7 @@
       form.id = activeRecord.id && activeRecord.sessionId ? activeRecord.id : null; // Only reuse id if it is a previously captured record, not a reference database record
       // do not copy the collection code, this must always be the value from the active session settings
       form.catalogNumber = activeRecord.catalogNumber || "";
-      form.duplicates = activeRecord.duplicates ? String(activeRecord.duplicates) : "";
+      form.duplicates = activeRecord.duplicates ? activeRecord.duplicates + ", " : "";
       
       if (activeRecord.recordedBy) {
         let collectors = splitNames(activeRecord.recordedBy);
@@ -836,9 +836,9 @@
       ...form,
       collectionCode,
       recordedBy: combinedRecordedBy,
+      duplicates: form.duplicates.replace(/,\s*$/, ""), // Remove trailing comma space if present
       identifiedBy: combinedIdentifiedBy,
       sessionId: sessionId,
-      duplicates: form.duplicates.trim().replace(/,\s*$/, "").split(",").map(p => p.trim()).filter(Boolean).length || null, // Convert string duplicates list to number of duplicates for DB
       year: form.year !== "" ? parseInt(form.year) : null,
       month: form.month !== "" ? parseInt(form.month) : null,
       day: form.day !== "" ? parseInt(form.day) : null,

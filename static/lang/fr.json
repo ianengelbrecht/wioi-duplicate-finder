@@ -72,7 +72,7 @@
   "search-results-count": "résultats trouvés",
   "capture-heading": "Saisie & Recherche de spécimens",
   "catalog-number-label": "Code-barres",
-  "duplicates-label": "Doublons",
+  "duplicates-label": "Doublons (virgules séparés)",
   "recorded-by-label": "Collecteur principal",
   "add-collectors-label": "Collecteurs additionnels",
   "record-number-label": "Numéro",

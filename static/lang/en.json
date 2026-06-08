@@ -72,7 +72,7 @@
   "search-results-count": "matches found",
   "capture-heading": "Specimen Capture & Search",
   "catalog-number-label": "Barcode",
-  "duplicates-label": "Duplicates",
+  "duplicates-label": "Duplicates (comma separated)",
   "recorded-by-label": "Primary Collector",
   "add-collectors-label": "Additional Collectors",
   "record-number-label": "Number",

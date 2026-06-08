@@ -613,7 +613,7 @@ fn save_captured_record(app: AppHandle, record: serde_json::Value) -> Result<ser
     
     let collection_code = record.get("collectionCode").and_then(|v| v.as_str()).unwrap_or("").trim();
     let catalog_number = record.get("catalogNumber").and_then(|v| v.as_str()).unwrap_or("").trim();
-    let duplicates = record.get("duplicates").and_then(|v| v.as_i64());
+    let duplicates = record.get("duplicates").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
     let record_number = record.get("recordNumber").and_then(|v| v.as_str()).unwrap_or("").trim();
     let recorded_by = record.get("recordedBy").and_then(|v| v.as_str()).unwrap_or("").trim();
     let verbatim_event_date = record.get("verbatimEventDate").and_then(|v| v.as_str()).unwrap_or("").trim();
@@ -761,7 +761,7 @@ fn get_captured_records(app: AppHandle, session_id: i32) -> Result<Vec<serde_jso
         let id: i32 = row.get(0)?;
         let collection_code: Option<String> = row.get(1)?;
         let catalog_number: Option<String> = row.get(2)?;
-        let duplicates: Option<i32> = row.get(3)?;
+        let duplicates: Option<String> = row.get(3)?;
         let record_number: Option<String> = row.get(4)?;
         let recorded_by: Option<String> = row.get(5)?;
         let verbatim_event_date: Option<String> = row.get(6)?;
@@ -797,7 +797,7 @@ fn get_captured_records(app: AppHandle, session_id: i32) -> Result<Vec<serde_jso
             "sessionId": session_id,
             "collectionCode": collection_code.unwrap_or_default(),
             "catalogNumber": catalog_number.unwrap_or_default(),
-            "duplicates": duplicates,
+            "duplicates": duplicates.unwrap_or_default(),
             "recordNumber": record_number.unwrap_or_default(),
             "recordedBy": recorded_by.unwrap_or_default(),
             "verbatimEventDate": verbatim_event_date.unwrap_or_default(),

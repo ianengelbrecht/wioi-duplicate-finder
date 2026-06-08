@@ -22,7 +22,7 @@ export function parseElevation(verbatimElevation) {
   const text = verbatimElevation.trim().toLowerCase();
 
   // Determine units
-  const isFeet = /\b(feet|foot|ft|f)\b/.test(text);
+  const isFeet = /\b(feet|foot|ft|f)\b/i.test(text);
   const conversionFactor = isFeet ? 0.3048 : 1;
 
   // Look for explicit ranges first

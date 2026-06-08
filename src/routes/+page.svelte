@@ -597,7 +597,7 @@
         "family",
         "type category",
         "genus", "sp1", "author1", "rank1", "sp2", "author2",
-        "detdd", "detmm", "detyy", "detstatus",
+        "detby", "detdd", "detmm", "detyy", "detstatus",
         "country", "majorarea", "minorarea", "gazetteer",
         "lat", "long", "ns", "ew", "llunit"
       ];
@@ -613,6 +613,9 @@
       );
 
       const data = records.map(rec => {
+
+        const duplicates = rec.duplicates ? rec.collectionCode + "," + rec.duplicates.replace(/\s*/g, "") : rec.collectionCode;
+
         const collectors = rec.recordedBy ? rec.recordedBy.split(';').map((/** @type {string} */ s) => s.trim()).filter(Boolean) : [];
         const collector = collectors[0] || "";
         const addcol = collectors.slice(1).join("; ");
@@ -675,7 +678,7 @@
           "", // tag
           "", // del
           rec.catalogNumber || "", // barcode
-          rec.duplicates !== null && rec.duplicates !== undefined ? rec.duplicates : "", // dups
+          duplicates, // dups
           collector,
           addcol,
           colNumParts.prefix,
@@ -695,6 +698,7 @@
           rec.dayIdentified !== null && rec.dayIdentified !== undefined ? rec.dayIdentified : "",
           rec.monthIdentified !== null && rec.monthIdentified !== undefined ? rec.monthIdentified : "",
           rec.yearIdentified !== null && rec.yearIdentified !== undefined ? rec.yearIdentified : "",
+          rec.identifiedBy.split(';')[0] || "", // detby
           rec.identificationQualifier || "", // detstatus
           rec.country || "",
           rec.stateProvince || "", // majorarea
