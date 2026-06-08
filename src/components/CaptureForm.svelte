@@ -3,6 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { convert } from 'geo-coordinates-parser';
   import { titleCase, SMALL_WORDS } from "title-case";
+  import parser from 'any-date-parser';
   import Autocomplete from "./Autocomplete.svelte";
   import MultiSelectAutocomplete from "./MultiSelectAutocomplete.svelte";
 
@@ -54,6 +55,8 @@
 
   let coordinatesError = $state(false);
   let lastSavedRecord = $state(/** @type {any} */ (null));
+
+  let eventDateLanguage = $state("EN"); // Default to English for verbatimEventDate parsing, can be set to "FR" for French dates
 
   let isAnyGeoPopulated = $derived(
     !!((form.country && form.country.trim().length > 0) ||
@@ -534,71 +537,12 @@
     let dateStr = form.verbatimEventDate.trim();
     if (!dateStr) return;
 
-    // ISO Format: YYYY-MM-DD
-    let isoRegex = /^(\d{4})-(\d{2})-(\d{2})$/;
-    let isoMatch = dateStr.match(isoRegex);
-    if (isoMatch) {
-      form.year = String(parseInt(isoMatch[1]));
-      form.month = String(parseInt(isoMatch[2]));
-      form.day = String(parseInt(isoMatch[3]));
-      return;
-    }
+    let {day, month, year} = parser.attempt(dateStr, eventDateLanguage === "FR" ? 'fr-FR'  : 'en-US');
 
-    // ISO Format: YYYY-MM
-    let isoMonthRegex = /^(\d{4})-(\d{2})$/;
-    let isoMonthMatch = dateStr.match(isoMonthRegex);
-    if (isoMonthMatch) {
-      form.year = String(parseInt(isoMonthMatch[1]));
-      form.month = String(parseInt(isoMonthMatch[2]));
-      form.day = "";
-      return;
-    }
-
-    // Format: DD Month YYYY or D Month YYYY (e.g. 20 May 2024, 20 May, 2024)
-    const monthNames = [
-      "january", "february", "march", "april", "may", "june",
-      "july", "august", "september", "october", "november", "december"
-    ];
-    const monthShortNames = [
-      "jan", "feb", "mar", "apr", "may", "jun",
-      "jul", "aug", "sep", "oct", "nov", "dec"
-    ];
-
-    // DD Month YYYY
-    let textDateRegex = /^(\d{1,2})\s+([a-zA-Z]+)\s+(\d{4})$/;
-    let textDateMatch = dateStr.match(textDateRegex);
-    if (textDateMatch) {
-      form.day = String(parseInt(textDateMatch[1]));
-      let monthStr = textDateMatch[2].toLowerCase();
-      let mIdx = monthNames.indexOf(monthStr);
-      if (mIdx === -1) mIdx = monthShortNames.indexOf(monthStr);
-      form.month = mIdx !== -1 ? String(mIdx + 1) : "";
-      form.year = textDateMatch[3];
-      return;
-    }
-
-    // Month YYYY
-    let monthYearRegex = /^([a-zA-Z]+)\s+(\d{4})$/;
-    let monthYearMatch = dateStr.match(monthYearRegex);
-    if (monthYearMatch) {
-      form.day = "";
-      let monthStr = monthYearMatch[1].toLowerCase();
-      let mIdx = monthNames.indexOf(monthStr);
-      if (mIdx === -1) mIdx = monthShortNames.indexOf(monthStr);
-      form.month = mIdx !== -1 ? String(mIdx + 1) : "";
-      form.year = monthYearMatch[2];
-      return;
-    }
-
-    // YYYY
-    let yearRegex = /^(\d{4})$/;
-    let yearMatch = dateStr.match(yearRegex);
-    if (yearMatch) {
-      form.year = dateStr;
-      form.month = "";
-      form.day = "";
-      return;
-    }
+    form.day = day ? String(day) : "";
+    form.month = month ? String(month) : "";
+    form.year = year ? String(year) : "";
+    
   }
 
   // Proper Casing Helper Utility
@@ -911,6 +855,12 @@
       window.removeEventListener("keydown", handleGlobalKeyDown);
     };
   });
+
+  $effect(() => {
+    if (eventDateLanguage) {
+      parseVerbatimDate();
+    }
+  })
 </script>
 
 <div class="flex flex-col h-full bg-white border border-slate-300">
@@ -1005,7 +955,29 @@
       </div>
       
       <div class="col-span-3">
-        <label for="capture-verbatimEventDate" data-i18n-key="verbatim-event-date-label" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">{t("verbatim-event-date-label", "Verbatim Date")}</label>
+        <label for="capture-verbatimEventDate" data-i18n-key="verbatim-event-date-label" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">
+          <div class="flex justify-between">
+            <span>
+              {t("verbatim-event-date-label", "Verbatim Date")}
+            </span>
+            <div class="flex items-center  divide-x divide-slate-300 select-none">
+              <button
+                type="button"
+                onclick={() => eventDateLanguage = "EN"}
+                class="px-1 py-0.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {eventDateLanguage === 'EN' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-400'}"
+              >
+                EN
+              </button>
+              <button
+                type="button"
+                onclick={() => eventDateLanguage = "FR"}
+                class="px-1 py-0.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {eventDateLanguage === 'FR' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-400'}"
+              >
+                FR
+              </button>
+            </div>
+          </div>
+        </label>
         <input
           id="capture-verbatimEventDate"
           data-i18n-key="verbatim-event-date-placeholder"

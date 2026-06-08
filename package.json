@@ -15,6 +15,7 @@
   "dependencies": {
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
+    "any-date-parser": "^2.2.3",
     "friendly-date": "^1.0.0",
     "geo-coordinates-parser": "^1.7.4",
     "papaparse": "^5.5.3",
