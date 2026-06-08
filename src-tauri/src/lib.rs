@@ -542,19 +542,56 @@ fn autocomplete_locality(app: AppHandle, query: String) -> Result<Vec<String>, S
         return Ok(Vec::new());
     }
     
-    let mut stmt = conn
-        .prepare(
-            "SELECT MIN(TRIM(locality)) AS uniq_locality FROM (
-                SELECT locality FROM gbif WHERE locality LIKE ?1
-                UNION ALL
-                SELECT locality FROM captured_records WHERE locality LIKE ?1
-             ) WHERE locality IS NOT NULL AND TRIM(locality) != ''
-             GROUP BY LOWER(TRIM(locality))
-             LIMIT 10"
-        )
-        .map_err(|e| e.to_string())?;
+    let normalized = normalize_locality(q_clean);
+    let terms: Vec<&str> = normalized.split_whitespace().collect();
+    
+    let mut sql = String::from("SELECT MIN(TRIM(locality)) AS uniq_locality FROM (\n");
+    let mut params_vec: Vec<String> = Vec::new();
+    
+    if !terms.is_empty() {
+        // Build FTS query for gbif
+        let mut match_clauses = Vec::new();
+        for term in &terms {
+            match_clauses.push(format!("normalized_locality:{}*", term));
+        }
+        let fts_query = match_clauses.join(" AND ");
         
-    let rows = stmt.query_map(params![format!("%{}%", q_clean)], |row| {
+        sql.push_str("    SELECT locality FROM gbif WHERE gbifID IN (\n");
+        sql.push_str("        SELECT rowid FROM gbif_fts WHERE gbif_fts MATCH ?1\n");
+        sql.push_str("    )\n");
+        params_vec.push(fts_query);
+        
+        sql.push_str("    UNION ALL\n");
+        
+        // Build LIKE clauses for captured_records
+        sql.push_str("    SELECT locality FROM captured_records WHERE 1=1");
+        for (i, term) in terms.iter().enumerate() {
+            sql.push_str(&format!(" AND locality LIKE ?{}", i + 2));
+            params_vec.push(format!("%{}%", term));
+        }
+        sql.push_str("\n");
+    } else {
+        // Fallback for short query or only stopwords
+        sql.push_str("    SELECT locality FROM gbif WHERE locality LIKE ?1\n");
+        sql.push_str("    UNION ALL\n");
+        sql.push_str("    SELECT locality FROM captured_records WHERE locality LIKE ?1\n");
+        params_vec.push(format!("%{}%", q_clean));
+    }
+    
+    sql.push_str(") WHERE locality IS NOT NULL AND TRIM(locality) != ''\n");
+    sql.push_str("GROUP BY LOWER(TRIM(locality))\n");
+    sql.push_str("LIMIT 10");
+    
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+    
+    // Map params dynamically
+    let rusql_params: Vec<Box<dyn rusqlite::ToSql>> = params_vec.iter().map(|s| {
+        Box::new(s.to_string()) as Box<dyn rusqlite::ToSql>
+    }).collect();
+    
+    let ref_params: Vec<&dyn rusqlite::ToSql> = rusql_params.iter().map(|b| b.as_ref()).collect();
+    
+    let rows = stmt.query_map(&ref_params[..], |row| {
         let val: String = row.get(0)?;
         Ok(val)
     }).map_err(|e| e.to_string())?;
