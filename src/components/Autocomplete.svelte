@@ -103,6 +103,12 @@
       document.removeEventListener("click", handleDocumentClick);
     };
   });
+
+  $effect(() => {
+    if (suggestions.length > 0 && inputRef && document.activeElement === inputRef) {
+      showDropdown = true;
+    }
+  });
 </script>
 
 <div class="relative w-full" bind:this={containerRef}>

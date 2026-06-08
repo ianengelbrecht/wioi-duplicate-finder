@@ -205,5 +205,9 @@
   "new-agent-name-dialog-confirm": "Êtes-vous sûr de vouloir enregistrer ce nouveau nom ?",
   "yes-save-btn": "Oui, enregistrer",
   "name-already-in-list-error": "Ce nom est déjà dans la liste.",
-  "no-active-session-error": "Erreur : Aucune session de saisie active sélectionnée."
+  "no-active-session-error": "Erreur : Aucune session de saisie active sélectionnée.",
+  "invalid-date-error": "Erreur : Date de collecte invalide.",
+  "invalid-id-date-error": "Erreur : Date d'identification invalide.",
+  "id-date-before-collection-error": "Erreur : La date d'identification ne peut pas être antérieure à la date de collecte.",
+  "empty-record-error": "Erreur : Impossible d'enregistrer un enregistrement vide."
 }

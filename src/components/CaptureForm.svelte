@@ -6,6 +6,7 @@
   import parser from 'any-date-parser';
   import Autocomplete from "./Autocomplete.svelte";
   import MultiSelectAutocomplete from "./MultiSelectAutocomplete.svelte";
+  import { isValidPartialDate, comparePartialDates } from "../utils/isValidPartialDate.js";
 
   const t = getContext("t");
 
@@ -393,6 +394,58 @@
     }
   }
 
+  function handleCollectionDateBlur() {
+    const { day, month, year } = form;
+    if (!isValidPartialDate(year, month, day)) {
+      statusMessageKey = "invalid-date-error";
+      statusMessageDefault = "Error: Invalid collection date.";
+      statusType = "error";
+    } else {
+      if (statusMessageKey === "invalid-date-error") {
+        statusMessageKey = "";
+        statusMessageDefault = "";
+        statusType = "";
+      }
+      
+      // Clear comparison error if collection date was corrected to be before or equal to id date
+      const { dayIdentified, monthIdentified, yearIdentified } = form;
+      if (
+        statusMessageKey === "id-date-before-collection-error" &&
+        isValidPartialDate(yearIdentified, monthIdentified, dayIdentified) &&
+        comparePartialDates(yearIdentified, monthIdentified, dayIdentified, year, month, day) >= 0
+      ) {
+        statusMessageKey = "";
+        statusMessageDefault = "";
+        statusType = "";
+      }
+    }
+  }
+
+  function handleIdentificationDateBlur() {
+    const { dayIdentified, monthIdentified, yearIdentified } = form;
+    if (!isValidPartialDate(yearIdentified, monthIdentified, dayIdentified)) {
+      statusMessageKey = "invalid-id-date-error";
+      statusMessageDefault = "Error: Invalid identification date.";
+      statusType = "error";
+    } else if (
+      yearIdentified && form.year &&
+      comparePartialDates(yearIdentified, monthIdentified, dayIdentified, form.year, form.month, form.day) < 0
+    ) {
+      statusMessageKey = "id-date-before-collection-error";
+      statusMessageDefault = "Error: Identification date cannot be before collection date.";
+      statusType = "error";
+    } else {
+      if (
+        statusMessageKey === "invalid-id-date-error" ||
+        statusMessageKey === "id-date-before-collection-error"
+      ) {
+        statusMessageKey = "";
+        statusMessageDefault = "";
+        statusType = "";
+      }
+    }
+  }
+
   async function handleIdentifiedByInput(/** @type {any} */ val) {
     if (val.trim().length < 2) {
       identifiedBySuggestions = [];
@@ -500,6 +553,54 @@
       }));
     } catch (e) {
       console.error(e);
+    }
+  }
+
+  async function handleStateProvinceFocus() {
+    if (form.country && form.country.trim().length > 0) {
+      try {
+        stateProvinceSuggestions = /** @type {any[]} */ (await invoke("autocomplete_geography", {
+          field: "stateProvince",
+          query: "",
+          country: form.country,
+          stateProvince: "",
+          county: ""
+        }));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }
+
+  async function handleCountyFocus() {
+    if (form.stateProvince && form.stateProvince.trim().length > 0) {
+      try {
+        countySuggestions = /** @type {any[]} */ (await invoke("autocomplete_geography", {
+          field: "county",
+          query: "",
+          country: form.country,
+          stateProvince: form.stateProvince,
+          county: ""
+        }));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }
+
+  async function handleMunicipalityFocus() {
+    if (form.county && form.county.trim().length > 0) {
+      try {
+        municipalitySuggestions = /** @type {any[]} */ (await invoke("autocomplete_geography", {
+          field: "municipality",
+          query: "",
+          country: form.country,
+          stateProvince: form.stateProvince,
+          county: form.county
+        }));
+      } catch (e) {
+        console.error(e);
+      }
     }
   }
 
@@ -686,6 +787,36 @@
     statusMessageKey = "";
     statusMessageDefault = "";
     
+    // Validate collection date on save
+    if (!isValidPartialDate(form.year, form.month, form.day)) {
+      statusMessageKey = "invalid-date-error";
+      statusMessageDefault = "Error: Invalid collection date.";
+      statusType = "error";
+      saving = false;
+      return;
+    }
+
+    // Validate identification date on save
+    if (!isValidPartialDate(form.yearIdentified, form.monthIdentified, form.dayIdentified)) {
+      statusMessageKey = "invalid-id-date-error";
+      statusMessageDefault = "Error: Invalid identification date.";
+      statusType = "error";
+      saving = false;
+      return;
+    }
+
+    // Validate identification date is not before collection date on save
+    if (
+      form.yearIdentified && form.year &&
+      comparePartialDates(form.yearIdentified, form.monthIdentified, form.dayIdentified, form.year, form.month, form.day) < 0
+    ) {
+      statusMessageKey = "id-date-before-collection-error";
+      statusMessageDefault = "Error: Identification date cannot be before collection date.";
+      statusType = "error";
+      saving = false;
+      return;
+    }
+    
     let primaryCollector = form.recordedBy.trim();
     let additionalCollectorsList = form.additionalCollectors.map(s => s.trim()).filter(Boolean);
     let combinedRecordedBy = primaryCollector;
@@ -715,6 +846,16 @@
       monthIdentified: form.monthIdentified !== "" ? parseInt(form.monthIdentified) : null,
       dayIdentified: form.dayIdentified !== "" ? parseInt(form.dayIdentified) : null
     };
+
+    // some validation, just so we don't save a blank record
+    if (Object.values(recordPayload).every(value => value === "" || value === null || (Array.isArray(value) && value.length === 0))) {
+      statusMessageKey = "empty-record-error";
+      statusMessageDefault = "Error: Cannot save an empty record.";
+      statusType = "error";
+      saving = false;
+      return;
+    }
+
     
     try {
       let res = /** @type {any} */ (await invoke("save_captured_record", { record: recordPayload }));
@@ -881,11 +1022,7 @@
 
   <!-- Form Fields -->
   <form bind:this={formRef} onsubmit={handleSave} class="flex-1 overflow-y-auto p-4 space-y-4">
-    {#if statusMessage}
-      <div data-i18n-key={statusMessageKey || null} class="p-3 text-xs border font-medium {statusType === 'success' ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-red-50 border-red-300 text-red-800'}">
-        {statusMessage}
-      </div>
-    {/if}
+    
 
     <!-- Row 1: Home Herbarium (read-only), catalogNumber, duplicates -->
     <div class="grid grid-cols-12 gap-3">
@@ -995,6 +1132,7 @@
             id="capture-year"
             type="number"
             bind:value={form.year}
+            onblur={handleCollectionDateBlur}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
         </div>
@@ -1006,6 +1144,7 @@
             min="1"
             max="12"
             bind:value={form.month}
+            onblur={handleCollectionDateBlur}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
         </div>
@@ -1017,6 +1156,7 @@
             min="1"
             max="31"
             bind:value={form.day}
+            onblur={handleCollectionDateBlur}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
         </div>
@@ -1104,6 +1244,7 @@
               suggestions={stateProvinceSuggestions}
               oninput={handleStateProvinceInput}
               onselect={onStateProvinceChanged}
+              onfocus={handleStateProvinceFocus}
               delay={300}
             />
             {#if form.stateProvince === titleCasedStates.stateProvince.titleCased && titleCasedStates.stateProvince.titleCased !== ""}
@@ -1151,6 +1292,7 @@
               suggestions={countySuggestions}
               oninput={handleCountyInput}
               onselect={onCountyChanged}
+              onfocus={handleCountyFocus}
               delay={300}
             />
             {#if form.county === titleCasedStates.county.titleCased && titleCasedStates.county.titleCased !== ""}
@@ -1194,6 +1336,7 @@
               bind:value={form.municipality}
               suggestions={municipalitySuggestions}
               oninput={handleMunicipalityInput}
+              onfocus={handleMunicipalityFocus}
               delay={300}
             />
             {#if form.municipality === titleCasedStates.municipality.titleCased && titleCasedStates.municipality.titleCased !== ""}
@@ -1676,6 +1819,7 @@
           id="capture-yearIdentified"
           type="number"
           bind:value={form.yearIdentified}
+          onblur={handleIdentificationDateBlur}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
         />
       </div>
@@ -1687,6 +1831,7 @@
           min="1"
           max="12"
           bind:value={form.monthIdentified}
+          onblur={handleIdentificationDateBlur}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
         />
       </div>
@@ -1698,6 +1843,7 @@
           min="1"
           max="31"
           bind:value={form.dayIdentified}
+          onblur={handleIdentificationDateBlur}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
         />
       </div>
@@ -1718,6 +1864,11 @@
   </form>
 
   <!-- Save Action Footer -->
+  {#if statusMessage}
+    <div data-i18n-key={statusMessageKey || null} class="p-3 text-xs border font-medium {statusType === 'success' ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-red-50 border-red-300 text-red-800'}">
+      {statusMessage}
+    </div>
+  {/if}
   <div class="p-4 border-t flex justify-between  border-slate-300 bg-slate-50 ">
     <button
         type="button"

@@ -206,5 +206,9 @@
   "yes-save-btn": "Yes, Save",
   "name-already-in-list-error": "This name is already in the list.",
   "no-active-session-error": "Error: No active capture session selected.",
-  "search-locality-label": ""
+  "search-locality-label": "",
+  "invalid-date-error": "Error: Invalid collection date.",
+  "invalid-id-date-error": "Error: Invalid identification date.",
+  "id-date-before-collection-error": "Error: Identification date cannot be before collection date.",
+  "empty-record-error": "Error: Cannot save an empty record."
 }

@@ -206,5 +206,9 @@
   "yes-save-btn": "Eny, hitahiry",
   "name-already-in-list-error": "Efa ao anatin'ny lisitra io anarana io.",
   "no-active-session-error": "Fahadisoana: Tsy misy fizarana mandeha nofidiana.",
-  "search-locality-label": ""
+  "search-locality-label": "",
+  "invalid-date-error": "Fahadisoana: Andro nanangonana tsy mety.",
+  "invalid-id-date-error": "Fahadisoana: Andro namantarana tsy mety.",
+  "id-date-before-collection-error": "Fahadisoana: Ny andro namantarana dia tsy azo atao alohan'ny andro nanangonana.",
+  "empty-record-error": "Fahadisoana: Tsy azo tehirizina ny firaketana foana."
 }

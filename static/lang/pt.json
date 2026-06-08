@@ -206,5 +206,9 @@
   "yes-save-btn": "Sim, Salvar",
   "name-already-in-list-error": "Este nome já está na lista.",
   "no-active-session-error": "Erro: Nenhuma sessão de captura ativa selecionada.",
-  "search-locality-label": ""
+  "search-locality-label": "",
+  "invalid-date-error": "Erro: Data de coleta inválida.",
+  "invalid-id-date-error": "Erro: Data de identificação inválida.",
+  "id-date-before-collection-error": "Erro: A data de identificação não pode ser anterior à data de coleta.",
+  "empty-record-error": "Erro: Não é possível salvar um registro vazio."
 }
