@@ -242,19 +242,19 @@
           />
         </div>
         <div class="col-span-2">
-          <label for="search-recordNumber" data-i18n-key="search-collector-num-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("search-collector-num-label", "Collector No.")}</label>
+          <label for="search-recordNumber" data-i18n-key="record-number-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("record-number-label", "Number")}</label>
           <input
             id="search-recordNumber"
-            data-i18n-key="search-collector-num-placeholder"
+            data-i18n-key="search-record-number-placeholder"
             type="text"
-            placeholder={t("search-collector-num-placeholder", "eg 1042")}
+            placeholder={t("search-record-number-placeholder", "eg 1042")}
             bind:value={filters.recordNumber}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
         </div>
         <div class="col-span-5 flex gap-2">
           <div class="flex-1">
-            <label for="search-year" data-i18n-key="search-year-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("search-year-label", "Year")}</label>
+            <label for="search-year" data-i18n-key="year-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("year-label", "Year")}</label>
             <input
               id="search-year"
               type="number"
@@ -263,7 +263,7 @@
             />
           </div>
           <div class="flex-1">
-            <label for="search-month" data-i18n-key="search-month-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("search-month-label", "Month")}</label>
+            <label for="search-month" data-i18n-key="month-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("month-label", "Month")}</label>
             <input
               id="search-month"
               type="number"
@@ -274,7 +274,7 @@
             />
           </div>
           <div class="flex-1">
-            <label for="search-day" data-i18n-key="search-day-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("search-day-label", "Day")}</label>
+            <label for="search-day" data-i18n-key="day-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("day-label", "Day")}</label>
             <input
               id="search-day"
               type="number"
@@ -301,12 +301,12 @@
           />
         </div>
         <div class="col-span-12 sm:col-span-8">
-          <label for="search-scientificName" data-i18n-key="search-scientific-name-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("search-scientific-name-label", "Scientific Name")}</label>
+          <label for="search-scientificName" data-i18n-key="scientific-name-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("scientific-name-label", "Scientific Name")}</label>
           <input
             id="search-scientificName"
-            data-i18n-key="search-scientific-name-placeholder"
+            data-i18n-key="scientific-name-placeholder"
             type="text"
-            placeholder={t("search-scientific-name-placeholder", "Partial search eg 'ab man'")}
+            placeholder={t("scientific-name-placeholder", "Partial search eg 'ab man'")}
             bind:value={filters.scientificName}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
@@ -316,7 +316,7 @@
       <!-- Row 3: Country, State Province (Admin 2), Locality -->
       <div class="grid grid-cols-12 gap-3">
         <div class="col-span-12 sm:col-span-3">
-          <label for="search-country" data-i18n-key="search-country-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("search-country-label", "Country")}</label>
+          <label for="search-country" data-i18n-key="country-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("country-label", "Country")}</label>
           <Autocomplete
             id="search-country"
             label=""
@@ -330,8 +330,9 @@
           />
         </div>
         <div class="col-span-12 sm:col-span-3">
-          <label for="search-stateProvince" data-i18n-key="search-admin2-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-            {t("search-admin2-label", "Admin 2")} <span data-i18n-key="search-admin2-sub" class="text-[70%]">{t("search-admin2-sub", "(state/prov/etc)")}</span>
+          <label for="search-stateProvince" data-i18n-key="state-province-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+            {t("state-province-label", "Admin 2")} 
+            <span data-i18n-key="state-province-sub" class="text-[70%]">{t("state-province-sub", "(state/prov/etc)")}</span>
           </label>
           <Autocomplete
             id="search-stateProvince"
@@ -345,7 +346,7 @@
           />
         </div>
         <div class="col-span-12 sm:col-span-6">
-          <label for="search-locality" data-i18n-key="search-locality-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("search-locality-label", "Locality")}</label>
+          <label for="search-locality" data-i18n-key="locality-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("locality-label", "Locality")}</label>
           <input
             id="search-locality"
             data-i18n-key="search-locality-placeholder"

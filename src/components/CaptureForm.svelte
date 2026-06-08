@@ -1118,7 +1118,10 @@
         </div>
 
         <div>
-          <label for="capture-stateProvince" data-i18n-key="state-province-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("state-province-label", "State/Province")}</label>
+          <label for="capture-stateProvince" data-i18n-key="state-province-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">
+            {t("state-province-label", "Admin 2")}
+            <span data-i18n-key="state-province-sub" class="text-[70%]">{t("state-province-sub", "(state/prov/etc)")}</span>
+          </label>
           <div class="relative flex items-center">
             <Autocomplete
               id="capture-stateProvince"
@@ -1162,7 +1165,10 @@
         </div>
 
         <div>
-          <label for="capture-county" data-i18n-key="county-label" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">{t("county-label", "County")}</label>
+          <label for="capture-county" data-i18n-key="county-label" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">
+            {t("county-label", "Admin 3")}
+            <span data-i18n-key="county-sub" class="text-[70%]">{t("county-sub", "(County/Dist/etc)")}</span>
+          </label>
           <div class="relative flex items-center">
             <Autocomplete
               id="capture-county"
@@ -1252,99 +1258,106 @@
 
     <!-- Row 4: Locality (on its own row) & Verbatim Coordinates (on its own row) -->
     <div class="space-y-3">
-    <div class="grid grid-cols-4 gap-3">
-
-      <div class="col-span-3">
-        <label for="capture-locality" data-i18n-key="locality-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("locality-label", "Locality")}</label>
-        <div class="relative flex items-center w-full">
-          <Autocomplete
-            id="capture-locality"
-            label=""
-            placeholder="eg 'Antakohandro' (use partial search eg 'Anta')"
-            placeholderKey="locality-placeholder"
-            bind:value={form.locality}
-            suggestions={localitySuggestions}
-            oninput={handleLocalityInput}
-            bind:inputRef={localityInputRef}
-            extraInputClass="pr-24"
-            delay={300}
-          />
-          <div class="absolute right-2 top-2 flex items-center gap-1 z-10 bg-white pl-1">
-            {#if form.locality === titleCasedStates.locality.titleCased && titleCasedStates.locality.titleCased !== ""}
-              <button
-                type="button"
-                onclick={() => undoTitleCaseField("locality")}
-                data-i18n-key="undo-title-case"
-                title={t("undo-title-case", "Undo Title case")}
-                class="px-1.5 py-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded-none flex items-center justify-center"
-                tabindex="-1"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
-                  <path d="M232,144a64.07,64.07,0,0,1-64,64H80a8,8,0,0,1,0-16h88a48,48,0,0,0,0-96H51.31l34.35,34.34a8,8,0,0,1-11.32,11.32l-48-48a8,8,0,0,1,0-11.32l48-48A8,8,0,0,1,85.66,45.66L51.31,80H168A64.07,64.07,0,0,1,232,144Z"></path>
-                </svg>
-              </button>
-            {:else}
-              <button
-                type="button"
-                onclick={() => titleCaseField("locality")}
-                data-i18n-key="title-case-locality"
-                title={t("title-case-locality", "Title case Locality")}
-                class="px-1.5 py-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded-none flex items-center justify-center"
-                tabindex="-1"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
-                  <path d="M87.24,52.59a8,8,0,0,0-14.48,0l-64,136a8,8,0,1,0,14.48,6.81L39.9,160h80.2l16.66,35.4a8,8,0,1,0,14.48-6.81ZM47.43,144,80,74.79,112.57,144ZM200,96c-12.76,0-22.73,3.47-29.63,10.32a8,8,0,0,0,11.26,11.36c3.8-3.77,10-5.68,18.37-5.68,13.23,0,24,9,24,20v3.22A42.76,42.76,0,0,0,200,128c-22.06,0-40,16.15-40,36s17.94,36,40,36a42.73,42.73,0,0,0,24-7.25,8,8,0,0,0,16-.75V132C240,112.15,222.06,96,200,96Zm0,88c-13.23,0-24-9-24-20s10.77-20,24-20,24,9,24,20S213.23,184,200,184Z"></path>
-                </svg>
-              </button>
-            {/if}
-            <button
-              type="button"
-              onclick={handleCopyLocality}
-              data-i18n-key={localityCopied ? "copied-msg" : "copy-text-desc"}
-              title={localityCopied ? t("copied-msg", "Copied!") : t("copy-text-desc", "Copy selection or entire text")}
-              class="p-1 transition-colors cursor-pointer rounded-none flex items-center justify-center {localityCopied ? 'text-green-600' : 'text-slate-400 hover:text-slate-600'}"
-              tabindex="-1"
-            >
-              {#if localityCopied}
-                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
-                  <path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"></path>
-                </svg>
+      <div class="grid grid-cols-4 gap-3">
+        <div class="col-span-3">
+          <label for="capture-locality" data-i18n-key="locality-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("locality-label", "Locality")}</label>
+          <div class="relative flex items-center w-full">
+            <Autocomplete
+              id="capture-locality"
+              label=""
+              placeholder="eg 'Antakohandro' (use partial search eg 'Anta')"
+              placeholderKey="locality-placeholder"
+              bind:value={form.locality}
+              suggestions={localitySuggestions}
+              oninput={handleLocalityInput}
+              bind:inputRef={localityInputRef}
+              extraInputClass="pr-24"
+              delay={300}
+            />
+            <div class="absolute right-2 top-2 flex items-center gap-1 z-10 bg-white pl-1">
+              {#if form.locality === titleCasedStates.locality.titleCased && titleCasedStates.locality.titleCased !== ""}
+                <button
+                  type="button"
+                  onclick={() => undoTitleCaseField("locality")}
+                  data-i18n-key="undo-title-case"
+                  title={t("undo-title-case", "Undo Title case")}
+                  class="px-1.5 py-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded-none flex items-center justify-center"
+                  tabindex="-1"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                    <path d="M232,144a64.07,64.07,0,0,1-64,64H80a8,8,0,0,1,0-16h88a48,48,0,0,0,0-96H51.31l34.35,34.34a8,8,0,0,1-11.32,11.32l-48-48a8,8,0,0,1,0-11.32l48-48A8,8,0,0,1,85.66,45.66L51.31,80H168A64.07,64.07,0,0,1,232,144Z"></path>
+                  </svg>
+                </button>
               {:else}
-                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
-                  <path d="M184,64H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H184a8,8,0,0,0,8-8V72A8,8,0,0,0,184,64Zm-8,144H48V80H176ZM224,40V184a8,8,0,0,1-16,0V48H72a8,8,0,0,1,0-16H216A8,8,0,0,1,224,40Z"></path>
-                </svg>
+                <button
+                  type="button"
+                  onclick={() => titleCaseField("locality")}
+                  data-i18n-key="title-case-locality"
+                  title={t("title-case-locality", "Title case Locality")}
+                  class="px-1.5 py-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded-none flex items-center justify-center"
+                  tabindex="-1"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                    <path d="M87.24,52.59a8,8,0,0,0-14.48,0l-64,136a8,8,0,1,0,14.48,6.81L39.9,160h80.2l16.66,35.4a8,8,0,1,0,14.48-6.81ZM47.43,144,80,74.79,112.57,144ZM200,96c-12.76,0-22.73,3.47-29.63,10.32a8,8,0,0,0,11.26,11.36c3.8-3.77,10-5.68,18.37-5.68,13.23,0,24,9,24,20v3.22A42.76,42.76,0,0,0,200,128c-22.06,0-40,16.15-40,36s17.94,36,40,36a42.73,42.73,0,0,0,24-7.25,8,8,0,0,0,16-.75V132C240,112.15,222.06,96,200,96Zm0,88c-13.23,0-24-9-24-20s10.77-20,24-20,24,9,24,20S213.23,184,200,184Z"></path>
+                  </svg>
+                </button>
               {/if}
-            </button>
-            <button
-              type="button"
-              onclick={handlePasteLocality}
-              data-i18n-key="paste-text-desc"
-              title={t("paste-text-desc", "Paste clipboard contents")}
-              class="p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded-none flex items-center justify-center"
-              tabindex="-1"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
-                <path d="M168,152a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,152Zm-8-40H96a8,8,0,0,0,0,16h64a8,8,0,0,0,0-16Zm56-64V216a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V48A16,16,0,0,1,56,32H92.26a47.92,47.92,0,0,1,71.48,0H200A16,16,0,0,1,216,48ZM96,64h64a32,32,0,0,0-64,0ZM200,48H173.25A47.93,47.93,0,0,1,176,64v8a8,8,0,0,1-8,8H88a8,8,0,0,1-8-8V64a47.93,47.93,0,0,1,2.75-16H56V216H200Z"></path>
-              </svg>
-            </button>
+              <button
+                type="button"
+                onclick={handleCopyLocality}
+                data-i18n-key={localityCopied ? "copied-msg" : "copy-text-desc"}
+                title={localityCopied ? t("copied-msg", "Copied!") : t("copy-text-desc", "Copy selection or entire text")}
+                class="p-1 transition-colors cursor-pointer rounded-none flex items-center justify-center {localityCopied ? 'text-green-600' : 'text-slate-400 hover:text-slate-600'}"
+                tabindex="-1"
+              >
+                {#if localityCopied}
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                    <path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"></path>
+                  </svg>
+                {:else}
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                    <path d="M184,64H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H184a8,8,0,0,0,8-8V72A8,8,0,0,0,184,64Zm-8,144H48V80H176ZM224,40V184a8,8,0,0,1-16,0V48H72a8,8,0,0,1,0-16H216A8,8,0,0,1,224,40Z"></path>
+                  </svg>
+                {/if}
+              </button>
+              <button
+                type="button"
+                onclick={handlePasteLocality}
+                data-i18n-key="paste-text-desc"
+                title={t("paste-text-desc", "Paste clipboard contents")}
+                class="p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded-none flex items-center justify-center"
+                tabindex="-1"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-3.5 h-3.5">
+                  <path d="M168,152a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,152Zm-8-40H96a8,8,0,0,0,0,16h64a8,8,0,0,0,0-16Zm56-64V216a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V48A16,16,0,0,1,56,32H92.26a47.92,47.92,0,0,1,71.48,0H200A16,16,0,0,1,216,48ZM96,64h64a32,32,0,0,0-64,0ZM200,48H173.25A47.93,47.93,0,0,1,176,64v8a8,8,0,0,1-8,8H88a8,8,0,0,1-8-8V64a47.93,47.93,0,0,1,2.75-16H56V216H200Z"></path>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-      <div>
-        <label for="capture-cultivated" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-          <div class="flex items-end h-[38px] gap-2">
+        <div>
+          <!-- spacer matching the locality label -->
+          <div class="block text-xs font-semibold uppercase tracking-wider mb-1 invisible">
+            Cultivated
+          </div>
+
+          <label
+            for="capture-cultivated"
+            class="flex items-center h-[38px] gap-2 cursor-pointer"
+          >
             <input
               id="capture-cultivated"
               type="checkbox"
               bind:checked={form.cultivated}
-              class="w-4 h-4 text-slate-800 border-slate-300 rounded focus:ring-slate-500 focus:ring-1 cursor-pointer"
+              class="w-4 h-4 text-slate-800 border-slate-300 rounded focus:ring-slate-500 focus:ring-1"
             />
-            <span data-i18n-key="cultivated-label">{t("cultivated-label", "cultivated")}</span>
-          </div>
-        </label>
-      </div>
+            <span data-i18n-key="cultivated-label">
+              {t("cultivated-label", "Cultivated")}
+            </span>
+          </label>
+        </div>
 
-    </div>
+      </div>
 
       <!-- Row 5: Locality Notes (locationNotes) -->
       <div>
@@ -1689,9 +1702,7 @@
         <label for="capture-yearIdentified" data-i18n-key="year-identified-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("year-identified-label", "Year Ident.")}</label>
         <input
           id="capture-yearIdentified"
-          data-i18n-key="year-identified-placeholder"
           type="number"
-          placeholder={t("year-identified-placeholder", "YYYY")}
           bind:value={form.yearIdentified}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
         />
@@ -1700,9 +1711,7 @@
         <label for="capture-monthIdentified" data-i18n-key="month-identified-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("month-identified-label", "Month Ident.")}</label>
         <input
           id="capture-monthIdentified"
-          data-i18n-key="month-identified-placeholder"
           type="number"
-          placeholder={t("month-identified-placeholder", "MM")}
           min="1"
           max="12"
           bind:value={form.monthIdentified}
@@ -1713,9 +1722,7 @@
         <label for="capture-dayIdentified" data-i18n-key="day-identified-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("day-identified-label", "Day Ident.")}</label>
         <input
           id="capture-dayIdentified"
-          data-i18n-key="day-identified-placeholder"
           type="number"
-          placeholder={t("day-identified-placeholder", "DD")}
           min="1"
           max="31"
           bind:value={form.dayIdentified}
