@@ -1266,7 +1266,7 @@
                     <th data-i18n-key="collector-col" class="p-2">{t("collector-col", "Collector")}</th>
                     <th data-i18n-key="taxon-col" class="p-2">{t("taxon-col", "Taxon Name")}</th>
                     <th data-i18n-key="locality-col" class="p-2">{t("locality-col", "Locality")}</th>
-                    <th data-i18n-key="geom-col" class="p-2">{t("geom-col", "Geom")}</th>
+                    <th data-i18n-key="geo-col" class="p-2">{t("geo-col", "Geo")}</th>
                     <th data-i18n-key="date-col" class="p-2">{t("date-col", "Date")}</th>
                     <th data-i18n-key="actions-col" class="p-2 text-right">{t("actions-col", "Actions")}</th>
                   </tr>

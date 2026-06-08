@@ -126,7 +126,7 @@
   "export-csv-btn": "Export CSV",
   "specimens-saved-title": "Specimens Saved in this Session",
   "locality-col": "Locality",
-  "geom-col": "Geom",
+  "geo-col": "Geo",
   "actions-col": "Actions",
   "delete-session-label": "Session:",
   "reference-data": "Reference Data",
