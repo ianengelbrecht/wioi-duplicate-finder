@@ -1242,9 +1242,6 @@
               onSaveSuccess={async () => {
                 await loadCapturedRecords();
                 await loadSessions();
-                if (searchPaneRef) {
-                  searchPaneRef.clearSearch();
-                }
               }} 
             />
           </div>
