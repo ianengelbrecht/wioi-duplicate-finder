@@ -1,6 +1,9 @@
 <script>
+  import { getContext } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import Autocomplete from "./Autocomplete.svelte";
+
+  const t = getContext("t");
 
   let {
     onSelectRecord = () => {}
@@ -119,11 +122,11 @@
       let data = await invoke("search_reference", { filters: searchFilters });
       results = /** @type {any[]} */ (data);
       if (results.length === 0) {
-        searchMessage = "No matching records found.";
+        searchMessage = t("search-no-results", "No matches found.");
       } else if (results.length >= 250) {
-        searchMessage = "Found 250+ matches (results capped at 250 to maintain performance).";
+        searchMessage = t("search-results-capped", "Found 250+ matches (results capped at 250 to maintain performance).");
       } else {
-        searchMessage = `Found ${results.length} matching reference records.`;
+        searchMessage = `${t("search-results-found-prefix", "Found")} ${results.length} ${t("search-results-found-suffix", "matching reference records.")}`;
       }
     } catch (err) {
       errorMessage = (/** @type {any} */ (err)).toString();
@@ -215,10 +218,10 @@
 <div class="flex flex-col h-full bg-white border border-slate-300">
   <!-- Header Title -->
   <div class="px-4 py-3 bg-slate-100 border-b border-slate-300 flex justify-between items-center">
-    <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wide">Search Existing Specimens</h2>
+    <h2 data-i18n-key="search-heading" class="text-sm font-bold text-slate-800 uppercase tracking-wide">{t("search-heading", "Search Existing Specimens")}</h2>
     <div class="flex gap-2">
-      <span class="text-[10px] text-slate-500 font-semibold bg-slate-200 px-2 py-0.5 uppercase">Reference Data ({formattedGbifCount} Records)</span>
-      <span class="text-[10px] text-slate-500 font-semibold bg-slate-200 px-2 py-0.5 uppercase">WCVP v12 ({formattedWcvpCount} Taxa)</span>
+      <span data-i18n-key="reference-data" class="text-[10px] text-slate-500 font-semibold bg-slate-200 px-2 py-0.5 uppercase">{t("reference-data", "Reference Data")} ({formattedGbifCount} {t("records-count", "Records")})</span>
+      <span data-i18n-key="wcvp-version" class="text-[10px] text-slate-500 font-semibold bg-slate-200 px-2 py-0.5 uppercase">{t("wcvp-version", "WCVP v12")} ({formattedWcvpCount} {t("taxa-count", "Taxa")})</span>
     </div>
   </div>
 
@@ -228,28 +231,30 @@
       <!-- Row 1: Collector, Collector No, Year, Month, Day (narrow date inputs) -->
       <div class="grid grid-cols-12 gap-3">
         <div class="col-span-4">
-          <label for="search-recordedBy" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Collector</label>
+          <label for="search-recordedBy" data-i18n-key="search-collector-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("search-collector-label", "Collector")}</label>
           <input
             id="search-recordedBy"
+            data-i18n-key="search-collector-placeholder"
             type="text"
-            placeholder="Partial eg 'Raza' (no initials)"
+            placeholder={t("search-collector-placeholder", "Partial eg 'Raza' (no initials)")}
             bind:value={filters.recordedBy}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
         </div>
         <div class="col-span-2">
-          <label for="search-recordNumber" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Collector No.</label>
+          <label for="search-recordNumber" data-i18n-key="search-collector-num-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("search-collector-num-label", "Collector No.")}</label>
           <input
             id="search-recordNumber"
+            data-i18n-key="search-collector-num-placeholder"
             type="text"
-            placeholder="eg 1042"
+            placeholder={t("search-collector-num-placeholder", "eg 1042")}
             bind:value={filters.recordNumber}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
         </div>
         <div class="col-span-5 flex gap-2">
           <div class="flex-1">
-            <label for="search-year" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Year</label>
+            <label for="search-year" data-i18n-key="search-year-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("search-year-label", "Year")}</label>
             <input
               id="search-year"
               type="number"
@@ -258,7 +263,7 @@
             />
           </div>
           <div class="flex-1">
-            <label for="search-month" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Month</label>
+            <label for="search-month" data-i18n-key="search-month-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("search-month-label", "Month")}</label>
             <input
               id="search-month"
               type="number"
@@ -269,7 +274,7 @@
             />
           </div>
           <div class="flex-1">
-            <label for="search-day" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Day</label>
+            <label for="search-day" data-i18n-key="search-day-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("search-day-label", "Day")}</label>
             <input
               id="search-day"
               type="number"
@@ -285,21 +290,23 @@
       <!-- Row 2: Family, Scientific Name -->
       <div class="grid grid-cols-12 gap-3">
         <div class="col-span-12 sm:col-span-4">
-          <label for="search-family" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Family</label>
+          <label for="search-family" data-i18n-key="search-family-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("search-family-label", "Family")}</label>
           <input
             id="search-family"
+            data-i18n-key="search-family-placeholder"
             type="text"
-            placeholder="e.g. Malvaceae"
+            placeholder={t("search-family-placeholder", "e.g. Malvaceae")}
             bind:value={filters.family}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
         </div>
         <div class="col-span-12 sm:col-span-8">
-          <label for="search-scientificName" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Scientific Name</label>
+          <label for="search-scientificName" data-i18n-key="search-scientific-name-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("search-scientific-name-label", "Scientific Name")}</label>
           <input
             id="search-scientificName"
+            data-i18n-key="search-scientific-name-placeholder"
             type="text"
-            placeholder="Partial search eg 'ab man'"
+            placeholder={t("search-scientific-name-placeholder", "Partial search eg 'ab man'")}
             bind:value={filters.scientificName}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
@@ -309,11 +316,12 @@
       <!-- Row 3: Country, State Province (Admin 2), Locality -->
       <div class="grid grid-cols-12 gap-3">
         <div class="col-span-12 sm:col-span-3">
-          <label for="search-country" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Country</label>
+          <label for="search-country" data-i18n-key="search-country-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("search-country-label", "Country")}</label>
           <Autocomplete
             id="search-country"
             label=""
             placeholder="Partial ex. Mad"
+            placeholderKey="search-country-placeholder"
             bind:value={filters.country}
             suggestions={countrySuggestions}
             oninput={handleCountryInput}
@@ -322,11 +330,14 @@
           />
         </div>
         <div class="col-span-12 sm:col-span-3">
-          <label for="search-stateProvince" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Admin 2 <span class="text-[70%]">(state/prov/etc)</span></label>
+          <label for="search-stateProvince" data-i18n-key="search-admin2-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+            {t("search-admin2-label", "Admin 2")} <span data-i18n-key="search-admin2-sub" class="text-[70%]">{t("search-admin2-sub", "(state/prov/etc)")}</span>
+          </label>
           <Autocomplete
             id="search-stateProvince"
             label=""
             placeholder="Partial eg 'Itas'"
+            placeholderKey="search-admin2-placeholder"
             bind:value={filters.stateProvince}
             suggestions={stateProvinceSuggestions}
             oninput={handleStateProvinceInput}
@@ -334,11 +345,12 @@
           />
         </div>
         <div class="col-span-12 sm:col-span-6">
-          <label for="search-locality" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Locality</label>
+          <label for="search-locality" data-i18n-key="search-locality-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("search-locality-label", "Locality")}</label>
           <input
             id="search-locality"
+            data-i18n-key="search-locality-placeholder"
             type="text"
-            placeholder="Partial search eg 'Anta ré'"
+            placeholder={t("search-locality-placeholder", "Partial search eg 'Anta ré'")}
             bind:value={filters.locality}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
@@ -348,47 +360,49 @@
 
     <!-- Constraints Warning Flags -->
     {#if hasRecordedBy && !collectorRuleOk}
-      <div class="mt-3 text-xs bg-amber-50 border-l-2 border-amber-500 text-amber-700 px-3 py-2 font-medium">
-        ⚠️ Collector search requires a collector number, or if just a collector and a date field, it also requires at least one of (family, scientific name, country, Admin 1, or locality).
+      <div data-i18n-key="search-warn-collector" class="mt-3 text-xs bg-amber-50 border-l-2 border-amber-500 text-amber-700 px-3 py-2 font-medium">
+        {t("search-warn-collector", "⚠️ Collector search requires a collector number, or if just a collector and a date field, it also requires at least one of (family, scientific name, country, Admin 1, or locality).")}
       </div>
     {/if}
     {#if hasRecordNumber && !recordNumberRuleOk}
-      <div class="mt-3 text-xs bg-amber-50 border-l-2 border-amber-500 text-amber-700 px-3 py-2 font-medium">
-        ⚠️ Collector number always requires a collector name, regardless of other fields.
+      <div data-i18n-key="search-warn-record-num" class="mt-3 text-xs bg-amber-50 border-l-2 border-amber-500 text-amber-700 px-3 py-2 font-medium">
+        {t("search-warn-record-num", "⚠️ Collector number always requires a collector name, regardless of other fields.")}
       </div>
     {/if}
     {#if hasDate && !dateRuleOk}
-      <div class="mt-3 text-xs bg-amber-50 border-l-2 border-amber-500 text-amber-700 px-3 py-2 font-medium">
-        ⚠️ Searches on year, month, or day require at least two other non-date fields.
+      <div data-i18n-key="search-warn-date" class="mt-3 text-xs bg-amber-50 border-l-2 border-amber-500 text-amber-700 px-3 py-2 font-medium">
+        {t("search-warn-date", "⚠️ Searches on year, month, or day require at least two other non-date fields.")}
       </div>
     {/if}
     {#if hasOther && !tglRuleOk}
-      <div class="mt-3 text-xs bg-amber-50 border-l-2 border-amber-500 text-amber-700 px-3 py-2 font-medium">
-        ⚠️ Searching on family, scientific name, country, Admin 1, or locality requires at least two other fields (total of 3 or more fields).
+      <div data-i18n-key="search-warn-other" class="mt-3 text-xs bg-amber-50 border-l-2 border-amber-500 text-amber-700 px-3 py-2 font-medium">
+        {t("search-warn-other", "⚠️ Searching on family, scientific name, country, Admin 1, or locality requires at least two other fields (total of 3 or more fields).")}
       </div>
     {/if}
 
     <!-- Search Buttons -->
     <div class="mt-4 flex justify-between items-center">
-      <span class="text-[10px] text-slate-400 font-semibold uppercase">Shortcut: Ctrl+Enter to search</span>
+      <span data-i18n-key="search-shortcut" class="text-[10px] text-slate-400 font-semibold uppercase">{t("search-shortcut", "Shortcut: Ctrl+Enter to search")}</span>
       <div class="flex gap-2">
         <button
           type="button"
+          data-i18n-key="search-clear-btn"
           onclick={handleClear}
           class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors"
         >
-          Clear
+          {t("search-clear-btn", "Clear")}
         </button>
         <button
           type="button"
+          data-i18n-key={searching ? "search-searching" : "search-btn"}
           onclick={handleSearch}
           disabled={!searchIsValid || searching}
           class="bg-slate-800 hover:bg-slate-900 text-white disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed px-6 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors flex items-center gap-2"
         >
           {#if searching}
-            <span>Searching...</span>
+            <span>{t("search-searching", "Searching...")}</span>
           {:else}
-            <span>Search Database</span>
+            <span>{t("search-btn", "Search Database")}</span>
           {/if}
         </button>
       </div>
@@ -414,13 +428,13 @@
         <table class="w-full text-left text-xs border-collapse">
           <thead>
             <tr class="border-b border-slate-300 text-slate-600 font-bold uppercase tracking-wider">
-              <th class="p-3 sticky top-0 bg-slate-100 z-10">HERB</th>
-              <th class="p-3 sticky top-0 bg-slate-100 z-10">Collector</th>
-              <th class="p-3 sticky top-0 bg-slate-100 z-10">Taxon Name</th>
-              <th class="p-3 sticky top-0 bg-slate-100 z-10">Locality</th>
-              <th class="p-3 sticky top-0 bg-slate-100 z-10">Geo</th>
-              <th class="p-3 sticky top-0 bg-slate-100 z-10">Date</th>
-              <th class="p-3 sticky top-0 bg-slate-100 z-10">Coords</th>
+              <th data-i18n-key="herb-col" class="p-3 sticky top-0 bg-slate-100 z-10">{t("herb-col", "HERB")}</th>
+              <th data-i18n-key="collector-col" class="p-3 sticky top-0 bg-slate-100 z-10">{t("collector-col", "Collector")}</th>
+              <th data-i18n-key="taxon-col" class="p-3 sticky top-0 bg-slate-100 z-10">{t("taxon-col", "Taxon Name")}</th>
+              <th data-i18n-key="locality-col" class="p-3 sticky top-0 bg-slate-100 z-10">{t("locality-col", "Locality")}</th>
+              <th data-i18n-key="geom-col" class="p-3 sticky top-0 bg-slate-100 z-10">{t("geom-col", "Geo")}</th>
+              <th data-i18n-key="date-col" class="p-3 sticky top-0 bg-slate-100 z-10">{t("date-col", "Date")}</th>
+              <th data-i18n-key="coords-col" class="p-3 sticky top-0 bg-slate-100 z-10">{t("coords-col", "Coords")}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-200">
@@ -494,8 +508,8 @@
         <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-2 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
-        <span class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-1">No Search Query Active</span>
-        <span class="text-xs text-slate-400 max-w-xs leading-relaxed">Enter search filters above and click Search. Use shortcuts like Ctrl+Enter.</span>
+        <span data-i18n-key="active-search-query" class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-1">{t("active-search-query", "No Search Query Active")}</span>
+        <span data-i18n-key="search-query-instructions" class="text-xs text-slate-400 max-w-xs leading-relaxed">{t("search-query-instructions", "Enter search filters above and click Search. Use shortcuts like Ctrl+Enter.")}</span>
       </div>
     {/if}
   </div>

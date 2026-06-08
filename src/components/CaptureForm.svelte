@@ -1,10 +1,12 @@
 <script>
-  import { onDestroy } from "svelte";
+  import { onDestroy, getContext } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { convert } from 'geo-coordinates-parser';
   import { titleCase, SMALL_WORDS } from "title-case";
   import Autocomplete from "./Autocomplete.svelte";
   import MultiSelectAutocomplete from "./MultiSelectAutocomplete.svelte";
+
+  const t = getContext("t");
 
   let {
     sessionId = null,
@@ -61,7 +63,9 @@
   );
 
   let saving = $state(false);
-  let statusMessage = $state("");
+  let statusMessageKey = $state("");
+  let statusMessageDefault = $state("");
+  let statusMessage = $derived(statusMessageKey ? t(statusMessageKey, statusMessageDefault) : statusMessageDefault);
   let statusType = $state(""); // "success" or "error"
   let formRef = $state(/** @type {HTMLFormElement|null} */ (null));
 
@@ -728,13 +732,15 @@
   async function handleSave(/** @type {any} */ e) {
     if (e) e.preventDefault();
     if (!sessionId) {
-      statusMessage = "Error: No active capture session selected.";
+      statusMessageKey = "no-active-session-error";
+      statusMessageDefault = "Error: No active capture session selected.";
       statusType = "error";
       return;
     }
     
     saving = true;
-    statusMessage = "";
+    statusMessageKey = "";
+    statusMessageDefault = "";
     
     let primaryCollector = form.recordedBy.trim();
     let additionalCollectorsList = form.additionalCollectors.map(s => s.trim()).filter(Boolean);
@@ -778,7 +784,8 @@
         
         handleReset();
         
-        statusMessage = isUpdate ? "Record updated successfully!" : "Specimen saved successfully!";
+        statusMessageKey = isUpdate ? "record-updated-success" : "record-saved-success";
+        statusMessageDefault = isUpdate ? "Record updated successfully!" : "Specimen saved successfully!";
         statusType = "success";
         
         onSaveSuccess();
@@ -790,12 +797,14 @@
         // Hide success message after 3 seconds
         setTimeout(() => {
           if (statusType === "success") {
-            statusMessage = "";
+            statusMessageKey = "";
+            statusMessageDefault = "";
           }
         }, 3000);
       }
     } catch (err) {
-      statusMessage = `Error: ${(/** @type {any} */ (err)).toString()}`;
+      statusMessageKey = "";
+      statusMessageDefault = `Error: ${(/** @type {any} */ (err)).toString()}`;
       statusType = "error";
     } finally {
       saving = false;
@@ -840,7 +849,8 @@
       cultivated: false
     };
     activeRecord = null;
-    statusMessage = "";
+    statusMessageKey = "";
+    statusMessageDefault = "";
     taxonSuggestions = [];
     localitySuggestions = [];
     collectorSuggestions = [];
@@ -854,13 +864,15 @@
     
     activeRecord = lastSavedRecord;
     lastSavedRecord = null;
-    statusMessage = "Loaded last saved record.";
+    statusMessageKey = "record-loaded-last";
+    statusMessageDefault = "Loaded last saved record.";
     statusType = "success";
     
     // Clear status message after 3 seconds
     setTimeout(() => {
-      if (statusMessage === "Loaded last saved record.") {
-        statusMessage = "";
+      if (statusMessageKey === "record-loaded-last") {
+        statusMessageKey = "";
+        statusMessageDefault = "";
       }
     }, 3000);
   }
@@ -905,22 +917,22 @@
   <!-- Header Title -->
   <div class="px-4 py-3 bg-slate-100 border-b border-slate-300 flex justify-between items-center border-box">
     <div class="flex items-center gap-2">
-      <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wide">
-        {form.id ? "Edit Captured Specimen" : "Capture New Specimen"}
+      <h2 data-i18n-key={form.id ? "edit-specimen-heading" : "capture-specimen-heading"} class="text-sm font-bold text-slate-800 uppercase tracking-wide">
+        {form.id ? t("edit-specimen-heading", "Edit Captured Specimen") : t("capture-specimen-heading", "Capture New Specimen")}
       </h2>
       {#if form.id}
-        <span class="text-[9px] bg-indigo-100 text-indigo-800 font-bold uppercase tracking-wider px-1.5 py-0.5">SAVED CAPTURE</span>
+        <span data-i18n-key="saved-capture-badge" class="text-[9px] bg-indigo-100 text-indigo-800 font-bold uppercase tracking-wider px-1.5 py-0.5">{t("saved-capture-badge", "SAVED CAPTURE")}</span>
       {:else}
-        <span class="text-[9px] bg-emerald-100 text-emerald-800 font-bold uppercase tracking-wider px-1.5 py-0.5">NEW FORM</span>
+        <span data-i18n-key="new-form-badge" class="text-[9px] bg-emerald-100 text-emerald-800 font-bold uppercase tracking-wider px-1.5 py-0.5">{t("new-form-badge", "NEW FORM")}</span>
       {/if}
     </div>
-    <span class="text-[10px] text-slate-400 font-semibold uppercase">Shortcut: Ctrl+S to save</span>
+    <span data-i18n-key="save-shortcut-desc" class="text-[10px] text-slate-400 font-semibold uppercase">{t("save-shortcut-desc", "Shortcut: Ctrl+S to save")}</span>
   </div>
 
   <!-- Form Fields -->
   <form bind:this={formRef} onsubmit={handleSave} class="flex-1 overflow-y-auto p-4 space-y-4">
     {#if statusMessage}
-      <div class="p-3 text-xs border font-medium {statusType === 'success' ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-red-50 border-red-300 text-red-800'}">
+      <div data-i18n-key={statusMessageKey || null} class="p-3 text-xs border font-medium {statusType === 'success' ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-red-50 border-red-300 text-red-800'}">
         {statusMessage}
       </div>
     {/if}
@@ -928,7 +940,7 @@
     <!-- Row 1: Home Herbarium (read-only), catalogNumber, duplicates -->
     <div class="grid grid-cols-12 gap-3">
       <div class="col-span-3">
-        <label for="capture-collectionCode" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Home Herbarium</label>
+        <label for="capture-collectionCode" data-i18n-key="home-herbarium-label" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">{t("home-herbarium-label", "Home Herbarium")}</label>
         <input
           id="capture-collectionCode"
           type="text"
@@ -938,11 +950,12 @@
         />
       </div>
       <div class="col-span-4">
-        <label for="capture-catalogNumber" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">Barcode Number</label>
+        <label for="capture-catalogNumber" data-i18n-key="catalog-number-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("catalog-number-label", "Barcode Number")}</label>
         <input
           id="capture-catalogNumber"
+          data-i18n-key="catalog-number-placeholder"
           type="text"
-          placeholder="eg TAN123456"
+          placeholder={t("catalog-number-placeholder", "eg TAN123456")}
           bind:value={form.catalogNumber}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
         />
@@ -951,7 +964,9 @@
         <Autocomplete
           id="capture-duplicates"
           label="Duplicates (comma-separated)"
+          labelKey="duplicates-label"
           placeholder="eg P, K, etc..."
+          placeholderKey="duplicates-placeholder"
           bind:value={form.duplicates}
           suggestions={duplicateSuggestions}
           oninput={handleDuplicateInput}
@@ -968,7 +983,9 @@
         <Autocomplete
           id="capture-recordedBy"
           label="Primary Collector"
+          labelKey="recorded-by-label"
           placeholder="Partial eg 'Raza'"
+          placeholderKey="recorded-by-placeholder"
           bind:value={form.recordedBy}
           suggestions={collectorSuggestions}
           oninput={handleCollectorInput}
@@ -976,22 +993,24 @@
         />
       </div>
       <div class="col-span-2">
-        <label for="capture-recordNumber" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Collector No.</label>
+        <label for="capture-recordNumber" data-i18n-key="record-number-label" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">{t("record-number-label", "Collector No.")}</label>
         <input
           id="capture-recordNumber"
+          data-i18n-key="record-number-placeholder"
           type="text"
-          placeholder="eg 1042"
+          placeholder={t("record-number-placeholder", "eg 1042")}
           bind:value={form.recordNumber}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
         />
       </div>
       
       <div class="col-span-3">
-        <label for="capture-verbatimEventDate" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Verbatim Date</label>
+        <label for="capture-verbatimEventDate" data-i18n-key="verbatim-event-date-label" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">{t("verbatim-event-date-label", "Verbatim Date")}</label>
         <input
           id="capture-verbatimEventDate"
+          data-i18n-key="verbatim-event-date-placeholder"
           type="text"
-          placeholder="eg 'May 20, `84'"
+          placeholder={t("verbatim-event-date-placeholder", "eg 'May 20, `84'")}
           bind:value={form.verbatimEventDate}
           onblur={parseVerbatimDate}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
@@ -999,7 +1018,7 @@
       </div>
       <div class="col-span-4 flex gap-2">
         <div class="flex-1">
-          <label for="capture-year" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Year</label>
+          <label for="capture-year" data-i18n-key="year-label" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">{t("year-label", "Year")}</label>
           <input
             id="capture-year"
             type="number"
@@ -1008,7 +1027,7 @@
           />
         </div>
         <div class="flex-1">
-          <label for="capture-month" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Month</label>
+          <label for="capture-month" data-i18n-key="month-label" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">{t("month-label", "Month")}</label>
           <input
             id="capture-month"
             type="number"
@@ -1019,7 +1038,7 @@
           />
         </div>
         <div class="flex-1">
-          <label for="capture-day" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Day</label>
+          <label for="capture-day" data-i18n-key="day-label" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">{t("day-label", "Day")}</label>
           <input
             id="capture-day"
             type="number"
@@ -1038,7 +1057,9 @@
         <MultiSelectAutocomplete
           id="capture-additionalCollectors"
           label="Additional Collectors"
+          labelKey="add-collectors-label"
           placeholder="Type name and press Enter..."
+          placeholderKey="add-collectors-placeholder"
           bind:selectedValues={form.additionalCollectors}
           suggestions={additionalCollectorsSuggestions}
           oninput={handleAdditionalCollectorsInput}
@@ -1049,16 +1070,17 @@
 
     <!-- Row 3: Geography with Title-case buttons -->
     <div class="space-y-3 pt-2">
-      <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">Geographic Locality</h3>
+      <h3 data-i18n-key="geographic-locality-heading" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">{t("geographic-locality-heading", "Geographic Locality")}</h3>
       
       <div class="grid grid-cols-4 gap-3">
         <div>
-          <label for="capture-country" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Country</label>
+          <label for="capture-country" data-i18n-key="country-label" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">{t("country-label", "Country")}</label>
           <div class="relative flex items-center">
             <Autocomplete
               id="capture-country"
               label=""
               placeholder={isAnyGeoPopulated ? "" : "eg Madagascar"}
+              placeholderKey={isAnyGeoPopulated ? undefined : "country-placeholder"}
               bind:value={form.country}
               suggestions={countrySuggestions}
               oninput={handleCountryInput}
@@ -1069,7 +1091,8 @@
               <button
                 type="button"
                 onclick={() => undoTitleCaseField("country")}
-                title="Undo Title case"
+                data-i18n-key="undo-title-case"
+                title={t("undo-title-case", "Undo Title case")}
                 class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
                 tabindex="-1"
               >
@@ -1081,7 +1104,8 @@
               <button
                 type="button"
                 onclick={() => titleCaseField("country")}
-                title="Title case Country"
+                data-i18n-key="title-case-country"
+                title={t("title-case-country", "Title case Country")}
                 class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
                 tabindex="-1"
               >
@@ -1094,12 +1118,13 @@
         </div>
 
         <div>
-          <label for="capture-stateProvince" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Admin 2 <span class="text-[70%]">(state/prov/etc)</span></label>
+          <label for="capture-stateProvince" data-i18n-key="state-province-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("state-province-label", "State/Province")}</label>
           <div class="relative flex items-center">
             <Autocomplete
               id="capture-stateProvince"
               label=""
               placeholder={isAnyGeoPopulated ? "" : "eg 'Itasy'"}
+              placeholderKey={isAnyGeoPopulated ? undefined : "state-province-placeholder"}
               bind:value={form.stateProvince}
               suggestions={stateProvinceSuggestions}
               oninput={handleStateProvinceInput}
@@ -1110,7 +1135,8 @@
               <button
                 type="button"
                 onclick={() => undoTitleCaseField("stateProvince")}
-                title="Undo Title case"
+                data-i18n-key="undo-title-case"
+                title={t("undo-title-case", "Undo Title case")}
                 class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
                 tabindex="-1"
               >
@@ -1122,7 +1148,8 @@
               <button
                 type="button"
                 onclick={() => titleCaseField("stateProvince")}
-                title="Title case Admin 2"
+                data-i18n-key="title-case-admin2"
+                title={t("title-case-admin2", "Title case Admin 2")}
                 class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
                 tabindex="-1"
               >
@@ -1135,12 +1162,13 @@
         </div>
 
         <div>
-          <label for="capture-county" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Admin 3</label>
+          <label for="capture-county" data-i18n-key="county-label" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">{t("county-label", "County")}</label>
           <div class="relative flex items-center">
             <Autocomplete
               id="capture-county"
               label=""
               placeholder={isAnyGeoPopulated ? "" : "eg 'Miarinarivo'"}
+              placeholderKey={isAnyGeoPopulated ? undefined : "county-placeholder"}
               bind:value={form.county}
               suggestions={countySuggestions}
               oninput={handleCountyInput}
@@ -1151,7 +1179,8 @@
               <button
                 type="button"
                 onclick={() => undoTitleCaseField("county")}
-                title="Undo Title case"
+                data-i18n-key="undo-title-case"
+                title={t("undo-title-case", "Undo Title case")}
                 class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
                 tabindex="-1"
               >
@@ -1163,7 +1192,8 @@
               <button
                 type="button"
                 onclick={() => titleCaseField("county")}
-                title="Title case Admin 3"
+                data-i18n-key="title-case-admin3"
+                title={t("title-case-admin3", "Title case Admin 3")}
                 class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
                 tabindex="-1"
               >
@@ -1176,12 +1206,13 @@
         </div>
 
         <div>
-          <label for="capture-municipality" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">Admin 4</label>
+          <label for="capture-municipality" data-i18n-key="municipality-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("municipality-label", "Municipality")}</label>
           <div class="relative flex items-center">
             <Autocomplete
               id="capture-municipality"
               label=""
               placeholder={isAnyGeoPopulated ? "" : "eg 'Manazary'"}
+              placeholderKey={isAnyGeoPopulated ? undefined : "municipality-placeholder"}
               bind:value={form.municipality}
               suggestions={municipalitySuggestions}
               oninput={handleMunicipalityInput}
@@ -1191,7 +1222,8 @@
               <button
                 type="button"
                 onclick={() => undoTitleCaseField("municipality")}
-                title="Undo Title case"
+                data-i18n-key="undo-title-case"
+                title={t("undo-title-case", "Undo Title case")}
                 class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
                 tabindex="-1"
               >
@@ -1203,7 +1235,8 @@
               <button
                 type="button"
                 onclick={() => titleCaseField("municipality")}
-                title="Title case Admin 4"
+                data-i18n-key="title-case-admin4"
+                title={t("title-case-admin4", "Title case Admin 4")}
                 class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
                 tabindex="-1"
               >
@@ -1222,12 +1255,13 @@
     <div class="grid grid-cols-4 gap-3">
 
       <div class="col-span-3">
-        <label for="capture-locality" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Locality</label>
+        <label for="capture-locality" data-i18n-key="locality-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("locality-label", "Locality")}</label>
         <div class="relative flex items-center w-full">
           <Autocomplete
             id="capture-locality"
             label=""
             placeholder="eg 'Antakohandro' (use partial search eg 'Anta')"
+            placeholderKey="locality-placeholder"
             bind:value={form.locality}
             suggestions={localitySuggestions}
             oninput={handleLocalityInput}
@@ -1240,7 +1274,8 @@
               <button
                 type="button"
                 onclick={() => undoTitleCaseField("locality")}
-                title="Undo Title case"
+                data-i18n-key="undo-title-case"
+                title={t("undo-title-case", "Undo Title case")}
                 class="px-1.5 py-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded-none flex items-center justify-center"
                 tabindex="-1"
               >
@@ -1252,7 +1287,8 @@
               <button
                 type="button"
                 onclick={() => titleCaseField("locality")}
-                title="Title case Locality"
+                data-i18n-key="title-case-locality"
+                title={t("title-case-locality", "Title case Locality")}
                 class="px-1.5 py-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded-none flex items-center justify-center"
                 tabindex="-1"
               >
@@ -1264,7 +1300,8 @@
             <button
               type="button"
               onclick={handleCopyLocality}
-              title={localityCopied ? "Copied!" : "Copy selection or entire text"}
+              data-i18n-key={localityCopied ? "copied-msg" : "copy-text-desc"}
+              title={localityCopied ? t("copied-msg", "Copied!") : t("copy-text-desc", "Copy selection or entire text")}
               class="p-1 transition-colors cursor-pointer rounded-none flex items-center justify-center {localityCopied ? 'text-green-600' : 'text-slate-400 hover:text-slate-600'}"
               tabindex="-1"
             >
@@ -1281,7 +1318,8 @@
             <button
               type="button"
               onclick={handlePasteLocality}
-              title="Paste clipboard contents"
+              data-i18n-key="paste-text-desc"
+              title={t("paste-text-desc", "Paste clipboard contents")}
               class="p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded-none flex items-center justify-center"
               tabindex="-1"
             >
@@ -1294,7 +1332,6 @@
       </div>
       <div>
         <label for="capture-cultivated" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-
           <div class="flex items-end h-[38px] gap-2">
             <input
               id="capture-cultivated"
@@ -1302,7 +1339,7 @@
               bind:checked={form.cultivated}
               class="w-4 h-4 text-slate-800 border-slate-300 rounded focus:ring-slate-500 focus:ring-1 cursor-pointer"
             />
-            cultivated
+            <span data-i18n-key="cultivated-label">{t("cultivated-label", "cultivated")}</span>
           </div>
         </label>
       </div>
@@ -1311,13 +1348,14 @@
 
       <!-- Row 5: Locality Notes (locationNotes) -->
       <div>
-        <label for="capture-locationNotes" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Locality Notes</label>
+        <label for="capture-locationNotes" data-i18n-key="location-notes-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("location-notes-label", "Locality Notes")}</label>
         <div class="relative flex items-start w-full">
           <textarea
             bind:this={locationNotesRef}
             id="capture-locationNotes"
             rows="2"
-            placeholder="eg '12 km south, main ravine'"
+            data-i18n-key="location-notes-placeholder"
+            placeholder={t("location-notes-placeholder", "eg '12 km south, main ravine'")}
             bind:value={form.locationNotes}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-24 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all resize-none"
           ></textarea>
@@ -1326,7 +1364,8 @@
               <button
                 type="button"
                 onclick={() => undoTitleCaseField("locationNotes")}
-                title="Undo Title case"
+                data-i18n-key="undo-title-case"
+                title={t("undo-title-case", "Undo Title case")}
                 class="px-1.5 py-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded-none flex items-center justify-center"
                 tabindex="-1"
               >
@@ -1338,7 +1377,8 @@
               <button
                 type="button"
                 onclick={() => titleCaseField("locationNotes")}
-                title="Title case Locality Notes"
+                data-i18n-key="title-case-locality-notes"
+                title={t("title-case-locality-notes", "Title case Locality Notes")}
                 class="px-1.5 py-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded-none flex items-center justify-center"
                 tabindex="-1"
               >
@@ -1350,7 +1390,8 @@
             <button
               type="button"
               onclick={handleCopyLocationNotes}
-              title={locationNotesCopied ? "Copied!" : "Copy selection or entire text"}
+              data-i18n-key={locationNotesCopied ? "copied-msg" : "copy-text-desc"}
+              title={locationNotesCopied ? t("copied-msg", "Copied!") : t("copy-text-desc", "Copy selection or entire text")}
               class="p-1 transition-colors cursor-pointer rounded-none flex items-center justify-center {locationNotesCopied ? 'text-green-600' : 'text-slate-400 hover:text-slate-600'}"
               tabindex="-1"
             >
@@ -1367,7 +1408,8 @@
             <button
               type="button"
               onclick={handlePasteLocationNotes}
-              title="Paste clipboard contents"
+              data-i18n-key="paste-text-desc"
+              title={t("paste-text-desc", "Paste clipboard contents")}
               class="p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded-none flex items-center justify-center"
               tabindex="-1"
             >
@@ -1380,19 +1422,20 @@
       </div>
 
       <div>
-        <label for="capture-verbatimCoordinates" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Verbatim Coordinates</label>
+        <label for="capture-verbatimCoordinates" data-i18n-key="verbatim-coordinates-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("verbatim-coordinates-label", "Verbatim Coordinates")}</label>
         <input
           id="capture-verbatimCoordinates"
+          data-i18n-key="verbatim-coordinates-placeholder"
           type="text"
-          placeholder="eg 28°15'S, 28°39'E"
+          placeholder={t("verbatim-coordinates-placeholder", "eg 28°15'S, 28°39'E")}
           bind:value={form.verbatimCoordinates}
           onblur={handleCoordinatesBlur}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
         />
       </div>
       {#if coordinatesError}
-        <div class="mt-3 text-xs bg-amber-50 border-l-2 border-amber-500 text-amber-700 px-3 py-2 font-medium">
-          ⚠️ Unable to parse coordinates, please check they are correct
+        <div data-i18n-key="coordinates-error-warn" class="mt-3 text-xs bg-amber-50 border-l-2 border-amber-500 text-amber-700 px-3 py-2 font-medium">
+          {t("coordinates-error-warn", "⚠️ Unable to parse coordinates, please check they are correct")}
         </div>
       {/if}
     </div>
@@ -1401,21 +1444,23 @@
 
     <!-- Row 6: Verbatim Locality (grayed-out read-only) -->
     <div>
-      <label for="capture-verbatimLocality" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Verbatim Locality (copy data above)</label>
+      <label for="capture-verbatimLocality" data-i18n-key="verbatim-locality-label" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">{t("verbatim-locality-label", "Verbatim Locality (copy data above)")}</label>
       <div class="relative">
         <textarea
           bind:this={verbatimLocalityRef}
           id="capture-verbatimLocality"
           rows="2"
           readonly
-          placeholder="Read-only imported value"
+          data-i18n-key="verbatim-locality-placeholder"
+          placeholder={t("verbatim-locality-placeholder", "Read-only imported value")}
           bind:value={form.verbatimLocality}
           class="w-full bg-slate-100 border border-slate-300 text-slate-500 text-sm px-3 py-2 outline-none rounded-none pr-10"      >
         </textarea>
         <button
           type="button"
           onclick={handleCopyVerbatimLocality}
-          title={verbatimLocalityCopied ? "Copied!" : "Copy selection or entire text"}
+          data-i18n-key={verbatimLocalityCopied ? "copied-msg" : "copy-text-desc"}
+          title={verbatimLocalityCopied ? t("copied-msg", "Copied!") : t("copy-text-desc", "Copy selection or entire text")}
           class="absolute right-2 top-2 p-1.5 bg-white border transition-colors cursor-pointer rounded-none flex items-center justify-center {verbatimLocalityCopied ? 'border-green-300 text-green-600 hover:text-green-600 hover:border-green-300 shadow-xs' : 'border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-350 shadow-xs'}"
           tabindex="-1"
         >
@@ -1435,22 +1480,24 @@
     <!-- Row 6b: Verbatim Elevation & Habitat -->
     <div class="flex gap-3">
       <div class="w-1/4">
-        <label for="capture-verbatimElevation" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Verbatim Elevation</label>
+        <label for="capture-verbatimElevation" data-i18n-key="verbatim-elevation-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("verbatim-elevation-label", "Verbatim Elevation")}</label>
         <input
           id="capture-verbatimElevation"
+          data-i18n-key="verbatim-elevation-placeholder"
           type="text"
-          placeholder="eg 1200m"
+          placeholder={t("verbatim-elevation-placeholder", "eg 1200m")}
           bind:value={form.verbatimElevation}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
         />
       </div>
       <div class="flex-1">
-        <label for="capture-habitat" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Habitat</label>
+        <label for="capture-habitat" data-i18n-key="habitat-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("habitat-label", "Habitat")}</label>
         <div class="relative flex items-center">
           <input
             id="capture-habitat"
+            data-i18n-key="habitat-placeholder"
             type="text"
-            placeholder="eg Oak woodland, sandy soil..."
+            placeholder={t("habitat-placeholder", "eg Oak woodland, sandy soil...")}
             bind:value={form.habitat}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
@@ -1458,7 +1505,8 @@
             <button
               type="button"
               onclick={() => undoTitleCaseField("habitat")}
-              title="Undo Title case"
+              data-i18n-key="undo-title-case"
+              title={t("undo-title-case", "Undo Title case")}
               class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
               tabindex="-1"
             >
@@ -1470,7 +1518,8 @@
             <button
               type="button"
               onclick={() => titleCaseField("habitat")}
-              title="Title case Habitat"
+              data-i18n-key="title-case-habitat"
+              title={t("title-case-habitat", "Title case Habitat")}
               class="absolute right-2 top-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
               tabindex="-1"
             >
@@ -1485,12 +1534,13 @@
 
     <!-- Plant description Section -->
     <div class="space-y-3 pt-2">
-      <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">Plant description</h3>
+      <h3 data-i18n-key="field-notes-label" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">{t("field-notes-label", "Plant description")}</h3>
       <div class="relative flex items-start">
         <textarea
           id="capture-fieldNotes"
           rows="2"
-          placeholder="eg flower yellow, tree 5m"
+          data-i18n-key="field-notes-placeholder"
+          placeholder={t("field-notes-placeholder", "eg flower yellow, tree 5m")}
           bind:value={form.fieldNotes}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all resize-none"
         ></textarea>
@@ -1498,7 +1548,8 @@
           <button
             type="button"
             onclick={() => undoTitleCaseField("fieldNotes")}
-            title="Undo Title case"
+            data-i18n-key="undo-title-case"
+            title={t("undo-title-case", "Undo Title case")}
             class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
             tabindex="-1"
           >
@@ -1510,7 +1561,8 @@
           <button
             type="button"
             onclick={() => titleCaseField("fieldNotes")}
-            title="Title case Plant description"
+            data-i18n-key="title-case-field-notes"
+            title={t("title-case-field-notes", "Title case Plant description")}
             class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
             tabindex="-1"
           >
@@ -1524,12 +1576,13 @@
 
     <!-- General Notes Section -->
     <div class="space-y-3 pt-2">
-      <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">General Notes</h3>
+      <h3 data-i18n-key="occurrence-remarks-label" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">{t("occurrence-remarks-label", "General Notes")}</h3>
       <div class="relative flex items-start">
         <textarea
           id="capture-occurrenceRemarks"
           rows="2"
-          placeholder="Any other notes..."
+          data-i18n-key="occurrence-remarks-placeholder"
+          placeholder={t("occurrence-remarks-placeholder", "Any other notes...")}
           bind:value={form.occurrenceRemarks}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm pl-3 pr-8 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all resize-none"
         ></textarea>
@@ -1537,7 +1590,8 @@
           <button
             type="button"
             onclick={() => undoTitleCaseField("occurrenceRemarks")}
-            title="Undo Title case"
+            data-i18n-key="undo-title-case"
+            title={t("undo-title-case", "Undo Title case")}
             class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
             tabindex="-1"
           >
@@ -1549,7 +1603,8 @@
           <button
             type="button"
             onclick={() => titleCaseField("occurrenceRemarks")}
-            title="Title case General Notes"
+            data-i18n-key="title-case-occurrence-remarks"
+            title={t("title-case-occurrence-remarks", "Title case General Notes")}
             class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
             tabindex="-1"
           >
@@ -1563,18 +1618,18 @@
 
     <!-- Row 7: Identification Section -->
     <div class="space-y-3 pt-2">
-      <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">Identification</h3>
+      <h3 data-i18n-key="identification-heading" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">{t("identification-heading", "Identification")}</h3>
       
       <div class="grid grid-cols-12 gap-3">
         <!-- Qualifier dropdown -->
         <div class="col-span-3">
-          <label for="capture-identificationQualifier" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Qualifier</label>
+          <label for="capture-identificationQualifier" data-i18n-key="id-qualifier-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("id-qualifier-label", "Qualifier")}</label>
           <select
             id="capture-identificationQualifier"
             bind:value={form.identificationQualifier}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           >
-            <option value="">(None)</option>
+            <option value="" data-i18n-key="qualifier-none-option">{t("qualifier-none-option", "(None)")}</option>
             <option value="cf.">cf.</option>
             <option value="aff.">aff.</option>
             <option value="nr.">nr.</option>
@@ -1586,7 +1641,9 @@
           <Autocomplete
             id="capture-scientificName"
             label="Scientific Name"
+            labelKey="scientific-name-label"
             placeholder="Partial search eg 'ab man'"
+            placeholderKey="scientific-name-placeholder"
             bind:value={form.scientificName}
             suggestions={taxonSuggestions}
             oninput={handleTaxonInput}
@@ -1597,11 +1654,12 @@
 
         <!-- Type Status autocomplete -->
         <div class="col-span-3">
-          <label for="capture-typeStatus" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Type Status</label>
+          <label for="capture-typeStatus" data-i18n-key="type-status-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("type-status-label", "Type Status")}</label>
           <Autocomplete
             id="capture-typeStatus"
             label=""
             placeholder="eg holotype"
+            placeholderKey="type-status-placeholder"
             bind:value={form.typeStatus}
             suggestions={typeStatusSuggestions}
             oninput={handleTypeStatusInput}
@@ -1618,7 +1676,9 @@
         <MultiSelectAutocomplete
           id="capture-identifiedBy"
           label="Identified By"
+          labelKey="identified-by-label"
           placeholder="Type name and press Enter..."
+          placeholderKey="identified-by-placeholder"
           bind:selectedValues={form.identifiedBy}
           suggestions={identifiedBySuggestions}
           oninput={handleIdentifiedByInput}
@@ -1626,21 +1686,23 @@
         />
       </div>
       <div class="col-span-2">
-        <label for="capture-yearIdentified" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Year Ident.</label>
+        <label for="capture-yearIdentified" data-i18n-key="year-identified-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("year-identified-label", "Year Ident.")}</label>
         <input
           id="capture-yearIdentified"
+          data-i18n-key="year-identified-placeholder"
           type="number"
-          placeholder="YYYY"
+          placeholder={t("year-identified-placeholder", "YYYY")}
           bind:value={form.yearIdentified}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
         />
       </div>
       <div class="col-span-2">
-        <label for="capture-monthIdentified" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Month Ident.</label>
+        <label for="capture-monthIdentified" data-i18n-key="month-identified-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("month-identified-label", "Month Ident.")}</label>
         <input
           id="capture-monthIdentified"
+          data-i18n-key="month-identified-placeholder"
           type="number"
-          placeholder="MM"
+          placeholder={t("month-identified-placeholder", "MM")}
           min="1"
           max="12"
           bind:value={form.monthIdentified}
@@ -1648,11 +1710,12 @@
         />
       </div>
       <div class="col-span-2">
-        <label for="capture-dayIdentified" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Day Ident.</label>
+        <label for="capture-dayIdentified" data-i18n-key="day-identified-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("day-identified-label", "Day Ident.")}</label>
         <input
           id="capture-dayIdentified"
+          data-i18n-key="day-identified-placeholder"
           type="number"
-          placeholder="DD"
+          placeholder={t("day-identified-placeholder", "DD")}
           min="1"
           max="31"
           bind:value={form.dayIdentified}
@@ -1663,11 +1726,12 @@
 
     <!-- Row 9: Identification Notes -->
     <div class="pb-6">
-      <label for="capture-identificationRemarks" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">Identification Notes</label>
+      <label for="capture-identificationRemarks" data-i18n-key="id-remarks-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("id-remarks-label", "Identification Notes")}</label>
       <textarea
         id="capture-identificationRemarks"
         rows="2"
-        placeholder="e.g. Similar to [species name] but has different bract structures"
+        data-i18n-key="id-remarks-placeholder"
+        placeholder={t("id-remarks-placeholder", "e.g. Similar to [species name] but has different bract structures")}
         bind:value={form.identificationRemarks}
         class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all resize-none"
       ></textarea>
@@ -1680,17 +1744,19 @@
         type="button"
         onclick={handleShowPreviousRecord}
         disabled={!lastSavedRecord}
+        data-i18n-key="show-previous-btn"
         class="bg-slate-200 hover:bg-slate-300 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed text-slate-700 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors"
       >
-        Show Previous
+        {t("show-previous-btn", "Show Previous")}
       </button>
     <div class="w-1/2 flex justify-between gap-2" >
       <button
         type="button"
         onclick={handleReset}
+        data-i18n-key="reset-form-btn"
         class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors"
       >
-        Reset Form
+        {t("reset-form-btn", "Reset Form")}
       </button>
       <button
         type="button"
@@ -1699,9 +1765,13 @@
         class="flex-1 bg-slate-800 hover:bg-slate-900 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white px-6 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors flex justify-center items-center gap-2"
       >
         {#if saving}
-          <span>Saving...</span>
+          <span data-i18n-key="saving-status">{t("saving-status", "Saving...")}</span>
         {:else}
-          <span>{form.id ? "Update Specimen" : "Save Specimen"}</span>
+          {#if form.id}
+            <span data-i18n-key="update-specimen-btn">{t("update-specimen-btn", "Update Specimen")}</span>
+          {:else}
+            <span data-i18n-key="save-specimen-btn">{t("save-specimen-btn", "Save Specimen")}</span>
+          {/if}
         {/if}
       </button>
     </div>

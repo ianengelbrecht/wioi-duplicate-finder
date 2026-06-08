@@ -1,11 +1,13 @@
 <script>
-import { onDestroy } from "svelte";
+  import { onDestroy, getContext } from "svelte";
 
   let {
     label = "",
+    labelKey = "",
     value = $bindable(""),
     suggestions = [], // Can be Array of strings or Array of objects e.g. { scientificName, family, authors }
     placeholder = "",
+    placeholderKey = "",
     id = "",
     oninput = () => {},
     onselect = () => {},
@@ -15,6 +17,8 @@ import { onDestroy } from "svelte";
     extraInputClass = "",
     inputRef = $bindable(null)
   } = $props();
+
+  const t = getContext("t");
 
   let showDropdown = $state(false);
   let activeIndex = $state(-1);
@@ -103,16 +107,17 @@ import { onDestroy } from "svelte";
 
 <div class="relative w-full" bind:this={containerRef}>
   {#if label}
-    <label for={id} class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-      {label}
+    <label for={id} data-i18n-key={labelKey || null} class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+      {labelKey && t ? t(labelKey, label) : label}
     </label>
   {/if}
   
   <input
     bind:this={inputRef}
     {id}
+    data-i18n-key={placeholderKey || null}
     type="text"
-    {placeholder}
+    placeholder={placeholderKey && t ? t(placeholderKey, placeholder) : placeholder}
     {value}
     oninput={handleInput}
     onkeydown={handleKeyDown}

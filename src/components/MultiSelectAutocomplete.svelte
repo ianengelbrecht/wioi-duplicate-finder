@@ -1,18 +1,22 @@
 <script>
-  import { onDestroy } from "svelte";
+  import { onDestroy, getContext } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
 
   let {
     label = "",
+    labelKey = "",
     selectedValues = $bindable([]), // Array of strings representing selected items
     suggestions = [],
     placeholder = "",
+    placeholderKey = "",
     id = "",
     oninput = () => {},
     delay = 0
   } = $props();
 
-  const currentPlaceholder = $derived(selectedValues && selectedValues.length > 0 ? undefined : placeholder);
+  const t = getContext("t");
+
+  const currentPlaceholder = $derived(selectedValues && selectedValues.length > 0 ? undefined : (placeholderKey && t ? t(placeholderKey, placeholder) : placeholder));
 
   let showConfirmModal = $state(false);
   let pendingName = $state("");
@@ -227,7 +231,7 @@
     }
 
     if (selectedValues.includes(trimmed)) {
-      alert("This name is already in the list.");
+      alert(t("name-already-in-list-error", "This name is already in the list."));
       return;
     }
 
@@ -302,8 +306,8 @@
 
 <div class="relative w-full" bind:this={containerRef}>
   {#if label}
-    <label for={id} class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">
-      {label}
+    <label for={id} data-i18n-key={labelKey || null} class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">
+      {labelKey && t ? t(labelKey, label) : label}
     </label>
   {/if}
   
@@ -334,6 +338,7 @@
     <input
       bind:this={inputRef}
       {id}
+      data-i18n-key={placeholderKey || null}
       type="text"
       placeholder={currentPlaceholder}
       value={inputValue}
@@ -371,15 +376,16 @@
     >
       <div class="bg-white border border-slate-200 shadow-2xl max-w-md w-full p-5 flex flex-col gap-4 rounded-none z-[80] relative">
         <div class="space-y-1">
-          <h3 class="font-bold text-slate-800">Edit Name</h3>
-          <p class="text-xs text-slate-500">
-            Modify the selected name. Emptying the field removes it from the list.
+          <h3 data-i18n-key="edit-name-dialog-heading" class="font-bold text-slate-800">{t("edit-name-dialog-heading", "Edit Name")}</h3>
+          <p data-i18n-key="edit-name-dialog-desc" class="text-xs text-slate-500">
+            {t("edit-name-dialog-desc", "Modify the selected name. Emptying the field removes it from the list.")}
           </p>
         </div>
 
         <div class="relative w-full">
           <input
             bind:this={editInputRef}
+            data-i18n-key="edit-name-dialog-placeholder"
             type="text"
             value={editInputValue}
             oninput={handleEditInput}
@@ -387,7 +393,7 @@
             onfocus={handleEditFocus}
             class="w-full bg-white border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:ring-1 focus:ring-slate-500 outline-none transition-all rounded-none text-slate-850"
             autocomplete="off"
-            placeholder="Enter name..."
+            placeholder={t("edit-name-dialog-placeholder", "Enter name...")}
           />
 
           {#if showEditDropdown && editSuggestions.length > 0}
@@ -410,17 +416,19 @@
         <div class="flex justify-end gap-2 mt-2">
           <button
             type="button"
+            data-i18n-key="cancel-btn"
             onclick={() => editingIndex = -1}
             class="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 border border-slate-200 transition-colors cursor-pointer rounded-none"
           >
-            Cancel
+            {t("cancel-btn", "Cancel")}
           </button>
           <button
             type="button"
+            data-i18n-key="save-btn"
             onclick={() => saveEdit(editingIndex, editInputValue)}
             class="px-3.5 py-1.5 text-xs font-semibold text-white bg-slate-800 hover:bg-slate-900 transition-colors cursor-pointer rounded-none"
           >
-            Save
+            {t("save-btn", "Save")}
           </button>
         </div>
       </div>
@@ -444,9 +452,9 @@
             </svg>
           </div>
           <div class="space-y-1">
-            <h3 class="font-bold text-slate-800">New Agent Name</h3>
-            <p class="text-sm text-slate-500 leading-relaxed">
-              Are you sure you want to save new name?
+            <h3 data-i18n-key="new-agent-name-dialog-heading" class="font-bold text-slate-800">{t("new-agent-name-dialog-heading", "New Agent Name")}</h3>
+            <p data-i18n-key="new-agent-name-dialog-confirm" class="text-sm text-slate-500 leading-relaxed">
+              {t("new-agent-name-dialog-confirm", "Are you sure you want to save new name?")}
             </p>
             <p class="text-sm font-semibold text-slate-800">{pendingName}</p>
           </div>
@@ -455,17 +463,19 @@
         <div class="flex justify-end gap-2 mt-2">
           <button
             type="button"
+            data-i18n-key="cancel-btn"
             onclick={handleConfirmNo}
             class="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 border border-slate-200 transition-colors cursor-pointer rounded-none"
           >
-            Cancel
+            {t("cancel-btn", "Cancel")}
           </button>
           <button
             type="button"
+            data-i18n-key="yes-save-btn"
             onclick={handleConfirmYes}
             class="px-3.5 py-1.5 text-xs font-semibold text-white bg-slate-800 hover:bg-slate-900 transition-colors cursor-pointer rounded-none"
           >
-            Yes, Save
+            {t("yes-save-btn", "Yes, Save")}
           </button>
         </div>
       </div>

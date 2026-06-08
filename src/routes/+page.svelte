@@ -1,4 +1,5 @@
 <script>
+  import { setContext } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import Papa from "papaparse";
   import { friendlyDate } from "friendly-date";
@@ -99,9 +100,24 @@
 
   // Localization state
   let currentLanguage = $state(localStorage.getItem("currentLanguage") || "EN");
+  let translations = $state(/** @type {Record<string, string>} */ ({}));
+
+  function t(/** @type {string} */ key, /** @type {string} */ defaultText) {
+    return translations[key] || defaultText || key;
+  }
+
+  setContext("t", t);
 
   $effect(() => {
     localStorage.setItem("currentLanguage", currentLanguage);
+    fetch(`/lang/${currentLanguage.toLowerCase()}.json`)
+      .then(res => res.json())
+      .then(data => {
+        translations = data;
+      })
+      .catch(err => {
+        console.error("Failed to load translations:", err);
+      });
   });
 
   // -------------------------------------------------------------
@@ -776,8 +792,8 @@
         WIOI
       </div>
       <div>
-        <h1 class="text-md font-bold tracking-tight text-slate-800">Herbarium Specimen Duplicate Finder</h1>
-        <p class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Offline Data Entry Accelerator</p>
+        <h1 data-i18n-key="app-title" class="text-md font-bold tracking-tight text-slate-800">{t("app-title", "Herbarium Specimen Duplicate Finder")}</h1>
+        <p data-i18n-key="app-subtitle" class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">{t("app-subtitle", "Offline Data Entry Accelerator")}</p>
       </div>
     </div>
 
@@ -817,14 +833,15 @@
 
       {#if currentUser}
         <div class="text-right">
-          <span class="text-slate-400 block text-[9px] uppercase tracking-wider">Logged In As</span>
+          <span data-i18n-key="logged-in-as" class="text-slate-400 block text-[9px] uppercase tracking-wider">{t("logged-in-as", "Logged In As")}</span>
           <span class="text-slate-800 font-bold">{currentUser.username}</span>
         </div>
         <button
+          data-i18n-key="sign-out-btn"
           onclick={handleLogout}
           class="border border-slate-350 hover:bg-slate-100 px-3 py-1.5 text-[10px] uppercase font-bold tracking-wide rounded-none transition-colors"
         >
-          Sign Out
+          {t("sign-out-btn", "Sign Out")}
         </button>
       {/if}
     </div>
@@ -839,7 +856,7 @@
           <!-- Spinner -->
           <div class="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
           <div>
-            <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Preparing Database</h2>
+            <h2 data-i18n-key="preparing-db" class="text-sm font-bold text-slate-800 uppercase tracking-wider">{t("preparing-db", "Preparing Database")}</h2>
             <p class="text-xs text-slate-550 mt-2 leading-relaxed">
               {dbLoadingMessage}
             </p>
@@ -850,11 +867,13 @@
       <div class="flex-1 flex justify-center items-center p-6">
         <div class="w-full max-w-sm bg-white border border-slate-300 shadow-sm p-6 space-y-6">
           <div class="text-center">
-            <h2 class="text-xl font-bold tracking-tight text-slate-900">{isRegister ? "Create Local Account" : "Access Database"}</h2>
+            <h2 class="text-xl font-bold tracking-tight text-slate-900">
+              {isRegister ? t("register-heading", "Register New Account") : t("sign-in-heading", "Sign In")}
+            </h2>
             <p class="text-xs text-slate-500 mt-1 leading-relaxed">
               {isRegister 
-                ? "Configure login details to manage captured sessions locally." 
-                : "Enter credentials to unlock specimen databases."}
+                ? t("register-desc", "Configure login details to manage captured sessions locally.") 
+                : t("sign-in-desc", "Enter credentials to unlock specimen databases.")}
             </p>
           </div>
 
@@ -872,21 +891,21 @@
 
           <form onsubmit={handleAuth} class="space-y-4">
             <div>
-              <label for="username" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Username</label>
+              <label for="username" data-i18n-key="username-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("username-label", "Username")}</label>
               <input
                 id="username"
                 type="text"
-                placeholder="Enter username"
+                placeholder={t("username-placeholder", "Enter username")}
                 bind:value={authUsername}
                 class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
               />
             </div>
             <div>
-              <label for="password" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Password</label>
+              <label for="password" data-i18n-key="password-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("password-label", "Password")}</label>
               <input
                 id="password"
                 type="password"
-                placeholder="Enter password"
+                placeholder={t("password-placeholder", "Enter password")}
                 bind:value={authPassword}
                 class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
               />
@@ -896,7 +915,7 @@
               type="submit"
               class="w-full bg-slate-800 hover:bg-slate-900 text-white py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors"
             >
-              {isRegister ? "Sign Up / Register" : "Sign In"}
+              {isRegister ? t("register-btn", "Create Account") : t("sign-in-btn", "Sign In")}
             </button>
           </form>
 
@@ -906,7 +925,7 @@
               onclick={() => { isRegister = !isRegister; authError = ""; authSuccess = ""; }}
               class="text-xs text-slate-500 hover:text-slate-800 underline font-medium"
             >
-              {isRegister ? "Already registered? Sign in" : "First time? Create a sign-in account"}
+              {isRegister ? t("already-have-account", "Already have an account? Sign In") : t("need-account", "Need an account? Register")}
             </button>
           </div>
         </div>
@@ -921,13 +940,13 @@
             onclick={() => activeTab = "sessions"}
             class="w-full text-left px-4 py-3 text-xs font-bold uppercase tracking-wider border rounded-none transition-all {activeTab === 'sessions' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}"
           >
-            Capture Sessions
+            {t("capture-sessions-heading", "Capture Sessions")}
           </button>
           <button
             onclick={() => activeTab = "settings"}
             class="w-full text-left px-4 py-3 text-xs font-bold uppercase tracking-wider border rounded-none transition-all {activeTab === 'settings' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}"
           >
-            Export Settings
+            {t("export-settings", "Export Settings")}
           </button>
         </div>
 
@@ -937,29 +956,30 @@
           {#if activeTab === "sessions"}
             <div class="space-y-6 flex-1 flex flex-col">
               <div>
-                <h2 class="text-md font-bold text-slate-900 uppercase tracking-wide">Data Capture Sessions</h2>
-                <p class="text-xs text-slate-500 mt-1">Select a session to start capturing or launch a new named session.</p>
+                <h2 data-i18n-key="dashboard-title" class="text-md font-bold text-slate-900 uppercase tracking-wide">{t("dashboard-title", "Data Capture Sessions")}</h2>
+                <p data-i18n-key="select-session-desc" class="text-xs text-slate-500 mt-1">{t("select-session-desc", "Select a session to start capturing or launch a new named session.")}</p>
               </div>
 
               <!-- Session Creator Form -->
               <form onsubmit={handleCreateSession} class="flex gap-2">
                 <input
                   type="text"
-                  placeholder="eg Malvaceae Cupboard 2"
+                  placeholder={t("session-name-placeholder", "eg Malvaceae Cupboard 2")}
                   bind:value={sessionName}
                   class="flex-1 bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
                 />
                 <button
                   type="submit"
+                  data-i18n-key="create-session-btn"
                   class="bg-slate-800 hover:bg-slate-900 text-white px-6 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors"
                 >
-                  Create Session
+                  {t("create-session-btn", "Create Session")}
                 </button>
               </form>
 
               <!-- Session Listing -->
               <div class="flex-1 min-h-0">
-                <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">Session History</h3>
+                <h3 data-i18n-key="session-history-heading" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">{t("session-history-heading", "Session History")}</h3>
                 
                 {#if sessionList.length > 0}
                   <ul class="border border-slate-200 divide-y divide-slate-200">
@@ -996,21 +1016,21 @@
                             <div class="flex flex-wrap items-center gap-3 mt-1 text-[10px] text-slate-500">
                               {#if ses.lastRecordAt}
                                 <span>
-                                  Last record:
+                                  {t("last-record", "last record")}:
                                   <strong class="text-slate-700 font-semibold">
                                     {friendlyDate(ses.lastRecordAt.replace(' ', 'T') + 'Z')}
                                   </strong>
                                 </span>
                               {:else}
-                                <span class="text-slate-400 italic">
-                                  No records captured
+                                <span data-i18n-key="no-records-captured" class="text-slate-400 italic">
+                                  {t("no-records-captured", "No records captured")}
                                 </span>
                               {/if}
 
                               {#if ses.recordCount > 0}
                                 {#if ses.lastExportedAt}
                                   <span>
-                                    Last export:
+                                    {t("last-export", "last export")}:
                                     <span
                                       class="px-1 py-0.5 rounded-none font-medium {isExportWarning(ses)
                                         ? 'bg-red-50 text-red-700 border border-red-200'
@@ -1021,8 +1041,8 @@
                                   </span>
                                 {:else}
                                   <span>
-                                    <span class="px-1 py-0.5 rounded-none font-medium bg-red-50 text-red-700 border border-red-200">
-                                      Never exported
+                                    <span data-i18n-key="never-exported" class="px-1 py-0.5 rounded-none font-medium bg-red-50 text-red-700 border border-red-200">
+                                      {t("never-exported", "Never exported")}
                                     </span>
                                   </span>
                                 {/if}
@@ -1031,23 +1051,24 @@
                           </div>
                           <div class="flex items-center gap-3">
                             <span class="text-xs bg-slate-100 font-bold px-2 py-1 border border-slate-300">
-                              {ses.recordCount} specimens
+                              {ses.recordCount} {t("specimens-count", "specimens")}
                             </span>
                           </div>
                         </div>
                         <button
+                          data-i18n-key="delete-btn"
                           onclick={(e) => promptDeleteSession(ses.id, ses.name, e)}
                           class="bg-red-50 hover:bg-red-100 text-red-650 border border-red-200 px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors ml-2"
                         >
-                          Delete
+                          {t("delete-btn", "Delete")}
                         </button>
                       </li>
                     {/each}
                   </ul>
                 {:else}
                   <div class="h-48 flex flex-col justify-center items-center text-slate-400 border border-dashed border-slate-300 p-6 text-center">
-                    <span class="text-xs font-medium uppercase tracking-wider mb-1">No Sessions Available</span>
-                    <span class="text-[11px] text-slate-400 max-w-xs">Create a new named session above to get started with capturing specimens.</span>
+                    <span data-i18n-key="no-sessions-title" class="text-xs font-medium uppercase tracking-wider mb-1">{t("no-sessions-title", "No Sessions Available")}</span>
+                    <span data-i18n-key="no-sessions-desc" class="text-[11px] text-slate-400 max-w-xs">{t("no-sessions-desc", "Create a new named session above to get started with capturing specimens.")}</span>
                   </div>
                 {/if}
               </div>
@@ -1057,8 +1078,8 @@
           {:else if activeTab === "settings"}
             <div class="space-y-6">
               <div>
-                <h2 class="text-md font-bold text-slate-900 uppercase tracking-wide">Application settings</h2>
-                <p class="text-xs text-slate-500 mt-1">Configure the collection code and export format for your herbarium.</p>
+                <h2 data-i18n-key="application-settings" class="text-md font-bold text-slate-900 uppercase tracking-wide">{t("application-settings", "Application settings")}</h2>
+                <p data-i18n-key="settings-description" class="text-xs text-slate-500 mt-1">{t("settings-description", "Configure the collection code and export format for your herbarium.")}</p>
               </div>
 
               {#if settingsMessage}
@@ -1069,7 +1090,7 @@
 
               <!-- Collection Code Setting -->
               <div class="space-y-2">
-                <label for="settings-collectionCode" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Working Collection Code</label>
+                <label for="settings-collectionCode" data-i18n-key="working-collection-code" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">{t("working-collection-code", "Working Collection Code")}</label>
                 <input
                   id="settings-collectionCode"
                   type="text"
@@ -1082,8 +1103,8 @@
               <!-- Format Choice -->
               <div class="space-y-2">
                 <div>
-                  <span class="text-xs font-bold text-slate-700 uppercase tracking-wider">Export Format </span>
-                  <span class="text-xs text-slate-500">(files are exported as comma separated values -- CSV).</span>
+                  <span data-i18n-key="export-format" class="text-xs font-bold text-slate-700 uppercase tracking-wider">{t("export-format", "Export Format ")}</span>
+                  <span data-i18n-key="export-format-sub" class="text-xs text-slate-500">{t("export-format-sub", "(files are exported as comma separated values -- CSV).")}</span>
                 </div>
                 
                 <div class="flex gap-4">
@@ -1117,9 +1138,9 @@
                     id="settings-qds"
                     type="checkbox"
                     bind:checked={includeGridReference}
-                    class="w-4 h-4 text-slate-850 border-slate-300 rounded focus:ring-slate-500 focus:ring-1 cursor-pointer"
+                    class="w-4 h-4 text-slate-855 border-slate-300 rounded focus:ring-slate-500 focus:ring-1 cursor-pointer"
                   />
-                  <span>Include grid reference (QDS)</span>
+                  <span data-i18n-key="include-qds-label">{t("include-qds-label", "Include grid reference (QDS)")}</span>
                 </label>
               </div>
 
@@ -1127,10 +1148,11 @@
               <div class="pt-4 border-t border-slate-100 flex justify-end">
                 <button
                   type="button"
+                  data-i18n-key="save-settings-btn"
                   onclick={handleSaveSettings}
                   class="bg-slate-800 hover:bg-slate-900 text-white px-6 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors"
                 >
-                  Save Settings
+                  {t("save-settings-btn", "Save Settings")}
                 </button>
               </div>
 
@@ -1155,7 +1177,7 @@
               </span> 
             </button>
             <div>
-              <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-semibold">Active Session</span>
+              <span data-i18n-key="active-session" class="text-[9px] uppercase tracking-wider text-slate-400 block font-semibold">{t("active-session", "Active Session")}</span>
               <span class="text-xs font-bold text-slate-100">{activeSession.name}</span>
             </div>
           </div>
@@ -1163,17 +1185,18 @@
           <div class="flex items-center gap-4">
             <!-- Active stats count -->
             <div class="text-right">
-              <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-semibold">Specimens Captured</span>
-              <span class="text-xs font-extrabold text-emerald-400">{activeSession.recordCount} records</span>
+              <span data-i18n-key="specimens-captured-heading" class="text-[9px] uppercase tracking-wider text-slate-400 block font-semibold">{t("specimens-captured-heading", "Specimens Captured")}</span>
+              <span class="text-xs font-extrabold text-emerald-400">{activeSession.recordCount} {t("records-count", "records")}</span>
             </div>
             
             <!-- Export Session CSV bar -->
             <div class="flex items-center">
               <button
                 onclick={handleExportCSV}
+                data-i18n-key="export-csv-btn"
                 class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors"
               >
-                Export CSV
+                {t("export-csv-btn", "Export CSV")}
               </button>
             </div>
           </div>
@@ -1219,8 +1242,8 @@
         <!-- Bottom Panel: Captured Specimens in This Session -->
         <div class="border-t border-slate-300 bg-white p-4 shrink-0 max-h-60 flex flex-col">
           <div class="flex justify-between items-center mb-2">
-            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wide">Specimens Saved in this Session</h3>
-            <span class="text-[10px] text-slate-400 font-semibold uppercase">{capturedRecords.length} records</span>
+            <h3 data-i18n-key="specimens-saved-title" class="text-xs font-bold text-slate-800 uppercase tracking-wide">{t("specimens-saved-title", "Specimens Saved in this Session")}</h3>
+            <span class="text-[10px] text-slate-400 font-semibold uppercase">{capturedRecords.length} {t("records-count", "records")}</span>
           </div>
 
           <div class="flex-1 overflow-y-auto border border-slate-200">
@@ -1228,12 +1251,12 @@
               <table class="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr class="bg-slate-50 border-b border-slate-350 text-slate-600 font-bold uppercase tracking-wider">
-                    <th class="p-2">Collector</th>
-                    <th class="p-2">Taxon Name</th>
-                    <th class="p-2">Locality</th>
-                    <th class="p-2">Geom</th>
-                    <th class="p-2">Date</th>
-                    <th class="p-2 text-right">Actions</th>
+                    <th data-i18n-key="collector-col" class="p-2">{t("collector-col", "Collector")}</th>
+                    <th data-i18n-key="taxon-col" class="p-2">{t("taxon-col", "Taxon Name")}</th>
+                    <th data-i18n-key="locality-col" class="p-2">{t("locality-col", "Locality")}</th>
+                    <th data-i18n-key="geom-col" class="p-2">{t("geom-col", "Geom")}</th>
+                    <th data-i18n-key="date-col" class="p-2">{t("date-col", "Date")}</th>
+                    <th data-i18n-key="actions-col" class="p-2 text-right">{t("actions-col", "Actions")}</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
@@ -1249,10 +1272,11 @@
                       <td class="p-2 text-slate-650">{rec.year ? `${rec.year}-${rec.month || '?'}-${rec.day || '?'}` : 'N/A'}</td>
                       <td class="p-2 text-right">
                         <button
+                          data-i18n-key="delete-btn"
                           onclick={(e) => promptDeleteCapturedRecord(rec, e)}
                           class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-2 py-0.5 text-[10px] uppercase font-bold tracking-wide transition-colors"
                         >
-                          Delete
+                          {t("delete-btn", "Delete")}
                         </button>
                       </td>
                     </tr>
@@ -1260,8 +1284,8 @@
                 </tbody>
               </table>
             {:else}
-              <div class="py-8 text-center text-slate-400 text-xs">
-                No specimens captured yet in this session. Start by entering data in the form above!
+              <div data-i18n-key="no-records-session" class="py-8 text-center text-slate-400 text-xs">
+                {t("no-records-session", "No specimens captured yet in this session. Start by entering data in the form above!")}
               </div>
             {/if}
           </div>
@@ -1293,9 +1317,9 @@
             </svg>
           </div>
           <div class="space-y-1">
-            <h3 class="font-bold text-red-700">Delete Specimen Record</h3>
-            <p class="text-sm text-slate-500 leading-relaxed">
-              Are you sure you want to permanently delete this captured record?
+            <h3 data-i18n-key="delete-record-heading" class="font-bold text-red-700">{t("delete-record-heading", "Delete Specimen Record")}</h3>
+            <p data-i18n-key="delete-record-confirm" class="text-sm text-slate-500 leading-relaxed">
+              {t("delete-record-confirm", "Are you sure you want to permanently delete this captured record?")}
             </p>
             <p class="text-xs font-semibold text-slate-700 bg-slate-50 p-2 border border-slate-150 break-all">{pendingDeleteRecordDetails}</p>
           </div>
@@ -1304,17 +1328,19 @@
         <div class="flex justify-end gap-2 mt-2">
           <button
             type="button"
+            data-i18n-key="cancel-btn"
             onclick={cancelDeleteCapturedRecord}
             class="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 border border-slate-200 transition-colors cursor-pointer rounded-none"
           >
-            Cancel
+            {t("cancel-btn", "Cancel")}
           </button>
           <button
             type="button"
+            data-i18n-key="delete-btn"
             onclick={confirmDeleteCapturedRecord}
             class="px-3.5 py-1.5 text-xs font-semibold text-white bg-red-650 bg-red-400 hover:bg-red-700 transition-colors cursor-pointer rounded-none"
           >
-            Delete
+            {t("delete-btn", "Delete")}
           </button>
         </div>
       </div>
@@ -1345,15 +1371,15 @@
             </svg>
           </div>
           <div class="space-y-2">
-            <h3 class="font-bold text-red-700">Delete Capture Session</h3>
-            <p class="text-sm text-slate-500 leading-relaxed">
-              Are you sure you want to permanently delete this capture session?
+            <h3 data-i18n-key="delete-session-heading" class="font-bold text-red-700">{t("delete-session-heading", "Delete Capture Session")}</h3>
+            <p data-i18n-key="delete-session-confirm" class="text-sm text-slate-500 leading-relaxed">
+              {t("delete-session-confirm", "Are you sure you want to permanently delete this capture session?")}
             </p>
             <p class="text-xs font-semibold text-slate-700 bg-slate-50 p-2 border border-slate-150 break-all">
-              Session: {pendingDeleteSessionName}
+              {t("delete-session-label", "Session:")} {pendingDeleteSessionName}
             </p>
-            <p class="text-xs text-red-600 font-medium leading-relaxed mt-1">
-              WARNING: This will permanently delete all captured records associated with this session.
+            <p data-i18n-key="delete-session-warning" class="text-xs text-red-600 font-medium leading-relaxed mt-1">
+              {t("delete-session-warning", "WARNING: This will permanently delete all captured records associated with this session.")}
             </p>
           </div>
         </div>
@@ -1361,17 +1387,19 @@
         <div class="flex justify-end gap-2 mt-2">
           <button
             type="button"
+            data-i18n-key="cancel-btn"
             onclick={cancelDeleteSession}
             class="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 border border-slate-200 transition-colors cursor-pointer rounded-none"
           >
-            Cancel
+            {t("cancel-btn", "Cancel")}
           </button>
           <button
             type="button"
+            data-i18n-key="delete-btn"
             onclick={confirmDeleteSession}
             class="px-3.5 py-1.5 text-xs font-semibold text-white bg-red-650 bg-red-400 hover:bg-red-700 transition-colors cursor-pointer rounded-none"
           >
-            Delete
+            {t("delete-btn", "Delete")}
           </button>
         </div>
       </div>
