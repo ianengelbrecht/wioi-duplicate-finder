@@ -943,7 +943,7 @@
             onclick={() => activeTab = "settings"}
             class="w-full text-left px-4 py-3 text-xs font-bold uppercase tracking-wider border rounded-none transition-all {activeTab === 'settings' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}"
           >
-            {t("export-settings", "Export Settings")}
+            {t("application-settings", "Application Settings")}
           </button>
           <button
             onclick={() => activeTab = "sessions"}

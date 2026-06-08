@@ -1803,10 +1803,10 @@
       <div class="col-span-6">
         <MultiSelectAutocomplete
           id="capture-identifiedBy"
-          label="Identified By"
-          labelKey="identified-by-label"
+          label="Det By"
+          labelKey="det-by-label"
           placeholder="Type name and press Enter..."
-          placeholderKey="identified-by-placeholder"
+          placeholderKey="det-by-placeholder"
           bind:selectedValues={form.identifiedBy}
           suggestions={identifiedBySuggestions}
           oninput={handleIdentifiedByInput}
@@ -1814,7 +1814,7 @@
         />
       </div>
       <div class="col-span-2">
-        <label for="capture-yearIdentified" data-i18n-key="year-identified-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("year-identified-label", "Year Ident.")}</label>
+        <label for="capture-yearIdentified" data-i18n-key="det-year-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("det-year-label", "Year Ident.")}</label>
         <input
           id="capture-yearIdentified"
           type="number"
@@ -1824,7 +1824,7 @@
         />
       </div>
       <div class="col-span-2">
-        <label for="capture-monthIdentified" data-i18n-key="month-identified-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("month-identified-label", "Month Ident.")}</label>
+        <label for="capture-monthIdentified" data-i18n-key="det-month-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("det-month-label", "Month Ident.")}</label>
         <input
           id="capture-monthIdentified"
           type="number"
@@ -1836,7 +1836,7 @@
         />
       </div>
       <div class="col-span-2">
-        <label for="capture-dayIdentified" data-i18n-key="day-identified-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("day-identified-label", "Day Ident.")}</label>
+        <label for="capture-dayIdentified" data-i18n-key="det-day-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("det-day-label", "Day Ident.")}</label>
         <input
           id="capture-dayIdentified"
           type="number"
@@ -1851,12 +1851,12 @@
 
     <!-- Row 9: Identification Notes -->
     <div class="pb-6">
-      <label for="capture-identificationRemarks" data-i18n-key="id-remarks-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("id-remarks-label", "Identification Notes")}</label>
+      <label for="capture-identificationRemarks" data-i18n-key="det-remarks-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("det-remarks-label", "Identification Notes")}</label>
       <textarea
         id="capture-identificationRemarks"
         rows="2"
-        data-i18n-key="id-remarks-placeholder"
-        placeholder={t("id-remarks-placeholder", "e.g. Similar to [species name] but has different bract structures")}
+        data-i18n-key="det-remarks-placeholder"
+        placeholder={t("det-remarks-placeholder", "e.g. Similar to [species name] but has different bract structures")}
         bind:value={form.identificationRemarks}
         class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all resize-none"
       ></textarea>
