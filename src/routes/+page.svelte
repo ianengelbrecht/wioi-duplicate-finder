@@ -14,6 +14,7 @@
   let dbLoadingMessage = $state("Checking database and indexing reference records...");
 
   async function checkDb() {
+    dbErrorMessage = "";
     try {
       await invoke("initialize_database");
       
@@ -38,7 +39,8 @@
       }
     } catch (e) {
       console.error(e);
-      dbLoadingMessage = "Error: " + (/** @type {any} */ (e)).toString();
+      dbErrorMessage = (/** @type {any} */ (e)).toString();
+      view = "db_restore";
     }
   }
 
@@ -66,6 +68,11 @@
   let includeGridReference = $state(false);
   let databaseBackupLocation = $state("");
   let defaultBackupLocation = $state("");
+  let showRestoreConfirmModal = $state(false);
+  let pendingRestorePath = $state("");
+  let dbErrorMessage = $state("");
+  let manualBackupMessage = $state("");
+  let manualBackupError = $state("");
   let customMappings = $state(/** @type {any} */ ({
     recordedBy: "",
     recordNumber: "",
@@ -306,6 +313,46 @@
       }
     } catch (err) {
       console.error("Failed to choose backup folder:", err);
+    }
+  }
+
+  async function handleManualBackup() {
+    manualBackupMessage = "";
+    manualBackupError = "";
+    try {
+      const path = await invoke("perform_manual_backup");
+      manualBackupMessage = "Backup created successfully at: " + path;
+      setTimeout(() => { manualBackupMessage = ""; }, 5000);
+    } catch (e) {
+      manualBackupError = "Backup failed: " + (/** @type {any} */ (e)).toString();
+    }
+  }
+
+  async function handleRestoreBackup() {
+    try {
+      const path = await invoke("select_backup_file");
+      if (path) {
+        pendingRestorePath = /** @type {string} */ (path);
+        showRestoreConfirmModal = true;
+      }
+    } catch (err) {
+      console.error("Failed to choose backup file:", err);
+    }
+  }
+
+  async function executeRestore() {
+    showRestoreConfirmModal = false;
+    if (!pendingRestorePath) return;
+    
+    try {
+      await invoke("restore_database_from_backup", { backupPath: pendingRestorePath });
+      alert(t("db-restore-success", "Database restored successfully! Re-initializing..."));
+      pendingRestorePath = "";
+      
+      // Re-initialize database and reload sessions/settings
+      await checkDb();
+    } catch (e) {
+      alert("Restore failed: " + (/** @type {any} */ (e)).toString());
     }
   }
 
@@ -904,6 +951,48 @@
           </div>
         </div>
       </div>
+    {:else if view === "db_restore"}
+      <div class="flex-1 flex flex-col justify-center items-center p-6 bg-slate-50">
+        <div class="w-full max-w-md bg-white border border-red-200 shadow-lg p-8 flex flex-col space-y-6">
+          <div class="flex items-center gap-3 text-red-700 border-b border-red-100 pb-3">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 shrink-0">
+              <path fill-rule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clip-rule="evenodd" />
+            </svg>
+            <h2 data-i18n-key="db-recovery-title" class="text-base font-bold uppercase tracking-wider">
+              {t("db-recovery-title", "Database Recovery Needed")}
+            </h2>
+          </div>
+          
+          <div class="space-y-3">
+            <p data-i18n-key="db-recovery-desc" class="text-xs text-slate-600 leading-relaxed">
+              {t("db-recovery-desc", "The application failed to open or verify the integrity of the specimen database. This usually means the database is corrupted or missing. Please select a backup file to restore or retry the connection.")}
+            </p>
+            
+            {#if dbErrorMessage}
+              <div class="bg-red-50 border border-red-100 p-3 text-xs text-red-800 font-mono break-all whitespace-pre-wrap max-h-40 overflow-y-auto">
+                <strong>Error details:</strong><br/>{dbErrorMessage}
+              </div>
+            {/if}
+          </div>
+          
+          <div class="flex flex-col sm:flex-row gap-3 pt-2">
+            <button
+              type="button"
+              onclick={handleRestoreBackup}
+              class="flex-1 bg-rose-700 hover:bg-rose-800 text-white px-4 py-2.5 text-xs font-bold uppercase tracking-wider rounded-none transition-colors text-center cursor-pointer"
+            >
+              {t("restore-backup-btn", "Restore Backup")}
+            </button>
+            <button
+              type="button"
+              onclick={checkDb}
+              class="flex-1 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2.5 text-xs font-bold uppercase tracking-wider rounded-none transition-colors text-center cursor-pointer"
+            >
+              {t("retry-connection-btn", "Retry Connection")}
+            </button>
+          </div>
+        </div>
+      </div>
     {:else if view === "auth"}
       <div class="flex-1 flex justify-center items-center p-6">
         <div class="w-full max-w-sm bg-white border border-slate-300 shadow-sm p-6 space-y-6">
@@ -1221,6 +1310,28 @@
                 <p class="text-[10px] text-slate-500 italic mt-0.5">
                   {t("backup-location-help", "If left empty, the default location is used:")} {defaultBackupLocation || "Loading default..."}
                 </p>
+                <div class="flex gap-2 mt-2 pt-1">
+                  <button
+                    type="button"
+                    onclick={handleManualBackup}
+                    class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors cursor-pointer"
+                  >
+                    {t("backup-now-btn", "Back Up Now")}
+                  </button>
+                  <button
+                    type="button"
+                    onclick={handleRestoreBackup}
+                    class="bg-rose-700 hover:bg-rose-800 text-white px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors cursor-pointer"
+                  >
+                    {t("restore-backup-btn", "Restore Backup")}
+                  </button>
+                </div>
+                {#if manualBackupMessage}
+                  <p class="text-xs text-green-700 font-medium mt-1.5 leading-relaxed">{manualBackupMessage}</p>
+                {/if}
+                {#if manualBackupError}
+                  <p class="text-xs text-red-700 font-medium mt-1.5 leading-relaxed">{manualBackupError}</p>
+                {/if}
               </div>
 
               <!-- Save settings button -->
@@ -1476,6 +1587,65 @@
             class="px-3.5 py-1.5 text-xs font-semibold text-white bg-red-650 bg-red-400 hover:bg-red-700 transition-colors cursor-pointer rounded-none"
           >
             {t("delete-btn", "Delete")}
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  {#if showRestoreConfirmModal}
+    <div 
+      class="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      onclick={(e) => { if (e.target === e.currentTarget) showRestoreConfirmModal = false; }}
+      onkeydown={(e) => { 
+        if (e.key === "Escape") {
+          e.preventDefault();
+          showRestoreConfirmModal = false; 
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          executeRestore();
+        }
+      }}
+    >
+      <div class="bg-white border border-slate-200 shadow-2xl max-w-sm w-full p-5 flex flex-col gap-4 rounded-none">
+        <div class="flex items-start gap-3">
+          <div class="p-2 bg-rose-50 text-rose-650 rounded-full shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-5 h-5 text-rose-700">
+              <path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.09,88.09,0,0,1,128,216Zm-8-80V80a8,8,0,0,1,16,0v56a8,8,0,0,1-16,0Zm20,36a12,12,0,1,1-12-12A12,12,0,0,1,140,172Z"></path>
+            </svg>
+          </div>
+          <div class="space-y-2">
+            <h3 data-i18n-key="restore-confirm-title" class="font-bold text-rose-700">{t("restore-confirm-title", "Restore Database Backup")}</h3>
+            <p data-i18n-key="restore-confirm-desc" class="text-sm text-slate-500 leading-relaxed">
+              {t("restore-confirm-desc", "Are you sure you want to restore this database backup? This will completely overwrite your current database and cannot be undone.")}
+            </p>
+            {#if pendingRestorePath}
+              <p class="text-[10px] font-semibold text-slate-700 bg-slate-50 p-2 border border-slate-150 break-all">
+                {pendingRestorePath}
+              </p>
+            {/if}
+          </div>
+        </div>
+        
+        <div class="flex justify-end gap-2 mt-2">
+          <button
+            type="button"
+            data-i18n-key="cancel-btn"
+            onclick={() => { showRestoreConfirmModal = false; }}
+            class="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 border border-slate-200 transition-colors cursor-pointer rounded-none"
+          >
+            {t("cancel-btn", "Cancel")}
+          </button>
+          <button
+            type="button"
+            data-i18n-key="restore-btn"
+            onclick={executeRestore}
+            class="px-3.5 py-1.5 text-xs font-semibold text-white bg-rose-700 hover:bg-rose-800 transition-colors cursor-pointer rounded-none"
+          >
+            {t("restore-btn", "Restore")}
           </button>
         </div>
       </div>

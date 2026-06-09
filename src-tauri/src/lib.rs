@@ -5,6 +5,8 @@ use tauri::AppHandle;
 use rusqlite::{Connection, params};
 use serde_json::json;
 use std::fs;
+use std::path::PathBuf;
+use chrono::Local;
 
 mod parser;
 mod db;
@@ -970,6 +972,82 @@ fn select_backup_directory() -> Option<String> {
 }
 
 #[tauri::command]
+fn perform_manual_backup(app: AppHandle) -> Result<String, String> {
+    let db_path = get_db_path(&app);
+    if !db_path.exists() {
+        return Err("Database file does not exist.".to_string());
+    }
+    
+    let mut custom_backups_dir = None;
+    if let Ok(conn) = Connection::open(&db_path) {
+        if let Ok(mappings_str) = conn.query_row(
+            "SELECT mappings FROM export_settings LIMIT 1",
+            [],
+            |row| row.get::<_, String>(0)
+        ) {
+            if let Ok(mappings) = serde_json::from_str::<serde_json::Value>(&mappings_str) {
+                if let Some(custom_path) = mappings.get("backupLocation").and_then(|v| v.as_str()) {
+                    let trim_path = custom_path.trim();
+                    if !trim_path.is_empty() {
+                        custom_backups_dir = Some(PathBuf::from(trim_path));
+                    }
+                }
+            }
+        }
+    }
+    
+    let backups_dir = custom_backups_dir.unwrap_or_else(|| {
+        let app_dir = db_path.parent().unwrap();
+        app_dir.join("backups")
+    });
+    
+    if let Err(e) = fs::create_dir_all(&backups_dir) {
+        return Err(format!("Failed to create backups directory: {}", e));
+    }
+    
+    let now = Local::now();
+    let backup_filename = format!("manual_backup_{}.db", now.format("%Y-%m-%d_%H-%M-%S"));
+    let backup_path = backups_dir.join(&backup_filename);
+    
+    fs::copy(&db_path, &backup_path).map_err(|e| format!("Failed to copy database to backup: {}", e))?;
+    
+    Ok(backup_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn select_backup_file() -> Option<String> {
+    let file = rfd::FileDialog::new()
+        .add_filter("Database File", &["db"])
+        .pick_file();
+        
+    file.map(|p| p.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn restore_database_from_backup(app: AppHandle, backup_path: String) -> Result<(), String> {
+    let db_path = get_db_path(&app);
+    let backup_file = std::path::Path::new(&backup_path);
+    if !backup_file.exists() {
+        return Err("Selected backup file does not exist.".to_string());
+    }
+    
+    // Copy backup to database file
+    fs::copy(backup_file, &db_path).map_err(|e| format!("Failed to copy database file: {}", e))?;
+    
+    // Delete WAL and SHM files if they exist to avoid corruption/out-of-sync recovery
+    let wal_path = db_path.with_extension("db-wal");
+    if wal_path.exists() {
+        let _ = fs::remove_file(wal_path);
+    }
+    let shm_path = db_path.with_extension("db-shm");
+    if shm_path.exists() {
+        let _ = fs::remove_file(shm_path);
+    }
+    
+    Ok(())
+}
+
+#[tauri::command]
 fn export_session_csv(app: AppHandle, session_id: i32, filepath: String, csv_content: String) -> Result<String, String> {
     let db_path = get_db_path(&app);
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
@@ -1259,7 +1337,10 @@ pub fn run() {
             get_table_counts,
             resolve_wcvp_families,
             get_default_backup_dir,
-            select_backup_directory
+            select_backup_directory,
+            perform_manual_backup,
+            select_backup_file,
+            restore_database_from_backup
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

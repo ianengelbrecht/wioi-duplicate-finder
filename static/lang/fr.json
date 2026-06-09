@@ -211,5 +211,15 @@
   "invalid-date-error": "Erreur : Date de collecte invalide.",
   "invalid-id-date-error": "Erreur : Date d'identification invalide.",
   "id-date-before-collection-error": "Erreur : La date d'identification ne peut pas être antérieure à la date de collecte.",
-  "empty-record-error": "Erreur : Impossible d'enregistrer un enregistrement vide."
+  "empty-record-error": "Erreur : Impossible d'enregistrer un enregistrement vide.",
+  "backup-now-btn": "Sauvegarder maintenant",
+  "restore-backup-btn": "Restaurer la sauvegarde",
+  "restore-confirm-title": "Restaurer la sauvegarde de la base de données",
+  "restore-confirm-desc": "Êtes-vous sûr de vouloir restaurer cette sauvegarde de base de données ? Cela écrasera complètement votre base de données actuelle et cette action est irréversible.",
+  "db-restore-success": "Base de données restaurée avec succès ! Réinitialisation...",
+  "manual-backup-success": "Sauvegarde créée avec succès à : ",
+  "manual-backup-failed": "Échec de la sauvegarde : ",
+  "db-recovery-title": "Récupération de la base de données nécessaire",
+  "db-recovery-desc": "L'application n'a pas pu ouvrir ou vérifier l'intégrité de la base de données des spécimens. Cela signifie généralement que la base de données est corrompue ou manquante. Veuillez sélectionner un fichier de sauvegarde à restaurer ou réessayer la connexion.",
+  "retry-connection-btn": "Réessayer la connexion"
 }

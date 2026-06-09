@@ -212,5 +212,15 @@
   "invalid-date-error": "Erro: Data de coleta inválida.",
   "invalid-id-date-error": "Erro: Data de identificação inválida.",
   "id-date-before-collection-error": "Erro: A data de identificação não pode ser anterior à data de coleta.",
-  "empty-record-error": "Erro: Não é possível salvar um registro vazio."
+  "empty-record-error": "Erro: Não é possível salvar um registro vazio.",
+  "backup-now-btn": "Fazer Backup Agora",
+  "restore-backup-btn": "Restaurar Backup",
+  "restore-confirm-title": "Restaurar Backup do Banco de Dados",
+  "restore-confirm-desc": "Tem certeza de que deseja restaurar este backup do banco de dados? Isso substituirá completamente o banco de dados atual e não poderá ser desfeito.",
+  "db-restore-success": "Banco de dados restaurado com sucesso! Reinicializando...",
+  "manual-backup-success": "Backup criado com sucesso em: ",
+  "manual-backup-failed": "Falha no backup: ",
+  "db-recovery-title": "Recuperação do Banco de Dados Necessária",
+  "db-recovery-desc": "O aplicativo não conseguiu abrir ou verificar a integridade do banco de dados de espécimes. Isso geralmente significa que o banco de dados está corrompido ou ausente. Por favor, selecione um arquivo de backup para restaurar ou tente conectar novamente.",
+  "retry-connection-btn": "Tentar Novamente Conexão"
 }

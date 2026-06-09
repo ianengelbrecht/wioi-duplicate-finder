@@ -104,12 +104,19 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
     
     if should_check {
         info!("Running startup database integrity quick_check...");
-        if let Ok(res) = conn.query_row("PRAGMA quick_check;", [], |r| r.get::<_, String>(0)) {
-            if res != "ok" {
-                warn!("Database quick_check failed on startup: {}", res);
-            } else {
-                info!("Database quick_check passed on startup.");
-                set_last_quick_check_datetime(&conn);
+        match conn.query_row("PRAGMA quick_check;", [], |r| r.get::<_, String>(0)) {
+            Ok(res) => {
+                if res != "ok" {
+                    error!("Database quick_check failed on startup: {}", res);
+                    return Err(format!("Database integrity check failed: {}", res));
+                } else {
+                    info!("Database quick_check passed on startup.");
+                    set_last_quick_check_datetime(&conn);
+                }
+            }
+            Err(e) => {
+                error!("Failed to run database quick_check on startup: {}", e);
+                return Err(format!("Database integrity check failed: {}", e));
             }
         }
     } else {

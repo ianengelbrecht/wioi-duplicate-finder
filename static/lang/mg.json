@@ -212,5 +212,15 @@
   "invalid-date-error": "Fahadisoana: Andro nanangonana tsy mety.",
   "invalid-id-date-error": "Fahadisoana: Andro namantarana tsy mety.",
   "id-date-before-collection-error": "Fahadisoana: Ny andro namantarana dia tsy azo atao alohan'ny andro nanangonana.",
-  "empty-record-error": "Fahadisoana: Tsy azo tehirizina ny firaketana foana."
+  "empty-record-error": "Fahadisoana: Tsy azo tehirizina ny firaketana foana.",
+  "backup-now-btn": "Hanao Backup Izao",
+  "restore-backup-btn": "Hamerina ny Backup",
+  "restore-confirm-title": "Hamerina ny Backup an'ny Tahirin-kevitra",
+  "restore-confirm-desc": "Tena te hamerina ity backup an'ny tahirin-kevitra ity ve ianao? Hamafa sy hanolo ny tahirin-kevitra ankehitriny izany ary tsy azo averina intsony.",
+  "db-restore-success": "Tafaverina soa aman-tsara ny tahirin-kevitra! Mamerina mampandeha...",
+  "manual-backup-success": "Tafajoro soa aman-tsara ny backup tao amin'ny: ",
+  "manual-backup-failed": "Tsy nahomby ny backup: ",
+  "db-recovery-title": "Mila Averina ny Tahirin-kevitra",
+  "db-recovery-desc": "Tsy afaka nanokatra na nanamarina ny tahirin-kevitra ny fampiharana. Midika izany fa simba na tsy hita ny tahirin-kevitra. Safidio ny fisie backup iray haverina na andramo indray ny fifandraisana.",
+  "retry-connection-btn": "Andramo Indray ny Fifandraisana"
 }

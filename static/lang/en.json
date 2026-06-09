@@ -212,5 +212,15 @@
   "invalid-date-error": "Error: Invalid collection date.",
   "invalid-id-date-error": "Error: Invalid identification date.",
   "id-date-before-collection-error": "Error: Identification date cannot be before collection date.",
-  "empty-record-error": "Error: Cannot save an empty record."
+  "empty-record-error": "Error: Cannot save an empty record.",
+  "backup-now-btn": "Back Up Now",
+  "restore-backup-btn": "Restore Backup",
+  "restore-confirm-title": "Restore Database Backup",
+  "restore-confirm-desc": "Are you sure you want to restore this database backup? This will completely overwrite your current database and cannot be undone.",
+  "db-restore-success": "Database restored successfully! Re-initializing...",
+  "manual-backup-success": "Backup created successfully at: ",
+  "manual-backup-failed": "Backup failed: ",
+  "db-recovery-title": "Database Recovery Needed",
+  "db-recovery-desc": "The application failed to open or verify the integrity of the specimen database. This usually means the database is corrupted or missing. Please select a backup file to restore or retry the connection.",
+  "retry-connection-btn": "Retry Connection"
 }
