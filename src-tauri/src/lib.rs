@@ -954,6 +954,22 @@ fn select_export_path(default_name: String) -> Option<String> {
 }
 
 #[tauri::command]
+fn get_default_backup_dir(app: AppHandle) -> Result<String, String> {
+    let db_path = get_db_path(&app);
+    let app_dir = db_path.parent().ok_or("Failed to get app directory parent")?;
+    let backups_dir = app_dir.join("backups");
+    Ok(backups_dir.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn select_backup_directory() -> Option<String> {
+    let dir = rfd::FileDialog::new()
+        .pick_folder();
+        
+    dir.map(|p| p.to_string_lossy().to_string())
+}
+
+#[tauri::command]
 fn export_session_csv(app: AppHandle, session_id: i32, filepath: String, csv_content: String) -> Result<String, String> {
     let db_path = get_db_path(&app);
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
@@ -969,12 +985,23 @@ fn export_session_csv(app: AppHandle, session_id: i32, filepath: String, csv_con
 }
 
 fn find_family_recursive(conn: &Connection, start_id: &str) -> Result<Option<String>, rusqlite::Error> {
+    // 1. Try to get family directly from the start record
+    let mut stmt = conn.prepare(
+        "SELECT family FROM wcvp_taxonomy WHERE plant_name_id = ?1"
+    )?;
+    if let Ok(Some(fam)) = stmt.query_row(params![start_id], |r| r.get::<_, Option<String>>(0)) {
+        if !fam.trim().is_empty() {
+            return Ok(Some(fam));
+        }
+    }
+
+    // 2. Fall back to recursive lookup
     let mut current_id = start_id.to_string();
     let mut depth = 0;
     
     while depth < 30 {
         let mut stmt = conn.prepare(
-            "SELECT plant_name_id, parent_plant_name_id, taxon_rank, taxon_name 
+            "SELECT plant_name_id, parent_plant_name_id, taxon_rank, taxon_name, family 
              FROM wcvp_taxonomy 
              WHERE plant_name_id = ?1"
         )?;
@@ -984,14 +1011,20 @@ fn find_family_recursive(conn: &Connection, start_id: &str) -> Result<Option<Str
             let parent_id: Option<String> = r.get(1)?;
             let rank: Option<String> = r.get(2)?;
             let name: Option<String> = r.get(3)?;
-            Ok((pid, parent_id, rank, name))
+            let family: Option<String> = r.get(4)?;
+            Ok((pid, parent_id, rank, name, family))
         });
         
         match row {
-            Ok((_, parent_id, rank, name)) => {
+            Ok((_, parent_id, rank, name, family)) => {
                 if let Some(r) = rank {
                     if r.eq_ignore_ascii_case("Family") {
                         return Ok(name);
+                    }
+                }
+                if let Some(fam) = family {
+                    if !fam.trim().is_empty() {
+                        return Ok(Some(fam));
                     }
                 }
                 if let Some(p) = parent_id {
@@ -1224,7 +1257,9 @@ pub fn run() {
             export_session_csv,
             autocomplete_geography,
             get_table_counts,
-            resolve_wcvp_families
+            resolve_wcvp_families,
+            get_default_backup_dir,
+            select_backup_directory
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

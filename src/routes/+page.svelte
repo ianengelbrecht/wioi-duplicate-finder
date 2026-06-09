@@ -64,6 +64,8 @@
   let exportFormat = $state("DwC"); // "DwC" or "BRAHMS"
   let workingCollectionCode = $state("WIOI");
   let includeGridReference = $state(false);
+  let databaseBackupLocation = $state("");
+  let defaultBackupLocation = $state("");
   let customMappings = $state(/** @type {any} */ ({
     recordedBy: "",
     recordNumber: "",
@@ -251,12 +253,23 @@
   async function loadExportSettings() {
     if (!currentUser) return;
     try {
+      // Always fetch the default backup directory
+      try {
+        const defaultDir = await invoke("get_default_backup_dir");
+        defaultBackupLocation = /** @type {string} */ (defaultDir);
+      } catch (err) {
+        console.error("Failed to query default backup directory:", err);
+      }
+
       let settings = /** @type {any} */ (await invoke("get_export_settings", { userId: currentUser.id }));
       exportFormat = settings.format || "DwC";
       if (settings.mappings) {
         let maps = JSON.parse(settings.mappings);
         workingCollectionCode = maps.collectionCode || "WIOI";
         includeGridReference = maps.includeGridReference || false;
+        databaseBackupLocation = maps.backupLocation || defaultBackupLocation;
+      } else {
+        databaseBackupLocation = defaultBackupLocation;
       }
     } catch (e) {
       console.error(e);
@@ -267,7 +280,12 @@
     if (!currentUser) return;
     settingsMessage = "";
     try {
-      let mappingsObj = { ...customMappings, collectionCode: workingCollectionCode, includeGridReference };
+      let mappingsObj = { 
+        ...customMappings, 
+        collectionCode: workingCollectionCode, 
+        includeGridReference,
+        backupLocation: databaseBackupLocation.trim()
+      };
       await invoke("save_export_settings", {
         userId: currentUser.id,
         format: exportFormat,
@@ -277,6 +295,17 @@
       setTimeout(() => { settingsMessage = ""; }, 3000);
     } catch (e) {
       settingsMessage = "Error saving settings: " + (/** @type {any} */ (e)).toString();
+    }
+  }
+
+  async function handleChooseBackupDirectory() {
+    try {
+      const path = await invoke("select_backup_directory");
+      if (path) {
+        databaseBackupLocation = /** @type {string} */ (path);
+      }
+    } catch (err) {
+      console.error("Failed to choose backup folder:", err);
     }
   }
 
@@ -535,6 +564,7 @@
         "dwc:fieldNotes",
         "dwc:typeStatus",
         "dwc:identificationQualifier",
+        "dwc:family",
         "dwc:scientificName",
         "dwc:identifiedBy",
         "dwc:dateIdentified",
@@ -578,6 +608,7 @@
           rec.fieldNotes || "",
           rec.typeStatus || "",
           rec.identificationQualifier || "",
+          familyMap[rec.id] || "",
           rec.scientificName || "",
           rec.identifiedBy || "",
           formatISO8601Date(rec.yearIdentified, rec.monthIdentified, rec.dayIdentified),
@@ -744,8 +775,15 @@
         return;
       }
 
-      const dt = new Date().toISOString().replace(/:/g, "-").split('.')[0] + 'Z';
-      let defaultName = `${activeSession.name.replace(/[^a-zA-Z0-9]/g, "_")}_${dt}.csv`;
+      const date = new Date();
+      date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+
+      const local = date
+        .toISOString()
+        .slice(0, 19)
+        .replace(/[:T-]/g, "");
+
+      let defaultName = `${activeSession.name.replace(/[^a-zA-Z0-9]/g, "_")}_${local}.csv`;
       let path = await invoke("select_export_path", { defaultName });
       if (!path) {
         // User cancelled the dialog
@@ -818,13 +856,13 @@
         >
           FR
         </button>
-        <button
+        <!-- <button
           type="button"
           onclick={() => currentLanguage = "PT"}
           class="px-2.5 py-1.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {currentLanguage === 'PT' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-650'}"
         >
           PT
-        </button>
+        </button> -->
         <button
           type="button"
           onclick={() => currentLanguage = "MG"}
@@ -982,7 +1020,7 @@
 
               <!-- Session Listing -->
               <div class="flex-1 min-h-0">
-                <h3 data-i18n-key="session-history-heading" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">{t("session-history-heading", "Session History")}</h3>
+                <h3 data-i18n-key="sessions-heading" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">{t("sessions-heading", "Sessions")}</h3>
                 
                 {#if sessionList.length > 0}
                   <ul class="border border-slate-200 divide-y divide-slate-200">
@@ -1021,7 +1059,7 @@
                                 <span>
                                   {t("last-record", "last record")}:
                                   <strong class="text-slate-700 font-semibold">
-                                    {new Date(ses.lastRecordAt).toLocaleString(currentLanguage === "EN" ? "en-US" : currentLanguage.toLowerCase(), {
+                                    {new Date(ses.lastRecordAt.replace(' ', 'T') + 'Z').toLocaleString(currentLanguage === "EN" ? "en-US" : currentLanguage.toLowerCase(), {
                                       year: 'numeric',
                                       month: 'short',
                                       day: 'numeric',
@@ -1045,7 +1083,7 @@
                                         ? 'bg-red-50 text-red-700 border border-red-200'
                                         : 'text-slate-700'}"
                                     >
-                                      {new Date(ses.lastExportedAt).toLocaleString(currentLanguage === "EN" ? "en-US" : currentLanguage.toLowerCase(), {
+                                      {new Date(ses.lastExportedAt.replace(' ', 'T') + 'Z').toLocaleString(currentLanguage === "EN" ? "en-US" : currentLanguage.toLowerCase(), {
                                         year: 'numeric',
                                         month: 'short',
                                         day: 'numeric',
@@ -1157,6 +1195,32 @@
                   />
                   <span data-i18n-key="include-qds-label">{t("include-qds-label", "Include grid reference (QDS)")}</span>
                 </label>
+              </div>
+
+              <!-- Database Backup Location Setting -->
+              <div class="space-y-2 pt-2 border-t border-slate-100">
+                <label for="settings-backup-location" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  {t("backup-location-label", "Database Backup Location")}
+                </label>
+                <div class="flex gap-2">
+                  <input
+                    id="settings-backup-location"
+                    type="text"
+                    bind:value={databaseBackupLocation}
+                    class="flex-1 bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+                    placeholder="Database backup folder path"
+                  />
+                  <button
+                    type="button"
+                    onclick={handleChooseBackupDirectory}
+                    class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 px-4 py-2 text-xs font-semibold rounded-none transition-colors"
+                  >
+                    {t("choose-folder-btn", "Choose Folder")}
+                  </button>
+                </div>
+                <p class="text-[10px] text-slate-500 italic mt-0.5">
+                  {t("backup-location-help", "If left empty, the default location is used:")} {defaultBackupLocation || "Loading default..."}
+                </p>
               </div>
 
               <!-- Save settings button -->

@@ -470,8 +470,8 @@
                 
                 <!-- Locality -->
                 <td class="p-3 text-slate-600 max-w-xs truncate" title={rec.locality}>
-                  {rec.locality || 'No locality information'}
-                  {#if rec.locationNotes}
+                  {rec.locality || rec.locationNotes || 'No locality information'}
+                  {#if rec.locality && rec.locationNotes}
                     <span class="text-[10px] text-slate-400 italic block">{rec.locationNotes}</span>
                   {/if}
                 </td>

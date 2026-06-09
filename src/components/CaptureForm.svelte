@@ -635,6 +635,7 @@
 
   // Verbatim Event Date Parser
   function parseVerbatimDate() {
+    console.log("Parsing verbatim event date:", form.verbatimEventDate);
     let dateStr = form.verbatimEventDate.trim();
     if (!dateStr) return;
 

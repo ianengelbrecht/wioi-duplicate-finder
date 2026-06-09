@@ -5,6 +5,7 @@ use std::fs;
 use pbkdf2::pbkdf2_hmac_array;
 use sha2::Sha256;
 use chrono::{Local, NaiveDate, NaiveDateTime};
+use serde_json;
 
 
 use crate::parser::{normalize_taxon_name, normalize_locality, normalize_search_recorded_by};
@@ -233,8 +234,29 @@ pub fn perform_database_backup(app: &AppHandle) {
         return;
     }
     
-    let app_dir = db_path.parent().unwrap();
-    let backups_dir = app_dir.join("backups");
+    let mut custom_backups_dir = None;
+    if let Ok(conn) = Connection::open(&db_path) {
+        if let Ok(mappings_str) = conn.query_row(
+            "SELECT mappings FROM export_settings LIMIT 1",
+            [],
+            |row| row.get::<_, String>(0)
+        ) {
+            if let Ok(mappings) = serde_json::from_str::<serde_json::Value>(&mappings_str) {
+                if let Some(custom_path) = mappings.get("backupLocation").and_then(|v| v.as_str()) {
+                    let trim_path = custom_path.trim();
+                    if !trim_path.is_empty() {
+                        custom_backups_dir = Some(PathBuf::from(trim_path));
+                    }
+                }
+            }
+        }
+    }
+    
+    let backups_dir = custom_backups_dir.unwrap_or_else(|| {
+        let app_dir = db_path.parent().unwrap();
+        app_dir.join("backups")
+    });
+    
     if let Err(e) = fs::create_dir_all(&backups_dir) {
         error!("Failed to create backups directory: {}", e);
         return;
