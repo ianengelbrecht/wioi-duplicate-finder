@@ -21,8 +21,11 @@ export function coordsToQDS(latitude, longitude) {
   latitude = Number(latitude)
   longitude = Number(longitude) // not really necessary
 
-  //QDS are only valid in southern Africa, but we'll be liberal and allow south of the equator
-  if (latitude > 0.0 || longitude < 8.6 || longitude > 42.8) {
+  const westernLimit = 8.6; // Angola
+  const easternLimit = 63.7; // Rodrigues
+
+  //QDS are only valid in southern Africa, but we'll be liberal and allow further afield for now
+  if (latitude > 0.0 || longitude < westernLimit || longitude > easternLimit) {
     return null
   }
 
