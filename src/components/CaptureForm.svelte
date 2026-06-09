@@ -1077,6 +1077,7 @@
           suggestions={collectorSuggestions}
           oninput={handleCollectorInput}
           delay={300}
+          promptNewAgent={true}
         />
       </div>
       <div class="col-span-2">

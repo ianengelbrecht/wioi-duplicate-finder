@@ -54,6 +54,9 @@
   let inputRef = $state(/** @type {any} */ (null));
   /** @type {any} */
   let timeoutId = null;
+  /** @type {any} */
+  let blurTimeoutId = null;
+  let isChecking = $state(false);
 
   function handleInput(/** @type {any} */ e) {
     inputValue = e.target.value;
@@ -70,11 +73,34 @@
     }
   }
 
+  function clearBlurTimeout() {
+    if (blurTimeoutId) {
+      clearTimeout(blurTimeoutId);
+      blurTimeoutId = null;
+    }
+  }
+
+  function handleBlur() {
+    clearBlurTimeout();
+    blurTimeoutId = setTimeout(async () => {
+      if (isChecking) return;
+      const val = inputValue.trim();
+      if (val) {
+        await selectSuggestion(val, true);
+      }
+    }, 200);
+  }
+
   onDestroy(() => {
     if (timeoutId) clearTimeout(timeoutId);
+    clearBlurTimeout();
   });
 
   async function selectSuggestion(/** @type {string} */ sug, /** @type {boolean} */ isCustom = false) {
+    clearBlurTimeout();
+    const prevChecking = isChecking;
+    isChecking = true;
+
     if (sug && !selectedValues.includes(sug)) {
       if (isCustom) {
         try {
@@ -82,9 +108,10 @@
           if (!exists) {
             const confirmed = await confirmNewName(sug);
             if (!confirmed) {
-              return;
+              // Do not return; still add it to selectedValues.
+            } else {
+              await invoke("add_agent", { name: sug });
             }
-            await invoke("add_agent", { name: sug });
           }
         } catch (err) {
           console.error("Error checking or adding agent:", err);
@@ -96,6 +123,11 @@
     showDropdown = false;
     activeIndex = -1;
     oninput(""); // Clear suggestions in parent!
+
+    setTimeout(() => {
+      isChecking = prevChecking;
+    }, 250);
+
     if (inputRef) inputRef.focus();
   }
 
@@ -240,10 +272,9 @@
       const exists = await invoke("check_agent_exists", { name: trimmed });
       if (!exists) {
         const confirmed = await confirmNewName(trimmed);
-        if (!confirmed) {
-          return;
+        if (confirmed) {
+          await invoke("add_agent", { name: trimmed });
         }
-        await invoke("add_agent", { name: trimmed });
       }
     } catch (err) {
       console.error("Error checking or adding agent:", err);
@@ -344,6 +375,7 @@
       value={inputValue}
       oninput={handleInput}
       onkeydown={handleKeyDown}
+      onblur={handleBlur}
       onfocus={() => { if (suggestions.length > 0) showDropdown = true; }}
       class="flex-1 bg-transparent text-slate-800 text-sm py-1 outline-none min-w-[120px]"
       autocomplete="off"

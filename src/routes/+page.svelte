@@ -1010,7 +1010,7 @@
                             {:else}
                               <span 
                                 onclick={(e) => startEditing(ses, e)}
-                                class="text-sm font-semibold text-slate-900 block cursor-pointer hover:text-slate-600 hover:underline"
+                                class="text-sm font-semibold text-slate-900 block cursor-text hover:text-slate-600 hover:underline w-fit"
                                 title="Click to rename"
                               >
                                 {ses.name}
