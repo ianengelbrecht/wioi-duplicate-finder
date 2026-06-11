@@ -137,7 +137,7 @@
   "taxa-count": "Taxons",
   "search-collector-placeholder": "Partiel ex. 'Raza' (sans initiales)",
   "search-collector-num-placeholder": "ex. 1042",
-  "search-family-placeholder": "ex. Malvaceae",
+  "search-family-placeholder": "ex. 'mal' pour Malvaceae",
   "search-scientific-name-placeholder": "Recherche partielle ex. 'ab man'",
   "search-country-placeholder": "Partiel ex. Mad",
   "search-admin2-placeholder": "Partiel ex. 'Itas'",

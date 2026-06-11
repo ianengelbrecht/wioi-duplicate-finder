@@ -295,7 +295,7 @@
             id="search-family"
             data-i18n-key="search-family-placeholder"
             type="text"
-            placeholder={t("search-family-placeholder", "e.g. Malvaceae")}
+            placeholder={t("search-family-placeholder", "eg 'mal' for Malvaceae")}
             bind:value={filters.family}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />

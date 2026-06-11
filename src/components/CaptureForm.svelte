@@ -1552,7 +1552,18 @@
       </div>
 
       <div>
-        <label for="capture-verbatimCoordinates" data-i18n-key="verbatim-coordinates-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("verbatim-coordinates-label", "Verbatim Coordinates")}</label>
+        <label for="capture-verbatimCoordinates" data-i18n-key="verbatim-coordinates-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+          <div class="flex justify-between">
+            <span>
+              {t("verbatim-coordinates-label", "Verbatim Coordinates")}
+            </span>
+            <span class="text-[70%] text-slate-650 flex items-end">
+              {#if form.decimalLatitude && form.decimalLongitude}
+                {(Number(form.decimalLatitude)).toFixed(6)}, {(Number(form.decimalLongitude)).toFixed(6)}
+              {/if}
+            </span>
+          </div>
+        </label>
         <input
           id="capture-verbatimCoordinates"
           data-i18n-key="verbatim-coordinates-placeholder"
