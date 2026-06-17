@@ -903,13 +903,13 @@
         >
           FR
         </button>
-        <!-- <button
+        <button
           type="button"
           onclick={() => currentLanguage = "PT"}
           class="px-2.5 py-1.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {currentLanguage === 'PT' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-650'}"
         >
           PT
-        </button> -->
+        </button>
         <button
           type="button"
           onclick={() => currentLanguage = "MG"}
@@ -1307,23 +1307,20 @@
                     {t("choose-folder-btn", "Choose Folder")}
                   </button>
                 </div>
-                <p class="text-[10px] text-slate-500 italic mt-0.5">
-                  {t("backup-location-help", "If left empty, the default location is used:")} {defaultBackupLocation || "Loading default..."}
-                </p>
-                <div class="flex gap-2 mt-2 pt-1">
-                  <button
-                    type="button"
-                    onclick={handleManualBackup}
-                    class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors cursor-pointer"
-                  >
-                    {t("backup-now-btn", "Back Up Now")}
-                  </button>
+                <div class="flex justify-end gap-2 mt-2 pt-1">
                   <button
                     type="button"
                     onclick={handleRestoreBackup}
-                    class="bg-rose-700 hover:bg-rose-800 text-white px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors cursor-pointer"
+                    class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors cursor-pointer"
                   >
                     {t("restore-backup-btn", "Restore Backup")}
+                  </button>
+                  <button
+                    type="button"
+                    onclick={handleManualBackup}
+                    class="bg-slate-100 hover:bg-slate-200 text-slate-700  px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors cursor-pointer"
+                  >
+                    {t("backup-now-btn", "Back Up Now")}
                   </button>
                 </div>
                 {#if manualBackupMessage}

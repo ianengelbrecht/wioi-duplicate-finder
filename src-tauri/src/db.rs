@@ -329,7 +329,9 @@ fn run_migrations(conn: &Connection) -> Result<()> {
             dayIdentified INTEGER,
             identificationRemarks TEXT,
             normalized_scientific_name TEXT,
-            normalized_locality TEXT
+            normalized_locality TEXT,
+            fieldNumber TEXT,
+            cleanedFieldNumber TEXT
         );",
         [],
     )?;
@@ -343,6 +345,26 @@ fn run_migrations(conn: &Connection) -> Result<()> {
     
     if !col_exists {
         let _ = conn.execute("ALTER TABLE gbif ADD COLUMN normalized_locality TEXT", []);
+    }
+
+    let fn_exists: bool = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('gbif') WHERE name='fieldNumber'",
+        [],
+        |r| r.get::<_, i32>(0).map(|c| c > 0)
+    ).unwrap_or(false);
+    
+    if !fn_exists {
+        let _ = conn.execute("ALTER TABLE gbif ADD COLUMN fieldNumber TEXT", []);
+    }
+
+    let cfn_exists: bool = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('gbif') WHERE name='cleanedFieldNumber'",
+        [],
+        |r| r.get::<_, i32>(0).map(|c| c > 0)
+    ).unwrap_or(false);
+    
+    if !cfn_exists {
+        let _ = conn.execute("ALTER TABLE gbif ADD COLUMN cleanedFieldNumber TEXT", []);
     }
 
 
@@ -508,14 +530,20 @@ fn run_migrations(conn: &Connection) -> Result<()> {
     conn.execute("CREATE INDEX IF NOT EXISTS idx_wcvp_taxonomy_parent_plant_name_id ON wcvp_taxonomy(parent_plant_name_id);", [])?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_wcvp_taxonomy_taxon_name ON wcvp_taxonomy(taxon_name);", [])?;
 
-    // Drop gbif_fts and recreate if it does not have the normalized_locality column
+    // Drop gbif_fts and recreate if it does not have the normalized_locality or cleanedFieldNumber column
     let fts_col_exists: bool = conn.query_row(
         "SELECT COUNT(*) FROM pragma_table_info('gbif_fts') WHERE name='normalized_locality'",
         [],
         |r| r.get::<_, i32>(0).map(|c| c > 0)
     ).unwrap_or(false);
     
-    if !fts_col_exists {
+    let fts_cfn_exists: bool = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('gbif_fts') WHERE name='cleanedFieldNumber'",
+        [],
+        |r| r.get::<_, i32>(0).map(|c| c > 0)
+    ).unwrap_or(false);
+    
+    if !fts_col_exists || !fts_cfn_exists {
         let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ai", []);
         let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ad", []);
         let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_au", []);
@@ -531,6 +559,7 @@ fn run_migrations(conn: &Connection) -> Result<()> {
             scientificName,
             normalized_scientific_name,
             normalized_locality,
+            cleanedFieldNumber,
             content='gbif',
             content_rowid='gbifID'
         );",
@@ -565,6 +594,69 @@ fn run_migrations(conn: &Connection) -> Result<()> {
 }
 
 fn recreate_gbif_triggers(conn: &Connection) -> Result<()> {
+    // Drop old triggers to make sure they are clean
+    let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_cfn_insert", []);
+    let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_cfn_update", []);
+    let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ai", []);
+    let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ad", []);
+    let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_au", []);
+
+    // Trigger to populate cleanedFieldNumber on insert
+    conn.execute(
+        "CREATE TRIGGER IF NOT EXISTS gbif_cfn_insert AFTER INSERT ON gbif BEGIN
+            UPDATE gbif
+            SET cleanedFieldNumber = (
+                WITH RECURSIVE char_pos(pos, digit_seq, in_digit) AS (
+                    SELECT 1, 
+                           CASE WHEN substr(NEW.fieldNumber, 1, 1) GLOB '[0-9]' THEN substr(NEW.fieldNumber, 1, 1) ELSE '' END,
+                           CASE WHEN substr(NEW.fieldNumber, 1, 1) GLOB '[0-9]' THEN 1 ELSE 0 END
+                    UNION ALL
+                    SELECT pos + 1,
+                           CASE 
+                             WHEN substr(NEW.fieldNumber, pos + 1, 1) GLOB '[0-9]' THEN 
+                               CASE WHEN in_digit THEN digit_seq || substr(NEW.fieldNumber, pos + 1, 1) ELSE digit_seq || ' ' || substr(NEW.fieldNumber, pos + 1, 1) END
+                             ELSE 
+                               digit_seq
+                           END,
+                           CASE WHEN substr(NEW.fieldNumber, pos + 1, 1) GLOB '[0-9]' THEN 1 ELSE 0 END
+                    FROM char_pos
+                    WHERE pos < length(NEW.fieldNumber)
+                )
+                SELECT trim(digit_seq) FROM char_pos ORDER BY pos DESC LIMIT 1
+            )
+            WHERE gbifID = NEW.gbifID;
+        END;",
+        [],
+    )?;
+
+    // Trigger to update cleanedFieldNumber on fieldNumber update
+    conn.execute(
+        "CREATE TRIGGER IF NOT EXISTS gbif_cfn_update AFTER UPDATE OF fieldNumber ON gbif BEGIN
+            UPDATE gbif
+            SET cleanedFieldNumber = (
+                WITH RECURSIVE char_pos(pos, digit_seq, in_digit) AS (
+                    SELECT 1, 
+                           CASE WHEN substr(NEW.fieldNumber, 1, 1) GLOB '[0-9]' THEN substr(NEW.fieldNumber, 1, 1) ELSE '' END,
+                           CASE WHEN substr(NEW.fieldNumber, 1, 1) GLOB '[0-9]' THEN 1 ELSE 0 END
+                    UNION ALL
+                    SELECT pos + 1,
+                           CASE 
+                             WHEN substr(NEW.fieldNumber, pos + 1, 1) GLOB '[0-9]' THEN 
+                               CASE WHEN in_digit THEN digit_seq || substr(NEW.fieldNumber, pos + 1, 1) ELSE digit_seq || ' ' || substr(NEW.fieldNumber, pos + 1, 1) END
+                             ELSE 
+                               digit_seq
+                           END,
+                           CASE WHEN substr(NEW.fieldNumber, pos + 1, 1) GLOB '[0-9]' THEN 1 ELSE 0 END
+                    FROM char_pos
+                    WHERE pos < length(NEW.fieldNumber)
+                )
+                SELECT trim(digit_seq) FROM char_pos ORDER BY pos DESC LIMIT 1
+            )
+            WHERE gbifID = NEW.gbifID;
+        END;",
+        [],
+    )?;
+
     conn.execute(
         "CREATE TRIGGER IF NOT EXISTS gbif_ai AFTER INSERT ON gbif BEGIN
             INSERT INTO gbif_fts(
@@ -574,7 +666,8 @@ fn recreate_gbif_triggers(conn: &Connection) -> Result<()> {
                 verbatimLocality,
                 scientificName,
                 normalized_scientific_name,
-                normalized_locality
+                normalized_locality,
+                cleanedFieldNumber
             )
             VALUES (
                 new.gbifID,
@@ -583,7 +676,8 @@ fn recreate_gbif_triggers(conn: &Connection) -> Result<()> {
                 new.verbatimLocality,
                 new.scientificName,
                 new.normalized_scientific_name,
-                new.normalized_locality
+                new.normalized_locality,
+                new.cleanedFieldNumber
             );
         END;",
         [],
@@ -599,7 +693,8 @@ fn recreate_gbif_triggers(conn: &Connection) -> Result<()> {
                 verbatimLocality,
                 scientificName,
                 normalized_scientific_name,
-                normalized_locality
+                normalized_locality,
+                cleanedFieldNumber
             )
             VALUES (
                 'delete',
@@ -609,14 +704,15 @@ fn recreate_gbif_triggers(conn: &Connection) -> Result<()> {
                 old.verbatimLocality,
                 old.scientificName,
                 old.normalized_scientific_name,
-                old.normalized_locality
+                old.normalized_locality,
+                old.cleanedFieldNumber
             );
         END;",
         [],
     )?;
 
     conn.execute(
-        "CREATE TRIGGER IF NOT EXISTS gbif_au AFTER UPDATE ON gbif BEGIN
+        "CREATE TRIGGER IF NOT EXISTS gbif_au AFTER UPDATE OF locality, locationRemarks, verbatimLocality, scientificName, normalized_scientific_name, normalized_locality, cleanedFieldNumber ON gbif BEGIN
             INSERT INTO gbif_fts(
                 gbif_fts,
                 rowid,
@@ -625,7 +721,8 @@ fn recreate_gbif_triggers(conn: &Connection) -> Result<()> {
                 verbatimLocality,
                 scientificName,
                 normalized_scientific_name,
-                normalized_locality
+                normalized_locality,
+                cleanedFieldNumber
             )
             VALUES (
                 'delete',
@@ -635,7 +732,8 @@ fn recreate_gbif_triggers(conn: &Connection) -> Result<()> {
                 old.verbatimLocality,
                 old.scientificName,
                 old.normalized_scientific_name,
-                old.normalized_locality
+                old.normalized_locality,
+                old.cleanedFieldNumber
             );
 
             INSERT INTO gbif_fts(
@@ -645,7 +743,8 @@ fn recreate_gbif_triggers(conn: &Connection) -> Result<()> {
                 verbatimLocality,
                 scientificName,
                 normalized_scientific_name,
-                normalized_locality
+                normalized_locality,
+                cleanedFieldNumber
             )
             VALUES (
                 new.gbifID,
@@ -654,7 +753,8 @@ fn recreate_gbif_triggers(conn: &Connection) -> Result<()> {
                 new.verbatimLocality,
                 new.scientificName,
                 new.normalized_scientific_name,
-                new.normalized_locality
+                new.normalized_locality,
+                new.cleanedFieldNumber
             );
         END;",
         [],
@@ -782,6 +882,55 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
             
             tx.commit()?;
         }
+        
+        // Recreate the triggers
+        recreate_gbif_triggers(conn)?;
+        
+        info!("Rebuilding FTS5 full-text index for gbif...");
+        conn.execute("INSERT INTO gbif_fts(gbif_fts) VALUES('rebuild');", [])?;
+        info!("Rebuilt FTS5 index successfully!");
+    }
+
+    // 1c. Check if gbif has un-normalized cleaned field numbers
+    let count_cfn: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM gbif WHERE fieldNumber IS NOT NULL AND fieldNumber != '' AND (cleanedFieldNumber IS NULL OR cleanedFieldNumber = '')",
+        [],
+        |r| r.get(0)
+    ).unwrap_or(0);
+
+    if count_cfn > 0 {
+        info!("Detected {} un-normalized field numbers in gbif. Normalizing...", count_cfn);
+        
+        // Temporarily drop triggers to make updates lightning fast
+        let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ai", []);
+        let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ad", []);
+        let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_au", []);
+        let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_cfn_insert", []);
+        let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_cfn_update", []);
+        
+        conn.execute(
+            "UPDATE gbif SET cleanedFieldNumber = (
+                WITH RECURSIVE char_pos(pos, digit_seq, in_digit) AS (
+                    SELECT 1, 
+                           CASE WHEN substr(fieldNumber, 1, 1) GLOB '[0-9]' THEN substr(fieldNumber, 1, 1) ELSE '' END,
+                           CASE WHEN substr(fieldNumber, 1, 1) GLOB '[0-9]' THEN 1 ELSE 0 END
+                    UNION ALL
+                    SELECT pos + 1,
+                           CASE 
+                             WHEN substr(fieldNumber, pos + 1, 1) GLOB '[0-9]' THEN 
+                               CASE WHEN in_digit THEN digit_seq || substr(fieldNumber, pos + 1, 1) ELSE digit_seq || ' ' || substr(fieldNumber, pos + 1, 1) END
+                             ELSE 
+                               digit_seq
+                           END,
+                           CASE WHEN substr(fieldNumber, pos + 1, 1) GLOB '[0-9]' THEN 1 ELSE 0 END
+                    FROM char_pos
+                    WHERE pos < length(fieldNumber)
+                )
+                SELECT trim(digit_seq) FROM char_pos ORDER BY pos DESC LIMIT 1
+            )
+            WHERE fieldNumber IS NOT NULL AND fieldNumber != '' AND (cleanedFieldNumber IS NULL OR cleanedFieldNumber = '');",
+            [],
+        )?;
         
         // Recreate the triggers
         recreate_gbif_triggers(conn)?;

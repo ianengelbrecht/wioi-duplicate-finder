@@ -138,6 +138,24 @@ fn get_sessions(app: AppHandle, user_id: i32) -> Result<Vec<serde_json::Value>, 
     Ok(list)
 }
 
+
+fn extract_digits(s: &str) -> String {
+    let mut result = String::new();
+    let mut in_digit = false;
+    for c in s.chars() {
+        if c.is_ascii_digit() {
+            if !in_digit && !result.is_empty() {
+                result.push(' ');
+            }
+            result.push(c);
+            in_digit = true;
+        } else {
+            in_digit = false;
+        }
+    }
+    result
+}
+
 #[tauri::command]
 fn search_reference(app: AppHandle, filters: serde_json::Value) -> Result<Vec<serde_json::Value>, String> {
     let db_path = get_db_path(&app);
@@ -217,7 +235,7 @@ fn search_reference(app: AppHandle, filters: serde_json::Value) -> Result<Vec<se
                 scientificName, family, country, stateProvince, year, month, day,
                 identificationQualifier, collectionCode, decimalLatitude, decimalLongitude,
                 verbatimCoordinates, verbatimElevation, elevation, habitat, occurrenceRemarks,
-                fieldNotes
+                fieldNotes, fieldNumber
          FROM gbif WHERE 1=1"
     );
     let mut params_vec: Vec<serde_json::Value> = Vec::new();
@@ -228,8 +246,39 @@ fn search_reference(app: AppHandle, filters: serde_json::Value) -> Result<Vec<se
         params_vec.push(json!(format!("{}%", normalized)));
     }
     if has_record_number {
-        sql.push_str(" AND recordNumber = ?");
-        params_vec.push(json!(record_number));
+        let digits = extract_digits(record_number);
+        if !digits.is_empty() {
+            let terms: Vec<&str> = digits.split_whitespace().collect();
+            
+            let mut fts_clauses = Vec::new();
+            for term in &terms {
+                fts_clauses.push(format!("cleanedFieldNumber:{}", term));
+            }
+            let fts_query = fts_clauses.join(" AND ");
+
+            let mut fn_clauses = Vec::new();
+            for _ in &terms {
+                fn_clauses.push("fieldNotes LIKE ?");
+            }
+            let fn_clause_str = fn_clauses.join(" AND ");
+
+            sql.push_str(" AND (recordNumber = ? OR gbifID IN (SELECT rowid FROM gbif_fts WHERE gbif_fts MATCH ?)");
+            if !fn_clause_str.is_empty() {
+                sql.push_str(" OR (");
+                sql.push_str(&fn_clause_str);
+                sql.push_str(")");
+            }
+            sql.push_str(")");
+
+            params_vec.push(json!(record_number));
+            params_vec.push(json!(fts_query));
+            for term in &terms {
+                params_vec.push(json!(format!("%{}%", term)));
+            }
+        } else {
+            sql.push_str(" AND recordNumber = ?");
+            params_vec.push(json!(record_number));
+        }
     }
     if has_family {
         sql.push_str(" AND family LIKE ? COLLATE NOCASE");
@@ -330,6 +379,7 @@ fn search_reference(app: AppHandle, filters: serde_json::Value) -> Result<Vec<se
         let habitat: Option<String> = row.get(19)?;
         let occurrence_remarks: Option<String> = row.get(20)?;
         let field_notes: Option<String> = row.get(21)?;
+        let field_number: Option<String> = row.get(22)?;
         
         Ok(json!({
             "id": serde_json::Value::Null,
@@ -358,6 +408,7 @@ fn search_reference(app: AppHandle, filters: serde_json::Value) -> Result<Vec<se
             "habitat": habitat.unwrap_or_default(),
             "occurrenceRemarks": occurrence_remarks.unwrap_or_default(),
             "fieldNotes": field_notes.unwrap_or_default(),
+            "fieldNumber": field_number.unwrap_or_default(),
         }))
     }).map_err(|e| e.to_string())?;
     

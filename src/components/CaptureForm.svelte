@@ -1557,7 +1557,7 @@
             <span>
               {t("verbatim-coordinates-label", "Verbatim Coordinates")}
             </span>
-            <span class="text-[70%] text-slate-650 flex items-end">
+            <span class="text-[70%] text-slate-400 flex items-end">
               {#if form.decimalLatitude && form.decimalLongitude}
                 {(Number(form.decimalLatitude)).toFixed(6)}, {(Number(form.decimalLongitude)).toFixed(6)}
               {/if}

@@ -455,6 +455,9 @@
                   {#if rec.recordNumber}
                     <span class="text-[10px] text-slate-400 font-semibold block">#{rec.recordNumber}</span>
                   {/if}
+                  {#if rec.fieldNumber}
+                    <span class="text-[10px] text-slate-400 font-semibold block truncate">({rec.fieldNumber})</span>
+                  {/if}
                 </td>
                 
                 <!-- Scientific Name -->
