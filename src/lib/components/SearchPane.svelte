@@ -1,7 +1,8 @@
 <script>
   import { getContext } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
   import Autocomplete from "./Autocomplete.svelte";
+  import { geographyService } from "../services/geographyService.js";
+  import { taxonomyService } from "../services/taxonomyService.js";
 
   const t = getContext("t");
 
@@ -75,13 +76,7 @@
       return;
     }
     try {
-      countrySuggestions = /** @type {any[]} */ (await invoke("autocomplete_geography", {
-        field: "country",
-        query: val,
-        country: "",
-        stateProvince: "",
-        county: ""
-      }));
+      countrySuggestions = await geographyService.autocompleteGeography("country", val, "", "", "");
     } catch (e) {
       console.error(e);
     }
@@ -93,13 +88,7 @@
       return;
     }
     try {
-      stateProvinceSuggestions = /** @type {any[]} */ (await invoke("autocomplete_geography", {
-        field: "stateProvince",
-        query: val,
-        country: filters.country,
-        stateProvince: "",
-        county: ""
-      }));
+      stateProvinceSuggestions = await geographyService.autocompleteGeography("stateProvince", val, filters.country, "", "");
     } catch (e) {
       console.error(e);
     }
@@ -119,8 +108,8 @@
     searchFilters.day = filters.day !== "" ? parseInt(filters.day) : null;
     
     try {
-      let data = await invoke("search_reference", { filters: searchFilters });
-      results = /** @type {any[]} */ (data);
+      let data = await taxonomyService.searchReference(searchFilters);
+      results = data;
       if (results.length === 0) {
         searchMessage = t("search-no-results", "No matches found.");
       } else if (results.length >= 250) {
@@ -195,7 +184,7 @@
 
   async function fetchCounts() {
     try {
-      const counts = /** @type {any} */ (await invoke("get_table_counts"));
+      const counts = await geographyService.getTableCounts();
       gbifCount = counts.gbif;
       wcvpCount = counts.wcvp;
     } catch (e) {

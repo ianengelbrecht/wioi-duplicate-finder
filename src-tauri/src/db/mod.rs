@@ -5,11 +5,9 @@ use std::fs;
 use pbkdf2::pbkdf2_hmac_array;
 use sha2::Sha256;
 use chrono::{Local, NaiveDate, NaiveDateTime};
-use serde_json;
-
-
-use crate::parser::{normalize_taxon_name, normalize_locality, normalize_search_recorded_by};
 use log::{info, warn, error};
+
+use crate::parsers::{normalize_taxon_name, normalize_locality, normalize_search_recorded_by, split_names};
 
 /// Encodes binary data to standard hex string.
 pub fn to_hex(bytes: &[u8]) -> String {
@@ -34,6 +32,19 @@ pub fn get_db_path(app: &AppHandle) -> PathBuf {
     // Ensure the app directory exists
     let _ = fs::create_dir_all(&app_dir);
     app_dir.join("reference.db")
+}
+
+/// Factory function to open a SQLite database connection with custom pragmas.
+pub fn get_connection(app: &AppHandle) -> std::result::Result<Connection, String> {
+    let db_path = get_db_path(app);
+    let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+    
+    // Always enable WAL, normal synchronous mode, and foreign keys
+    let _ = conn.execute("PRAGMA journal_mode=WAL;", []);
+    let _ = conn.execute("PRAGMA synchronous=NORMAL;", []);
+    conn.execute("PRAGMA foreign_keys=ON;", []).map_err(|e| e.to_string())?;
+    
+    Ok(conn)
 }
 
 fn get_last_quick_check_date(conn: &Connection) -> Option<NaiveDate> {
@@ -62,7 +73,6 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
     let db_path = get_db_path(app);
     
     if !db_path.exists() {
-        // Option 1: Try copying the bundled resource database
         if let Ok(resource_path) = app.path().resource_dir().map(|p| p.join("resources/reference.db")) {
             if resource_path.exists() {
                 if let Err(err) = fs::copy(&resource_path, &db_path) {
@@ -79,11 +89,7 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
     }
     
     info!("Opened database at absolute path: {:?}", db_path);
-    let mut conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
-    
-    // Enable WAL journal mode & normal synchronous for performance and resilience
-    let _ = conn.execute("PRAGMA journal_mode=WAL;", []);
-    let _ = conn.execute("PRAGMA synchronous=NORMAL;", []);
+    let mut conn = get_connection(app)?;
     
     // Ensure app_metadata table exists so we can store quick check datetime
     let _ = conn.execute(
@@ -141,7 +147,7 @@ pub fn shutdown_database(app: &AppHandle) {
     if !db_path.exists() {
         return;
     }
-    if let Ok(conn) = Connection::open(&db_path) {
+    if let Ok(conn) = get_connection(app) {
         info!("Running database optimization and integrity checks on shutdown...");
         let _ = conn.execute("PRAGMA optimize;", []);
         
@@ -242,7 +248,7 @@ pub fn perform_database_backup(app: &AppHandle) {
     }
     
     let mut custom_backups_dir = None;
-    if let Ok(conn) = Connection::open(&db_path) {
+    if let Ok(conn) = get_connection(app) {
         if let Ok(mappings_str) = conn.query_row(
             "SELECT mappings FROM export_settings LIMIT 1",
             [],
@@ -367,7 +373,6 @@ fn run_migrations(conn: &Connection) -> Result<()> {
         let _ = conn.execute("ALTER TABLE gbif ADD COLUMN cleanedFieldNumber TEXT", []);
     }
 
-
     conn.execute(
         "CREATE TABLE IF NOT EXISTS wcvp_taxonomy (
             plant_name_id TEXT,
@@ -429,10 +434,7 @@ fn run_migrations(conn: &Connection) -> Result<()> {
         [],
     )?;
 
-    // Add last_exported_at column to sessions if it doesn't exist
     let _ = conn.execute("ALTER TABLE sessions ADD COLUMN last_exported_at TEXT", []);
-
-    // Add cultivated column to captured_records if it doesn't exist
     let _ = conn.execute("ALTER TABLE captured_records ADD COLUMN cultivated INTEGER DEFAULT 0", []);
 
     conn.execute(
@@ -500,14 +502,6 @@ fn run_migrations(conn: &Connection) -> Result<()> {
         [],
     )?;
 
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS app_metadata (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        );",
-        [],
-    )?;
-
     // Create standard indexes for query optimization
     conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_recordNumber ON gbif(recordNumber);", [])?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_year ON gbif(year);", [])?;
@@ -550,7 +544,7 @@ fn run_migrations(conn: &Connection) -> Result<()> {
         let _ = conn.execute("DROP TABLE IF EXISTS gbif_fts", []);
     }
 
-    // 3. FTS5 Virtual Tables setup for gbif table (external content content-rowid mapped for maximum index efficiency)
+    // 3. FTS5 Virtual Tables setup for gbif table
     conn.execute(
         "CREATE VIRTUAL TABLE IF NOT EXISTS gbif_fts USING fts5(
             locality,
@@ -566,7 +560,6 @@ fn run_migrations(conn: &Connection) -> Result<()> {
         [],
     )?;
 
-    // Create FTS triggers to automatically index inserts/deletes/updates to gbif
     recreate_gbif_triggers(conn)?;
 
     // 4. FTS5 Virtual Table for wcvp_taxonomy table
@@ -594,14 +587,12 @@ fn run_migrations(conn: &Connection) -> Result<()> {
 }
 
 fn recreate_gbif_triggers(conn: &Connection) -> Result<()> {
-    // Drop old triggers to make sure they are clean
     let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_cfn_insert", []);
     let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_cfn_update", []);
     let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ai", []);
     let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ad", []);
     let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_au", []);
 
-    // Trigger to populate cleanedFieldNumber on insert
     conn.execute(
         "CREATE TRIGGER IF NOT EXISTS gbif_cfn_insert AFTER INSERT ON gbif BEGIN
             UPDATE gbif
@@ -629,7 +620,6 @@ fn recreate_gbif_triggers(conn: &Connection) -> Result<()> {
         [],
     )?;
 
-    // Trigger to update cleanedFieldNumber on fieldNumber update
     conn.execute(
         "CREATE TRIGGER IF NOT EXISTS gbif_cfn_update AFTER UPDATE OF fieldNumber ON gbif BEGIN
             UPDATE gbif
@@ -799,14 +789,12 @@ fn recreate_wcvp_triggers(conn: &Connection) -> Result<()> {
 }
 
 pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
-    // 1. Check if gbif has un-normalized records (ignoring nulls and empty strings)
     let count_gbif: i64 = conn.query_row(
         "SELECT COUNT(*) FROM gbif WHERE scientificName IS NOT NULL AND scientificName != '' AND (normalized_scientific_name IS NULL OR normalized_scientific_name = '')",
         [],
         |r| r.get(0)
     )?;
     
-    // 1b. Check if gbif has un-normalized localities (ignoring nulls and empty strings)
     let count_locality: i64 = conn.query_row(
         "SELECT COUNT(*) FROM gbif WHERE (normalized_locality IS NULL OR normalized_locality = '') AND (locality IS NOT NULL AND locality != '' OR locationRemarks IS NOT NULL AND locationRemarks != '' OR verbatimLocality IS NOT NULL AND verbatimLocality != '')",
         [],
@@ -816,12 +804,10 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
     if count_gbif > 0 || count_locality > 0 {
         info!("Detected un-normalized data in gbif ({} names, {} localities). Normalizing...", count_gbif, count_locality);
         
-        // Temporarily drop FTS triggers to make updates lightning fast
         let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ai", []);
         let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ad", []);
         let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_au", []);
         
-        // Gather scientific names updates
         let mut updates_names = Vec::new();
         if count_gbif > 0 {
             let mut stmt = conn.prepare(
@@ -837,7 +823,6 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
             }
         }
         
-        // Gather locality updates
         let mut updates_locality = Vec::new();
         if count_locality > 0 {
             let mut stmt = conn.prepare(
@@ -862,7 +847,6 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
             }
         }
         
-        // Apply updates in a single transaction
         {
             let tx = conn.transaction()?;
             
@@ -883,7 +867,6 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
             tx.commit()?;
         }
         
-        // Recreate the triggers
         recreate_gbif_triggers(conn)?;
         
         info!("Rebuilding FTS5 full-text index for gbif...");
@@ -891,7 +874,6 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
         info!("Rebuilt FTS5 index successfully!");
     }
 
-    // 1c. Check if gbif has un-normalized cleaned field numbers
     let count_cfn: i64 = conn.query_row(
         "SELECT COUNT(*) FROM gbif WHERE fieldNumber IS NOT NULL AND fieldNumber != '' AND (cleanedFieldNumber IS NULL OR cleanedFieldNumber = '')",
         [],
@@ -901,7 +883,6 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
     if count_cfn > 0 {
         info!("Detected {} un-normalized field numbers in gbif. Normalizing...", count_cfn);
         
-        // Temporarily drop triggers to make updates lightning fast
         let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ai", []);
         let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ad", []);
         let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_au", []);
@@ -932,7 +913,6 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
             [],
         )?;
         
-        // Recreate the triggers
         recreate_gbif_triggers(conn)?;
         
         info!("Rebuilding FTS5 full-text index for gbif...");
@@ -940,7 +920,6 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
         info!("Rebuilt FTS5 index successfully!");
     }
     
-    // 2. Check if wcvp_taxonomy has un-normalized records
     let count_wcvp: i64 = conn.query_row(
         "SELECT COUNT(*) FROM wcvp_taxonomy WHERE taxon_name IS NOT NULL AND taxon_name != '' AND (normalized_taxon_name IS NULL OR normalized_taxon_name = '')",
         [],
@@ -950,7 +929,6 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
     if count_wcvp > 0 {
         info!("Detected {} un-normalized taxa in wcvp_taxonomy. Normalizing...", count_wcvp);
         
-        // Drop triggers to speed up bulk updates
         let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_ai", []);
         let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_ad", []);
         let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_au", []);
@@ -981,7 +959,6 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
             tx.commit()?;
         }
         
-        // Recreate the triggers
         recreate_wcvp_triggers(conn)?;
         
         info!("Rebuilding FTS5 full-text index for wcvp_taxonomy...");
@@ -992,49 +969,7 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
     Ok(())
 }
 
-fn is_initials(s: &str) -> bool {
-    let tokens: Vec<&str> = s.split(|c| c == ' ' || c == '.').filter(|t| !t.is_empty()).collect();
-    if tokens.is_empty() {
-        return false;
-    }
-    tokens.iter().all(|t| t.chars().count() == 1)
-}
-
-pub fn split_names(raw_str: &str) -> Vec<String> {
-    let raw_str = raw_str.trim();
-    if raw_str.is_empty() {
-        return Vec::new();
-    }
-
-    let parts = if raw_str.contains('|') {
-        raw_str.split('|').map(|s| s.to_string()).collect()
-    } else if raw_str.contains(';') {
-        raw_str.split(';').map(|s| s.to_string()).collect()
-    } else if raw_str.contains(',') {
-        let comma_count = raw_str.matches(',').count();
-        if comma_count == 1 {
-            let temp_parts: Vec<&str> = raw_str.split(',').collect();
-            let part_after = temp_parts[1].trim();
-            if is_initials(part_after) {
-                vec![raw_str.to_string()]
-            } else {
-                temp_parts.iter().map(|s| s.to_string()).collect()
-            }
-        } else {
-            raw_str.split(',').map(|s| s.to_string()).collect()
-        }
-    } else {
-        vec![raw_str.to_string()]
-    };
-
-    parts.into_iter()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .collect()
-}
-
 pub fn populate_agents_table(conn: &mut Connection) -> std::result::Result<(), String> {
-    // Check if agents table is empty
     let count: i64 = conn.query_row("SELECT COUNT(*) FROM agents", [], |r| r.get(0)).map_err(|e| e.to_string())?;
     if count > 0 {
         return Ok(());
@@ -1045,7 +980,6 @@ pub fn populate_agents_table(conn: &mut Connection) -> std::result::Result<(), S
     let mut agents = std::collections::HashSet::new();
 
     {
-        // Fetch all non-null recordedBy and identifiedBy values from gbif
         let mut stmt = conn.prepare("SELECT DISTINCT recordedBy, identifiedBy FROM gbif").map_err(|e| e.to_string())?;
         let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
 
@@ -1066,7 +1000,6 @@ pub fn populate_agents_table(conn: &mut Connection) -> std::result::Result<(), S
         }
     }
 
-    // Insert all unique agent names into agents table
     let tx = conn.transaction().map_err(|e| e.to_string())?;
     {
         let mut insert_stmt = tx.prepare_cached("INSERT OR IGNORE INTO agents (agentName, searchAgentName) VALUES (?1, ?2)").map_err(|e| e.to_string())?;
@@ -1082,4 +1015,3 @@ pub fn populate_agents_table(conn: &mut Connection) -> std::result::Result<(), S
     info!("Agents table populated successfully!");
     Ok(())
 }
-

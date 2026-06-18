@@ -105,6 +105,101 @@ pub fn normalize_locality(s: &str) -> String {
     result_words.join(" ")
 }
 
+/// Normalizes a collector name for searchRecordedBy (uppercase, alphanumeric + spaces only).
+pub fn normalize_search_recorded_by(s: &str) -> String {
+    let mapped: String = s.chars()
+        .map(|c| match c {
+            'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'Å' => 'A',
+            'è' | 'é' | 'ê' | 'ë' | 'È' | 'É' | 'Ê' | 'Ë' => 'E',
+            'ì' | 'í' | 'î' | 'ï' | 'Ì' | 'Í' | 'Î' | 'Ï' => 'I',
+            'ò' | 'ó' | 'ô' | 'õ' | 'ö' | 'ø' | 'Ò' | 'Ó' | 'Ô' | 'Õ' | 'Ö' | 'Ø' => 'O',
+            'ù' | 'ú' | 'û' | 'ü' | 'Ù' | 'Ú' | 'Û' | 'Ü' => 'U',
+            'ñ' | 'Ñ' => 'N',
+            'ç' | 'Ç' => 'C',
+            'ý' | 'ÿ' | 'Ý' | 'Ÿ' => 'Y',
+            _ => c.to_ascii_uppercase(),
+        })
+        .filter(|&c| c.is_ascii_alphanumeric() || c == ' ')
+        .collect();
+
+    // Remove double/multiple spaces
+    let mut result = String::new();
+    let mut last_was_space = false;
+    for c in mapped.trim().chars() {
+        if c == ' ' {
+            if !last_was_space {
+                result.push(c);
+                last_was_space = true;
+            }
+        } else {
+            result.push(c);
+            last_was_space = false;
+        }
+    }
+    result
+}
+
+/// Helper function to check if a string consists entirely of initials
+pub fn is_initials(s: &str) -> bool {
+    let tokens: Vec<&str> = s.split(|c| c == ' ' || c == '.').filter(|t| !t.is_empty()).collect();
+    if tokens.is_empty() {
+        return false;
+    }
+    tokens.iter().all(|t| t.chars().count() == 1)
+}
+
+/// Splits a raw collector string containing multiple names separated by |, ;, or ,
+pub fn split_names(raw_str: &str) -> Vec<String> {
+    let raw_str = raw_str.trim();
+    if raw_str.is_empty() {
+        return Vec::new();
+    }
+
+    let parts = if raw_str.contains('|') {
+        raw_str.split('|').map(|s| s.to_string()).collect()
+    } else if raw_str.contains(';') {
+        raw_str.split(';').map(|s| s.to_string()).collect()
+    } else if raw_str.contains(',') {
+        let comma_count = raw_str.matches(',').count();
+        if comma_count == 1 {
+            let temp_parts: Vec<&str> = raw_str.split(',').collect();
+            let part_after = temp_parts[1].trim();
+            if is_initials(part_after) {
+                vec![raw_str.to_string()]
+            } else {
+                temp_parts.iter().map(|s| s.to_string()).collect()
+            }
+        } else {
+            raw_str.split(',').map(|s| s.to_string()).collect()
+        }
+    } else {
+        vec![raw_str.to_string()]
+    };
+
+    parts.into_iter()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+/// Extracts only the digit sequences from a record number, separating them by spaces
+pub fn extract_digits(s: &str) -> String {
+    let mut result = String::new();
+    let mut in_digit = false;
+    for c in s.chars() {
+        if c.is_ascii_digit() {
+            if !in_digit && !result.is_empty() {
+                result.push(' ');
+            }
+            result.push(c);
+            in_digit = true;
+        } else {
+            in_digit = false;
+        }
+    }
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -155,38 +250,4 @@ mod tests {
             "route 3 5 km west town"
         );
     }
-}
-
-/// Normalizes a collector name for searchRecordedBy (uppercase, alphanumeric + spaces only).
-pub fn normalize_search_recorded_by(s: &str) -> String {
-    let mapped: String = s.chars()
-        .map(|c| match c {
-            'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'Å' => 'A',
-            'è' | 'é' | 'ê' | 'ë' | 'È' | 'É' | 'Ê' | 'Ë' => 'E',
-            'ì' | 'í' | 'î' | 'ï' | 'Ì' | 'Í' | 'Î' | 'Ï' => 'I',
-            'ò' | 'ó' | 'ô' | 'õ' | 'ö' | 'ø' | 'Ò' | 'Ó' | 'Ô' | 'Õ' | 'Ö' | 'Ø' => 'O',
-            'ù' | 'ú' | 'û' | 'ü' | 'Ù' | 'Ú' | 'Û' | 'Ü' => 'U',
-            'ñ' | 'Ñ' => 'N',
-            'ç' | 'Ç' => 'C',
-            'ý' | 'ÿ' | 'Ý' | 'Ÿ' => 'Y',
-            _ => c.to_ascii_uppercase(),
-        })
-        .filter(|&c| c.is_ascii_alphanumeric() || c == ' ')
-        .collect();
-
-    // Remove double/multiple spaces
-    let mut result = String::new();
-    let mut last_was_space = false;
-    for c in mapped.trim().chars() {
-        if c == ' ' {
-            if !last_was_space {
-                result.push(c);
-                last_was_space = true;
-            }
-        } else {
-            result.push(c);
-            last_was_space = false;
-        }
-    }
-    result
 }

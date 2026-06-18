@@ -1,6 +1,6 @@
 <script>
   import { onDestroy, getContext } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
+  import { agentService } from "../services/agentService.js";
 
   let {
     label = "",
@@ -104,13 +104,13 @@
     if (sug && !selectedValues.includes(sug)) {
       if (isCustom) {
         try {
-          const exists = await invoke("check_agent_exists", { name: sug });
+          const exists = await agentService.checkAgentExists(sug);
           if (!exists) {
             const confirmed = await confirmNewName(sug);
             if (!confirmed) {
               // Do not return; still add it to selectedValues.
             } else {
-              await invoke("add_agent", { name: sug });
+              await agentService.addAgent(sug);
             }
           }
         } catch (err) {
@@ -217,7 +217,7 @@
     }
 
     try {
-      const res = /** @type {string[]} */ (await invoke("autocomplete_agent", { query: editInputValue }));
+      const res = /** @type {string[]} */ (await agentService.autocompleteAgent(editInputValue));
       // Exclude already selected values unless it is the one currently being edited
       editSuggestions = res.filter(name => 
         name === selectedValues[editingIndex] || !selectedValues.includes(name)
@@ -231,7 +231,7 @@
     showEditDropdown = true;
     if (editInputValue.trim().length >= 2) {
       try {
-        const res = /** @type {string[]} */ (await invoke("autocomplete_agent", { query: editInputValue }));
+        const res = /** @type {string[]} */ (await agentService.autocompleteAgent(editInputValue));
         editSuggestions = res.filter(name => 
           name === selectedValues[editingIndex] || !selectedValues.includes(name)
         );
@@ -269,11 +269,11 @@
 
     // Check if new agent to database
     try {
-      const exists = await invoke("check_agent_exists", { name: trimmed });
+      const exists = await agentService.checkAgentExists(trimmed);
       if (!exists) {
         const confirmed = await confirmNewName(trimmed);
         if (confirmed) {
-          await invoke("add_agent", { name: trimmed });
+          await agentService.addAgent(trimmed);
         }
       }
     } catch (err) {

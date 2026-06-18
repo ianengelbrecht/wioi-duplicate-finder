@@ -1,6 +1,6 @@
 <script>
   import { onDestroy, getContext } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
+  import { agentService } from "../services/agentService.js";
 
   let {
     label = "",
@@ -74,7 +74,7 @@
     
     isChecking = true;
     try {
-      const exists = await invoke("check_agent_exists", { name: trimmed });
+      const exists = await agentService.checkAgentExists(trimmed);
       if (!exists) {
         clearBlurTimeout();
         const confirmed = await confirmNewName(trimmed);
@@ -82,7 +82,7 @@
           isChecking = false;
           return;
         }
-        await invoke("add_agent", { name: trimmed });
+        await agentService.addAgent(trimmed);
       }
     } catch (err) {
       console.error("Error checking or adding agent:", err);
