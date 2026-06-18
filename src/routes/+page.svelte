@@ -3,7 +3,7 @@
   import SearchPane from "$lib/components/SearchPane.svelte";
   import CaptureForm from "$lib/components/CaptureForm.svelte";
   
-  // Newly extracted components
+  // Components
   import Auth from "$lib/components/Auth.svelte";
   import DbRecovery from "$lib/components/DbRecovery.svelte";
   import RestoreConfirmModal from "$lib/components/RestoreConfirmModal.svelte";
@@ -21,7 +21,7 @@
   import { backupService } from "$lib/services/backupService.js";
   import { exportService } from "$lib/services/exportService.js";
   
-  // Extracted use-case logic
+  // Use-case logic
   import { generateCSVContent } from "$lib/usecases/generateCSVContent.js";
 
   // Dashboard tab state (UI only)
