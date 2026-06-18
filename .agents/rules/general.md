@@ -152,10 +152,10 @@ Frontend services are responsible for:
 Examples:
 
 ```text
-specimenService.ts
-duplicateFinderService.ts
-taxonomyService.ts
-labelExportService.ts
+specimenService.js
+duplicateFinderService.js
+taxonomyService.js
+labelExportService.js
 ```
 
 ### Stores
@@ -175,9 +175,9 @@ Utility functions should be pure, reusable helper functions.
 Examples:
 
 ```text
-dateUtils.ts
-stringUtils.ts
-coordinateUtils.ts
+dateUtils.js
+stringUtils.js
+coordinateUtils.js
 ```
 
 Avoid placing application business rules in utility modules.
@@ -319,8 +319,9 @@ All API responses should be strongly typed.
 ### Typing
 
 - Use strong typing throughout the application.
-- Prefer explicit interfaces and Rust structs.
+- Prefer explicit JS interfaces/structures documented with JSDoc, and strongly typed Rust structs.
 - Avoid use of `any` except where unavoidable.
+- **Frontend Type Safety**: The frontend is written in JavaScript (`jsconfig.json`) with strict type-checking enabled (`"checkJs": true`, `"strict": true`). Always use comprehensive JSDoc annotations to document types for functions, components, state, and services.
 
 ### Error Handling
 

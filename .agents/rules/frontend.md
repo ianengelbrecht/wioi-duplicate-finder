@@ -93,10 +93,10 @@ Business logic and backend communication.
 Examples:
 
 ```text
-specimenService.ts
-duplicateFinderService.ts
-taxonomyService.ts
-sessionService.ts
+specimenService.js
+duplicateFinderService.js
+taxonomyService.js
+sessionService.js
 ```
 
 Services are responsible for:
@@ -114,9 +114,8 @@ Shared application state.
 Examples:
 
 ```text
-sessionStore.ts
-captureStore.ts
-searchStore.ts
+authStore.svelte.js
+workspaceStore.svelte.js
 ```
 
 Stores are responsible only for state management.
@@ -128,26 +127,19 @@ Pure helper functions.
 Examples:
 
 ```text
-dateUtils.ts
-stringUtils.ts
-coordinateUtils.ts
+dateUtils.js
+stringUtils.js
+coordinateUtils.js
 ```
 
 Utilities should be framework-independent where possible.
 
-#### types/
+#### JSDoc Typing / types/
 
-Shared TypeScript interfaces and type definitions.
+Types are defined inline or using JSDoc type annotations within service, store, and utility files.
+If a `src/lib/types/` directory is created, it should contain JS files (e.g. `Specimen.js`) with JSDoc `@typedef` comments representing the shared models.
 
-Examples:
-
-```text
-Specimen.ts
-Taxon.ts
-DuplicateMatch.ts
-```
-
-Prefer explicit interfaces over anonymous objects.
+Prefer explicit JSDoc objects and interfaces over untyped anonymous objects.
 
 ---
 
