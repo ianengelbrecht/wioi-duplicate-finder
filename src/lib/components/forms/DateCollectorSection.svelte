@@ -5,6 +5,19 @@
   import { agentService } from "../../services/agentService.js";
   import { isValidPartialDate, comparePartialDates } from "../../utils/isValidPartialDate.js";
 
+  /**
+   * @typedef {Object} DateCollectorSectionProps
+   * @property {any} form
+   * @property {any} titleCasedStates
+   * @property {string} [statusMessageKey=""]
+   * @property {string} [statusMessageDefault=""]
+   * @property {string} [statusType=""]
+   * @property {function} undoTitleCaseField
+   * @property {function} titleCaseField
+   * @property {function} t
+   */
+
+  /** @type {DateCollectorSectionProps} */
   let {
     form = $bindable(),
     titleCasedStates = $bindable(),
@@ -16,10 +29,17 @@
     t
   } = $props();
 
+  /** @type {string} */
   let eventDateLanguage = $state("EN");
+  /** @type {string[]} */
   let collectorSuggestions = $state([]);
+  /** @type {string[]} */
   let additionalCollectorsSuggestions = $state([]);
 
+  /**
+   * Parses the verbatim date string using any-date-parser.
+   * @returns {void}
+   */
   function parseVerbatimDate() {
     let dateStr = form.verbatimEventDate.trim();
     if (!dateStr) return;
@@ -35,6 +55,10 @@
     }
   });
 
+  /**
+   * Validates the collection date and clears date validation errors if valid.
+   * @returns {void}
+   */
   function handleCollectionDateBlur() {
     const { day, month, year } = form;
     if (!isValidPartialDate(year, month, day)) {
@@ -61,6 +85,11 @@
     }
   }
 
+  /**
+   * Autocompletes the primary collector based on input string.
+   * @param {string} val
+   * @returns {Promise<void>}
+   */
   async function handleCollectorInput(val) {
     if (val.trim().length < 2) {
       collectorSuggestions = [];
@@ -74,6 +103,11 @@
     }
   }
 
+  /**
+   * Autocompletes additional collectors based on input string.
+   * @param {string} val
+   * @returns {Promise<void>}
+   */
   async function handleAdditionalCollectorsInput(val) {
     if (val.trim().length < 2) {
       additionalCollectorsSuggestions = [];
@@ -226,7 +260,7 @@
       {#if form.fieldNotes === titleCasedStates.fieldNotes.titleCased && titleCasedStates.fieldNotes.titleCased !== ""}
         <button
           type="button"
-          onclick={() => undoTitleCaseField("fieldNotes")}
+          onclick={() => undoTitleCaseField(form, titleCasedStates, "fieldNotes")}
           data-i18n-key="undo-title-case"
           title={t("undo-title-case", "Undo Casing")}
           class="absolute right-2 bottom-3.5 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
@@ -239,7 +273,7 @@
       {:else}
         <button
           type="button"
-          onclick={() => titleCaseField("fieldNotes")}
+          onclick={() => titleCaseField(form, titleCasedStates, "fieldNotes")}
           data-i18n-key="title-case-field-notes"
           title={t("title-case-field-notes", "Title case Field Notes")}
           class="absolute right-2 bottom-3.5 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
@@ -265,7 +299,7 @@
       {#if form.occurrenceRemarks === titleCasedStates.occurrenceRemarks.titleCased && titleCasedStates.occurrenceRemarks.titleCased !== ""}
         <button
           type="button"
-          onclick={() => undoTitleCaseField("occurrenceRemarks")}
+          onclick={() => undoTitleCaseField(form, titleCasedStates, "occurrenceRemarks")}
           data-i18n-key="undo-title-case"
           title={t("undo-title-case", "Undo Casing")}
           class="absolute right-2 bottom-3.5 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
@@ -278,7 +312,7 @@
       {:else}
         <button
           type="button"
-          onclick={() => titleCaseField("occurrenceRemarks")}
+          onclick={() => titleCaseField(form, titleCasedStates, "occurrenceRemarks")}
           data-i18n-key="title-case-occurrence-remarks"
           title={t("title-case-occurrence-remarks", "Title case General Notes")}
           class="absolute right-2 bottom-3.5 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"

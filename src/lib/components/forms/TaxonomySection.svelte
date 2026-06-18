@@ -2,18 +2,30 @@
   import Autocomplete from "../Autocomplete.svelte";
   import { taxonomyService } from "../../services/taxonomyService.js";
 
+  /**
+   * @typedef {Object} TaxonomySectionProps
+   * @property {any} form
+   * @property {function} t
+   */
+
+  /** @type {TaxonomySectionProps} */
   let {
     form = $bindable(),
     t
   } = $props();
 
+  /** @type {any[]} */
   let taxonSuggestions = $state([]);
+  /** @type {string[]} */
   let typeStatusSuggestions = $state([]);
 
   const typeStatuses = [
     "Holotype", "Isotype", "Syntype", "Lectotype", "Neotype", "Paratype", "Epitype", "Isolectotype", "Isosyntype", "Isoneotype", "Original material"
   ];
 
+  /**
+   * @param {string} val
+   */
   async function handleTaxonInput(val) {
     if (val.trim().length < 2) {
       taxonSuggestions = [];
@@ -26,12 +38,18 @@
     }
   }
 
+  /**
+   * @param {any} sug
+   */
   function handleTaxonSelect(sug) {
     form.scientificName = sug.scientificName || "";
     form.taxonID = sug.taxonID || "";
     form.family = sug.family || ""; // In case we want to capture family directly
   }
 
+  /**
+   * @param {string} val
+   */
   function handleTypeStatusInput(val) {
     if (!val) {
       typeStatusSuggestions = typeStatuses;

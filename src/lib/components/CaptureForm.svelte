@@ -2,8 +2,10 @@
   import { getContext } from "svelte";
   import Autocomplete from "./Autocomplete.svelte";
   import { specimenService } from "../services/specimenService.js";
-  import { totitleCase } from "../utils/totitleCase.js";
   import { isValidPartialDate, comparePartialDates } from "../utils/isValidPartialDate.js";
+  import { splitNames } from "../utils/splitNames.js";
+  import { getDuplicateSuggestions } from "../utils/duplicates.js";
+  import { titleCaseField, undoTitleCaseField, getInitialTrackingState } from "../utils/titleCaseHelper.js";
 
   import DateCollectorSection from "./forms/DateCollectorSection.svelte";
   import GeographySection from "./forms/GeographySection.svelte";
@@ -12,6 +14,15 @@
 
   const t = getContext("t");
 
+  /**
+   * @typedef {Object} CaptureFormProps
+   * @property {number|null} [sessionId=null]
+   * @property {string} collectionCode
+   * @property {any} [activeRecord=null]
+   * @property {() => void} [onSaveSuccess]
+   */
+
+  /** @type {CaptureFormProps} */
   let {
     sessionId = null,
     collectionCode, // no default, this must be set
@@ -56,15 +67,25 @@
     cultivated: false
   });
 
+  /** @type {boolean} */
   let coordinatesError = $state(false);
+  /** @type {any} */
   let lastSavedRecord = $state(/** @type {any} */ (null));
+  /** @type {boolean} */
   let saving = $state(false);
 
+  /** @type {string} */
   let statusMessageKey = $state("");
+  /** @type {string} */
   let statusMessageDefault = $state("");
   let statusMessage = $derived(statusMessageKey ? t(statusMessageKey, statusMessageDefault) : statusMessageDefault);
+  /** @type {string} */
   let statusType = $state(""); // "success" or "error"
+  /** @type {HTMLFormElement|null} */
   let formRef = $state(/** @type {HTMLFormElement|null} */ (null));
+
+  // Title Casing state tracking object
+  let titleCasedStates = $state(getInitialTrackingState());
 
   /**
    * Duplicates handling logic: we maintain a list of suggestions based on the current input, and filter out any duplicates that have already been entered. The user can type comma-separated values, and the last value is used for suggestions. When a suggestion is selected, it replaces the last value in the input.
@@ -74,18 +95,7 @@
   const duplicatesList = ["P", "K", "MO", "TAN", "TEF", "PRE", "NU", "NH", "E", "WAG", "BR", "L", "BM", "US", "NY", "G"];
 
   function handleDuplicateInput(/** @type {string} */ val) {
-    if (!val) {
-      duplicateSuggestions = duplicatesList;
-      return;
-    }
-    const parts = val.split(",").map(s => s.trim());
-    const lastPart = parts[parts.length - 1].toLowerCase();
-    
-    // Suggest items not already in the list
-    duplicateSuggestions = duplicatesList.filter(d => 
-      d.toLowerCase().includes(lastPart) && 
-      !parts.slice(0, -1).map(p => p.toLowerCase()).includes(d.toLowerCase())
-    );
+    duplicateSuggestions = getDuplicateSuggestions(val, duplicatesList);
   }
 
   function handleDuplicateSelect(/** @type {string} */ sug) {
@@ -100,73 +110,6 @@
 
   function handleDuplicateFocus() {
     handleDuplicateInput(form.duplicates);
-  }
-
-  // Title Casing Undo state tracking
-  let titleCasedStates = $state({
-    country: { original: "", titleCased: "" },
-    stateProvince: { original: "", titleCased: "" },
-    county: { original: "", titleCased: "" },
-    municipality: { original: "", titleCased: "" },
-    locality: { original: "", titleCased: "" },
-    locationNotes: { original: "", titleCased: "" },
-    habitat: { original: "", titleCased: "" },
-    fieldNotes: { original: "", titleCased: "" },
-    occurrenceRemarks: { original: "", titleCased: "" }
-  });
-
-  function clearTitleCasedStates() {
-    titleCasedStates = {
-      country: { original: "", titleCased: "" },
-      stateProvince: { original: "", titleCased: "" },
-      county: { original: "", titleCased: "" },
-      municipality: { original: "", titleCased: "" },
-      locality: { original: "", titleCased: "" },
-      locationNotes: { original: "", titleCased: "" },
-      habitat: { original: "", titleCased: "" },
-      fieldNotes: { original: "", titleCased: "" },
-      occurrenceRemarks: { original: "", titleCased: "" }
-    };
-  }
-
-  function undoTitleCaseField(/** @type {string} */ field) {
-    let formObj = /** @type {any} */ (form);
-    let stateObj = /** @type {any} */ (titleCasedStates)[field];
-    if (stateObj && stateObj.original !== undefined) {
-      formObj[field] = stateObj.original;
-      /** @type {any} */ (titleCasedStates)[field] = { original: "", titleCased: "" };
-    }
-  }
-
-  function titleCaseField(/** @type {string} */ field) {
-    let formObj = /** @type {any} */ (form);
-    let val = formObj[field];
-    if (typeof val === "string") {
-      const originalValue = val;
-      const titleCasedValue = totitleCase(val);
-      /** @type {any} */ (titleCasedStates)[field] = {
-        original: originalValue,
-        titleCased: titleCasedValue
-      };
-      formObj[field] = titleCasedValue;
-    }
-  }
-
-  function splitNames(/** @type {string} */ rawStr) {
-    if (!rawStr) return [];
-    let trimmed = rawStr.trim();
-    if (!trimmed) return [];
-    
-    let parts = [];
-    if (trimmed.includes(";")) {
-      parts = trimmed.split(";");
-    } else if (trimmed.includes("|")) {
-      parts = trimmed.split("|");
-    } else {
-      parts = [trimmed];
-    }
-    
-    return parts.map(s => s.trim()).filter(Boolean);
   }
 
   // Handle activeRecord sync
@@ -234,7 +177,7 @@
       form.occurrenceRemarks = activeRecord.occurrenceRemarks || "";
       form.fieldNotes = activeRecord.fieldNotes || "";
       form.cultivated = !!activeRecord.cultivated;
-      clearTitleCasedStates();
+      titleCasedStates = getInitialTrackingState();
       
       statusMessageKey = "";
       statusMessageDefault = "";
@@ -430,7 +373,7 @@
     statusMessageKey = "";
     statusMessageDefault = "";
     duplicateSuggestions = [];
-    clearTitleCasedStates();
+    titleCasedStates = getInitialTrackingState();
   }
 
   function handleShowPreviousRecord() {

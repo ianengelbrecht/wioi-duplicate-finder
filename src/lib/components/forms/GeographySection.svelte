@@ -3,7 +3,19 @@
   import { convert } from "geo-coordinates-parser";
   import Autocomplete from "../Autocomplete.svelte";
   import { geographyService } from "../../services/geographyService.js";
+  import { copySelectedOrValue, pasteAtCursor } from "../../utils/clipboard.js";
 
+  /**
+   * @typedef {Object} GeographySectionProps
+   * @property {any} form
+   * @property {any} titleCasedStates
+   * @property {boolean} [coordinatesError=false]
+   * @property {function} undoTitleCaseField
+   * @property {function} titleCaseField
+   * @property {function} t
+   */
+
+  /** @type {GeographySectionProps} */
   let {
     form = $bindable(),
     titleCasedStates = $bindable(),
@@ -13,10 +25,15 @@
     t
   } = $props();
 
+  /** @type {string[]} */
   let countrySuggestions = $state([]);
+  /** @type {string[]} */
   let stateProvinceSuggestions = $state([]);
+  /** @type {string[]} */
   let countySuggestions = $state([]);
+  /** @type {string[]} */
   let municipalitySuggestions = $state([]);
+  /** @type {string[]} */
   let localitySuggestions = $state([]);
 
   let isAnyGeoPopulated = $derived(
@@ -26,124 +43,80 @@
        (form.municipality && form.municipality.trim().length > 0))
   );
 
+  /** @type {HTMLTextAreaElement|null} */
   let verbatimLocalityRef = $state(null);
   let verbatimLocalityCopied = $state(false);
+  /** @type {any} */
   let copyTimeoutId = null;
 
-  function handleCopyVerbatimLocality() {
-    if (!verbatimLocalityRef) return;
-    const start = verbatimLocalityRef.selectionStart;
-    const end = verbatimLocalityRef.selectionEnd;
-    let textToCopy = "";
-    if (start !== null && end !== null && start !== end) {
-      textToCopy = verbatimLocalityRef.value.substring(start, end);
-    } else {
-      textToCopy = form.verbatimLocality || "";
-    }
-    if (textToCopy) {
-      navigator.clipboard.writeText(textToCopy)
-        .then(() => {
-          verbatimLocalityCopied = true;
-          if (copyTimeoutId) clearTimeout(copyTimeoutId);
-          copyTimeoutId = setTimeout(() => {
-            verbatimLocalityCopied = false;
-          }, 2000);
-        })
-        .catch(err => console.error("Failed to copy text:", err));
+  async function handleCopyVerbatimLocality() {
+    const success = await copySelectedOrValue(verbatimLocalityRef, form.verbatimLocality);
+    if (success) {
+      verbatimLocalityCopied = true;
+      if (copyTimeoutId) clearTimeout(copyTimeoutId);
+      copyTimeoutId = setTimeout(() => {
+        verbatimLocalityCopied = false;
+      }, 2000);
     }
   }
 
+  /** @type {HTMLInputElement|null} */
   let localityInputRef = $state(null);
   let localityCopied = $state(false);
+  /** @type {any} */
   let localityCopyTimeout = null;
 
-  function handleCopyLocality() {
-    if (!localityInputRef) return;
-    const start = localityInputRef.selectionStart;
-    const end = localityInputRef.selectionEnd;
-    let textToCopy = "";
-    if (start !== null && end !== null && start !== end) {
-      textToCopy = localityInputRef.value.substring(start, end);
-    } else {
-      textToCopy = form.locality || "";
-    }
-    if (textToCopy) {
-      navigator.clipboard.writeText(textToCopy)
-        .then(() => {
-          localityCopied = true;
-          if (localityCopyTimeout) clearTimeout(localityCopyTimeout);
-          localityCopyTimeout = setTimeout(() => {
-            localityCopied = false;
-          }, 2000);
-        })
-        .catch(err => console.error(err));
+  async function handleCopyLocality() {
+    const success = await copySelectedOrValue(localityInputRef, form.locality);
+    if (success) {
+      localityCopied = true;
+      if (localityCopyTimeout) clearTimeout(localityCopyTimeout);
+      localityCopyTimeout = setTimeout(() => {
+        localityCopied = false;
+      }, 2000);
     }
   }
 
   async function handlePasteLocality() {
-    if (!localityInputRef) return;
-    try {
-      const clipboardText = await navigator.clipboard.readText();
-      if (!clipboardText) return;
-      const start = localityInputRef.selectionStart || 0;
-      const end = localityInputRef.selectionEnd || 0;
-      const val = form.locality || "";
-      form.locality = val.substring(0, start) + clipboardText + val.substring(end);
+    const res = await pasteAtCursor(localityInputRef, form.locality);
+    if (res) {
+      form.locality = res.newValue;
       setTimeout(() => {
         if (localityInputRef) {
           localityInputRef.focus();
-          localityInputRef.setSelectionRange(start + clipboardText.length, start + clipboardText.length);
+          localityInputRef.setSelectionRange(res.newCursorPos, res.newCursorPos);
         }
       }, 0);
-    } catch (err) {
-      console.error("Failed to paste from clipboard:", err);
     }
   }
 
+  /** @type {HTMLTextAreaElement|null} */
   let locationNotesRef = $state(null);
   let locationNotesCopied = $state(false);
+  /** @type {any} */
   let locationNotesCopyTimeout = null;
 
-  function handleCopyLocationNotes() {
-    if (!locationNotesRef) return;
-    const start = locationNotesRef.selectionStart;
-    const end = locationNotesRef.selectionEnd;
-    let textToCopy = "";
-    if (start !== null && end !== null && start !== end) {
-      textToCopy = locationNotesRef.value.substring(start, end);
-    } else {
-      textToCopy = form.locationNotes || "";
-    }
-    if (textToCopy) {
-      navigator.clipboard.writeText(textToCopy)
-        .then(() => {
-          locationNotesCopied = true;
-          if (locationNotesCopyTimeout) clearTimeout(locationNotesCopyTimeout);
-          locationNotesCopyTimeout = setTimeout(() => {
-            locationNotesCopied = false;
-          }, 2000);
-        })
-        .catch(err => console.error(err));
+  async function handleCopyLocationNotes() {
+    const success = await copySelectedOrValue(locationNotesRef, form.locationNotes);
+    if (success) {
+      locationNotesCopied = true;
+      if (locationNotesCopyTimeout) clearTimeout(locationNotesCopyTimeout);
+      locationNotesCopyTimeout = setTimeout(() => {
+        locationNotesCopied = false;
+      }, 2000);
     }
   }
 
   async function handlePasteLocationNotes() {
-    if (!locationNotesRef) return;
-    try {
-      const clipboardText = await navigator.clipboard.readText();
-      if (!clipboardText) return;
-      const start = locationNotesRef.selectionStart || 0;
-      const end = locationNotesRef.selectionEnd || 0;
-      const val = form.locationNotes || "";
-      form.locationNotes = val.substring(0, start) + clipboardText + val.substring(end);
+    const res = await pasteAtCursor(locationNotesRef, form.locationNotes);
+    if (res) {
+      form.locationNotes = res.newValue;
       setTimeout(() => {
         if (locationNotesRef) {
           locationNotesRef.focus();
-          locationNotesRef.setSelectionRange(start + clipboardText.length, start + clipboardText.length);
+          locationNotesRef.setSelectionRange(res.newCursorPos, res.newCursorPos);
         }
       }, 0);
-    } catch (err) {
-      console.error("Failed to paste from clipboard:", err);
     }
   }
 
@@ -187,6 +160,9 @@
     municipalitySuggestions = [];
   }
 
+  /**
+   * @param {string} val
+   */
   async function handleCountryInput(val) {
     onCountryChanged();
     if (!val || val.trim().length === 0) {
@@ -200,6 +176,9 @@
     }
   }
 
+  /**
+   * @param {string} val
+   */
   async function handleStateProvinceInput(val) {
     onStateProvinceChanged();
     if (!val || val.trim().length === 0) {
@@ -213,6 +192,9 @@
     }
   }
 
+  /**
+   * @param {string} val
+   */
   async function handleCountyInput(val) {
     onCountyChanged();
     if (!val || val.trim().length === 0) {
@@ -226,6 +208,9 @@
     }
   }
 
+  /**
+   * @param {string} val
+   */
   async function handleMunicipalityInput(val) {
     if (!val || val.trim().length === 0) {
       municipalitySuggestions = [];
@@ -238,6 +223,9 @@
     }
   }
 
+  /**
+   * @param {string} val
+   */
   async function handleLocalityInput(val) {
     if (val.trim().length < 2) {
       localitySuggestions = [];
@@ -250,7 +238,10 @@
     }
   }
 
-  async function triggerGeoAutocomplete(field, targetSuggestions) {
+  /**
+   * @param {string} field
+   */
+  async function triggerGeoAutocomplete(field) {
     try {
       const results = await geographyService.autocompleteGeography(field, "", form.country, form.stateProvince, form.county);
       if (field === "stateProvince") stateProvinceSuggestions = results;
@@ -306,7 +297,7 @@
         {#if form.country === titleCasedStates.country.titleCased && titleCasedStates.country.titleCased !== ""}
           <button
             type="button"
-            onclick={() => undoTitleCaseField("country")}
+            onclick={() => undoTitleCaseField(form, titleCasedStates, "country")}
             data-i18n-key="undo-title-case"
             title={t("undo-title-case", "Undo Casing")}
             class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
@@ -319,7 +310,7 @@
         {:else}
           <button
             type="button"
-            onclick={() => titleCaseField("country")}
+            onclick={() => titleCaseField(form, titleCasedStates, "country")}
             data-i18n-key="title-case"
             title={t("title-case", "Proper Case")}
             class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
@@ -352,7 +343,7 @@
         {#if form.stateProvince === titleCasedStates.stateProvince.titleCased && titleCasedStates.stateProvince.titleCased !== ""}
           <button
             type="button"
-            onclick={() => undoTitleCaseField("stateProvince")}
+            onclick={() => undoTitleCaseField(form, titleCasedStates, "stateProvince")}
             data-i18n-key="undo-title-case"
             title={t("undo-title-case", "Undo Casing")}
             class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
@@ -365,7 +356,7 @@
         {:else}
           <button
             type="button"
-            onclick={() => titleCaseField("stateProvince")}
+            onclick={() => titleCaseField(form, titleCasedStates, "stateProvince")}
             data-i18n-key="title-case"
             title={t("title-case", "Proper Case")}
             class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
@@ -398,7 +389,7 @@
         {#if form.county === titleCasedStates.county.titleCased && titleCasedStates.county.titleCased !== ""}
           <button
             type="button"
-            onclick={() => undoTitleCaseField("county")}
+            onclick={() => undoTitleCaseField(form, titleCasedStates, "county")}
             data-i18n-key="undo-title-case"
             title={t("undo-title-case", "Undo Casing")}
             class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
@@ -411,7 +402,7 @@
         {:else}
           <button
             type="button"
-            onclick={() => titleCaseField("county")}
+            onclick={() => titleCaseField(form, titleCasedStates, "county")}
             data-i18n-key="title-case"
             title={t("title-case", "Proper Case")}
             class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
@@ -442,7 +433,7 @@
         {#if form.municipality === titleCasedStates.municipality.titleCased && titleCasedStates.municipality.titleCased !== ""}
           <button
             type="button"
-            onclick={() => undoTitleCaseField("municipality")}
+            onclick={() => undoTitleCaseField(form, titleCasedStates, "municipality")}
             data-i18n-key="undo-title-case"
             title={t("undo-title-case", "Undo Casing")}
             class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
@@ -455,7 +446,7 @@
         {:else}
           <button
             type="button"
-            onclick={() => titleCaseField("municipality")}
+            onclick={() => titleCaseField(form, titleCasedStates, "municipality")}
             data-i18n-key="title-case"
             title={t("title-case", "Proper Case")}
             class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
@@ -524,7 +515,7 @@
         {#if form.locality === titleCasedStates.locality.titleCased && titleCasedStates.locality.titleCased !== ""}
           <button
             type="button"
-            onclick={() => undoTitleCaseField("locality")}
+            onclick={() => undoTitleCaseField(form, titleCasedStates, "locality")}
             data-i18n-key="undo-title-case"
             title={t("undo-title-case", "Undo Casing")}
             class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
@@ -537,7 +528,7 @@
         {:else}
           <button
             type="button"
-            onclick={() => titleCaseField("locality")}
+            onclick={() => titleCaseField(form, titleCasedStates, "locality")}
             data-i18n-key="title-case"
             title={t("title-case", "Proper Case")}
             class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
@@ -626,7 +617,7 @@
         {#if form.locationNotes === titleCasedStates.locationNotes.titleCased && titleCasedStates.locationNotes.titleCased !== ""}
           <button
             type="button"
-            onclick={() => undoTitleCaseField("locationNotes")}
+            onclick={() => undoTitleCaseField(form, titleCasedStates, "locationNotes")}
             data-i18n-key="undo-title-case"
             title={t("undo-title-case", "Undo Casing")}
             class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
@@ -639,7 +630,7 @@
         {:else}
           <button
             type="button"
-            onclick={() => titleCaseField("locationNotes")}
+            onclick={() => titleCaseField(form, titleCasedStates, "locationNotes")}
             data-i18n-key="title-case-notes"
             title={t("title-case-notes", "Title case Locality Notes")}
             class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
@@ -718,7 +709,7 @@
         {#if form.habitat === titleCasedStates.habitat.titleCased && titleCasedStates.habitat.titleCased !== ""}
           <button
             type="button"
-            onclick={() => undoTitleCaseField("habitat")}
+            onclick={() => undoTitleCaseField(form, titleCasedStates, "habitat")}
             data-i18n-key="undo-title-case"
             title={t("undo-title-case", "Undo Casing")}
             class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"
@@ -731,7 +722,7 @@
         {:else}
           <button
             type="button"
-            onclick={() => titleCaseField("habitat")}
+            onclick={() => titleCaseField(form, titleCasedStates, "habitat")}
             data-i18n-key="title-case-habitat"
             title={t("title-case-habitat", "Title case Habitat")}
             class="absolute right-2 bottom-3 text-slate-400 hover:text-slate-600 z-10 cursor-pointer flex items-center justify-center"

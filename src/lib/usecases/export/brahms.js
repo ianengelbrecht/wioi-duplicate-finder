@@ -4,6 +4,7 @@ import { parseCollectorNumber } from "$lib/utils/parseCollectorNumber.js";
 import { parseScientificName } from "$lib/utils/parseScientificName.js";
 import { coordinatesDiffer } from "$lib/utils/coordinatesDiffer.js";
 import { isSimpleElevation } from "$lib/utils/isSimpleElevation.js";
+import { splitNames } from "$lib/utils/splitNames.js";
 
 /**
  * Returns the CSV headers for BRAHMS format.
@@ -48,7 +49,7 @@ export function mapBrahmsRecord(rec, options = {}) {
 
   const duplicates = rec.duplicates ? rec.collectionCode + "," + rec.duplicates.replace(/\s*/g, "") : rec.collectionCode;
 
-  const collectors = rec.recordedBy ? rec.recordedBy.split(';').map((s) => s.trim()).filter(Boolean) : [];
+  const collectors = splitNames(rec.recordedBy);
   const collector = collectors[0] || "";
   const addcol = collectors.slice(1).join("; ");
 
@@ -130,7 +131,7 @@ export function mapBrahmsRecord(rec, options = {}) {
     rec.dayIdentified !== null && rec.dayIdentified !== undefined ? rec.dayIdentified : "",
     rec.monthIdentified !== null && rec.monthIdentified !== undefined ? rec.monthIdentified : "",
     rec.yearIdentified !== null && rec.yearIdentified !== undefined ? rec.yearIdentified : "",
-    rec.identifiedBy.split(';')[0] || "", // detby
+    splitNames(rec.identifiedBy)[0] || "", // detby
     rec.identificationQualifier || "", // detstatus
     rec.country || "",
     rec.stateProvince || "", // majorarea

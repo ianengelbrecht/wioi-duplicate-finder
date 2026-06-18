@@ -1,5 +1,11 @@
 import { titleCase, SMALL_WORDS } from "title-case";
 
+/**
+ * Converts a string to title case with support for specific geographic small words in EN/FR.
+ *
+ * @param {string|null|undefined} str - The string to convert.
+ * @returns {string} The title cased string.
+ */
 export function totitleCase(str) {
   if (!str) return "";
   const smallWords = new Set([

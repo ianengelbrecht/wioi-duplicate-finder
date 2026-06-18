@@ -3,6 +3,16 @@
   import { agentService } from "../../services/agentService.js";
   import { isValidPartialDate, comparePartialDates } from "../../utils/isValidPartialDate.js";
 
+  /**
+   * @typedef {Object} DeterminationSectionProps
+   * @property {any} form
+   * @property {string} [statusMessageKey=""]
+   * @property {string} [statusMessageDefault=""]
+   * @property {string} [statusType=""]
+   * @property {function} t
+   */
+
+  /** @type {DeterminationSectionProps} */
   let {
     form = $bindable(),
     statusMessageKey = $bindable(""),
@@ -11,8 +21,12 @@
     t
   } = $props();
 
+  /** @type {string[]} */
   let identifiedBySuggestions = $state([]);
 
+  /**
+   * @param {string} val
+   */
   async function handleIdentifiedByInput(val) {
     if (val.trim().length < 2) {
       identifiedBySuggestions = [];
