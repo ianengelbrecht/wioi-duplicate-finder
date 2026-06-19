@@ -6,6 +6,7 @@
  * @returns {Promise<boolean>} Resolves to true if copy succeeded, false otherwise.
  */
 export async function copySelectedOrValue(element, fallbackValue) {
+  if (!element) console.log('No element provided for copySelectedOrValue');
   if (!element) return false;
   const start = element.selectionStart;
   const end = element.selectionEnd;

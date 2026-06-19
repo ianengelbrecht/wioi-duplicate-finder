@@ -1,16 +1,23 @@
 <script>
-  import { getContext } from "svelte";
+  import { getContext, onDestroy } from "svelte";
+  import parser from "any-date-parser";
+  import { convert } from "geo-coordinates-parser";
   import Autocomplete from "./Autocomplete.svelte";
+  import MultiSelectAutocomplete from "./MultiSelectAutocomplete.svelte";
+  import CopyIcon from "./icons/CopyIcon.svelte";
+  import PasteIcon from "./icons/PasteIcon.svelte";
+  import AaIcon from "./icons/AaIcon.svelte";
+  import UndoIcon from "./icons/UndoIcon.svelte";
+  import CheckIcon from "./icons/CheckIcon.svelte";
   import { specimenService } from "../services/specimenService.js";
+  import { taxonomyService } from "../services/taxonomyService.js";
+  import { agentService } from "../services/agentService.js";
+  import { geographyService } from "../services/geographyService.js";
   import { isValidPartialDate, comparePartialDates } from "../utils/isValidPartialDate.js";
   import { splitNames } from "../utils/splitNames.js";
   import { getDuplicateSuggestions } from "../utils/duplicates.js";
   import { titleCaseField, undoTitleCaseField, getInitialTrackingState } from "../utils/titleCaseHelper.js";
-
-  import DateCollectorSection from "./forms/DateCollectorSection.svelte";
-  import GeographySection from "./forms/GeographySection.svelte";
-  import TaxonomySection from "./forms/TaxonomySection.svelte";
-  import DeterminationSection from "./forms/DeterminationSection.svelte";
+  import { copySelectedOrValue, pasteAtCursor } from "../utils/clipboard.js";
 
   const t = getContext("t");
 
@@ -374,6 +381,7 @@
     statusMessageDefault = "";
     duplicateSuggestions = [];
     titleCasedStates = getInitialTrackingState();
+    eventDateLanguage = "EN";
   }
 
   function handleShowPreviousRecord() {
@@ -432,6 +440,459 @@
     statusMessageKey = "showing-previous-record-info";
     statusMessageDefault = "Showing previously saved record.";
     statusType = "success";
+  }
+
+  /* --- Section States & Functions --- */
+
+  // --- Date and Collector Section ---
+  /** @type {string} */
+  let eventDateLanguage = $state("EN");
+  /** @type {string[]} */
+  let collectorSuggestions = $state([]);
+  /** @type {string[]} */
+  let additionalCollectorsSuggestions = $state([]);
+
+  /**
+   * Parses the verbatim date string using any-date-parser.
+   * @returns {void}
+   */
+  function parseVerbatimDate() {
+    let dateStr = form.verbatimEventDate.trim();
+    if (!dateStr) return;
+    let { day, month, year } = parser.attempt(dateStr, eventDateLanguage === "FR" ? "fr-FR" : "en-US");
+    form.day = day ? String(day) : "";
+    form.month = month ? String(month) : "";
+    form.year = year ? String(year) : "";
+  }
+
+  $effect(() => {
+    if (eventDateLanguage) {
+      parseVerbatimDate();
+    }
+  });
+
+  /**
+   * Validates the collection date and clears date validation errors if valid.
+   * @returns {void}
+   */
+  function handleCollectionDateBlur() {
+    const { day, month, year } = form;
+    if (!isValidPartialDate(year, month, day)) {
+      statusMessageKey = "invalid-date-error";
+      statusMessageDefault = "Error: Invalid collection date.";
+      statusType = "error";
+    } else {
+      if (statusMessageKey === "invalid-date-error") {
+        statusMessageKey = "";
+        statusMessageDefault = "";
+        statusType = "";
+      }
+      
+      const { dayIdentified, monthIdentified, yearIdentified } = form;
+      if (
+        statusMessageKey === "id-date-before-collection-error" &&
+        isValidPartialDate(yearIdentified, monthIdentified, dayIdentified) &&
+        comparePartialDates(yearIdentified, monthIdentified, dayIdentified, year, month, day) >= 0
+      ) {
+        statusMessageKey = "";
+        statusMessageDefault = "";
+        statusType = "";
+      }
+    }
+  }
+
+  /**
+   * Autocompletes the primary collector based on input string.
+   * @param {string} val
+   * @returns {Promise<void>}
+   */
+  async function handleCollectorInput(val) {
+    if (val.trim().length < 2) {
+      collectorSuggestions = [];
+      return;
+    }
+    try {
+      const res = await agentService.autocompleteAgent(val);
+      collectorSuggestions = res.filter(name => !form.additionalCollectors.includes(name));
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  /**
+   * Autocompletes additional collectors based on input string.
+   * @param {string} val
+   * @returns {Promise<void>}
+   */
+  async function handleAdditionalCollectorsInput(val) {
+    if (val.trim().length < 2) {
+      additionalCollectorsSuggestions = [];
+      return;
+    }
+    try {
+      const res = await agentService.autocompleteAgent(val);
+      additionalCollectorsSuggestions = res.filter(name => 
+        name !== form.recordedBy && 
+        !form.additionalCollectors.includes(name)
+      );
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  // --- Geographic Locality Section ---
+  /** @type {string[]} */
+  let countrySuggestions = $state([]);
+  /** @type {string[]} */
+  let stateProvinceSuggestions = $state([]);
+  /** @type {string[]} */
+  let countySuggestions = $state([]);
+  /** @type {string[]} */
+  let municipalitySuggestions = $state([]);
+  /** @type {string[]} */
+  let localitySuggestions = $state([]);
+
+  let isAnyGeoPopulated = $derived(
+    !!((form.country && form.country.trim().length > 0) ||
+       (form.stateProvince && form.stateProvince.trim().length > 0) ||
+       (form.county && form.county.trim().length > 0) ||
+       (form.municipality && form.municipality.trim().length > 0))
+  );
+
+  /** @type {HTMLTextAreaElement|null} */
+  let verbatimLocalityRef = $state(null);
+  let verbatimLocalityCopied = $state(false);
+  /** @type {any} */
+  let copyTimeoutId = null;
+
+  async function handleCopyVerbatimLocality() {
+    const success = await copySelectedOrValue(verbatimLocalityRef, form.verbatimLocality);
+    if (success) {
+      verbatimLocalityCopied = true;
+      if (copyTimeoutId) clearTimeout(copyTimeoutId);
+      copyTimeoutId = setTimeout(() => {
+        verbatimLocalityCopied = false;
+      }, 2000);
+    }
+  }
+
+  /** @type {HTMLInputElement|null} */
+  let localityInputRef = $state(null);
+  let localityCopied = $state(false);
+  /** @type {any} */
+  let localityCopyTimeout = null;
+
+  async function handleCopyLocality() {
+    if (localityInputRef) {
+      const success = await copySelectedOrValue(localityInputRef, form.locality);
+      if (success) {
+        console.log('Copy successful');
+        localityCopied = true;
+        if (localityCopyTimeout) clearTimeout(localityCopyTimeout);
+        localityCopyTimeout = setTimeout(() => {
+          localityCopied = false;
+        }, 2000);
+      }
+      else {
+        console.log('Copy failed');
+      }
+    }
+    else {
+      console.log('localityInputRef is null');
+    }
+  }
+
+  async function handlePasteLocality() {
+    const res = await pasteAtCursor(localityInputRef, form.locality);
+    if (res) {
+      form.locality = res.newValue;
+      setTimeout(() => {
+        if (localityInputRef) {
+          localityInputRef.focus();
+          localityInputRef.setSelectionRange(res.newCursorPos, res.newCursorPos);
+        }
+      }, 0);
+    }
+  }
+
+  /** @type {HTMLTextAreaElement|null} */
+  let locationNotesRef = $state(null);
+  let locationNotesCopied = $state(false);
+  /** @type {any} */
+  let locationNotesCopyTimeout = null;
+
+  async function handleCopyLocationNotes() {
+    const success = await copySelectedOrValue(locationNotesRef, form.locationNotes);
+    if (success) {
+      locationNotesCopied = true;
+      if (locationNotesCopyTimeout) clearTimeout(locationNotesCopyTimeout);
+      locationNotesCopyTimeout = setTimeout(() => {
+        locationNotesCopied = false;
+      }, 2000);
+    }
+  }
+
+  async function handlePasteLocationNotes() {
+    const res = await pasteAtCursor(locationNotesRef, form.locationNotes);
+    if (res) {
+      form.locationNotes = res.newValue;
+      setTimeout(() => {
+        if (locationNotesRef) {
+          locationNotesRef.focus();
+          locationNotesRef.setSelectionRange(res.newCursorPos, res.newCursorPos);
+        }
+      }, 0);
+    }
+  }
+
+  function handleCoordinatesBlur() {
+    if (form.verbatimCoordinates.trim() === "") {
+      coordinatesError = false;
+      form.decimalLatitude = "";
+      form.decimalLongitude = "";
+      return;
+    }
+    try {
+      const result = convert(form.verbatimCoordinates);
+      if (result && result.decimalLatitude !== undefined && result.decimalLongitude !== undefined) {
+        coordinatesError = false;
+        form.decimalLatitude = String(result.decimalLatitude);
+        form.decimalLongitude = String(result.decimalLongitude);
+      }
+    } catch (e) {
+      coordinatesError = true;
+    }
+  }
+
+  function onCountryChanged() {
+    form.stateProvince = "";
+    form.county = "";
+    form.municipality = "";
+    stateProvinceSuggestions = [];
+    countySuggestions = [];
+    municipalitySuggestions = [];
+  }
+
+  function onStateProvinceChanged() {
+    form.county = "";
+    form.municipality = "";
+    countySuggestions = [];
+    municipalitySuggestions = [];
+  }
+
+  function onCountyChanged() {
+    form.municipality = "";
+    municipalitySuggestions = [];
+  }
+
+  /**
+   * @param {string} val
+   */
+  async function handleCountryInput(val) {
+    onCountryChanged();
+    if (!val || val.trim().length === 0) {
+      countrySuggestions = [];
+      return;
+    }
+    try {
+      countrySuggestions = await geographyService.autocompleteGeography("country", val, "", "", "");
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  /**
+   * @param {string} val
+   */
+  async function handleStateProvinceInput(val) {
+    onStateProvinceChanged();
+    if (!val || val.trim().length === 0) {
+      stateProvinceSuggestions = [];
+      return;
+    }
+    try {
+      stateProvinceSuggestions = await geographyService.autocompleteGeography("stateProvince", val, form.country, "", "");
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  /**
+   * @param {string} val
+   */
+  async function handleCountyInput(val) {
+    onCountyChanged();
+    if (!val || val.trim().length === 0) {
+      countySuggestions = [];
+      return;
+    }
+    try {
+      countySuggestions = await geographyService.autocompleteGeography("county", val, form.country, form.stateProvince, "");
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  /**
+   * @param {string} val
+   */
+  async function handleMunicipalityInput(val) {
+    if (!val || val.trim().length === 0) {
+      municipalitySuggestions = [];
+      return;
+    }
+    try {
+      municipalitySuggestions = await geographyService.autocompleteGeography("municipality", val, form.country, form.stateProvince, form.county);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  /**
+   * @param {string} val
+   */
+  async function handleLocalityInput(val) {
+    if (val.trim().length < 2) {
+      localitySuggestions = [];
+      return;
+    }
+    try {
+      localitySuggestions = await geographyService.autocompleteLocality(val);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  /**
+   * @param {string} field
+   */
+  async function triggerGeoAutocomplete(field) {
+    try {
+      const results = await geographyService.autocompleteGeography(field, "", form.country, form.stateProvince, form.county);
+      if (field === "stateProvince") stateProvinceSuggestions = results;
+      else if (field === "county") countySuggestions = results;
+      else if (field === "municipality") municipalitySuggestions = results;
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function handleStateProvinceFocus() {
+    if (form.stateProvince.trim() === "") {
+      triggerGeoAutocomplete("stateProvince");
+    }
+  }
+
+  function handleCountyFocus() {
+    if (form.county.trim() === "") {
+      triggerGeoAutocomplete("county");
+    }
+  }
+
+  function handleMunicipalityFocus() {
+    if (form.municipality.trim() === "") {
+      triggerGeoAutocomplete("municipality");
+    }
+  }
+
+  onDestroy(() => {
+    if (copyTimeoutId) clearTimeout(copyTimeoutId);
+    if (localityCopyTimeout) clearTimeout(localityCopyTimeout);
+    if (locationNotesCopyTimeout) clearTimeout(locationNotesCopyTimeout);
+  });
+
+  // --- Taxonomy Section ---
+  /** @type {any[]} */
+  let taxonSuggestions = $state([]);
+  /** @type {string[]} */
+  let typeStatusSuggestions = $state([]);
+
+  const typeStatuses = [
+    "Holotype", "Isotype", "Syntype", "Lectotype", "Neotype", "Paratype", "Epitype", "Isolectotype", "Isosyntype", "Isoneotype", "Original material"
+  ];
+
+  /**
+   * @param {string} val
+   */
+  async function handleTaxonInput(val) {
+    if (val.trim().length < 2) {
+      taxonSuggestions = [];
+      return;
+    }
+    try {
+      taxonSuggestions = await taxonomyService.autocompleteScientificName(val);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  /**
+   * @param {any} sug
+   */
+  function handleTaxonSelect(sug) {
+    form.scientificName = sug.scientificName || "";
+    form.taxonID = sug.taxonID || "";
+  }
+
+  /**
+   * @param {string} val
+   */
+  function handleTypeStatusInput(val) {
+    if (!val) {
+      typeStatusSuggestions = typeStatuses;
+      return;
+    }
+    const lowerVal = val.toLowerCase();
+    typeStatusSuggestions = typeStatuses.filter(t => t.toLowerCase().includes(lowerVal));
+  }
+
+  function handleTypeStatusFocus() {
+    typeStatusSuggestions = typeStatuses;
+  }
+
+  // --- Determination Section ---
+  /** @type {string[]} */
+  let identifiedBySuggestions = $state([]);
+
+  /**
+   * @param {string} val
+   */
+  async function handleIdentifiedByInput(val) {
+    if (val.trim().length < 2) {
+      identifiedBySuggestions = [];
+      return;
+    }
+    try {
+      const res = await agentService.autocompleteAgent(val);
+      identifiedBySuggestions = res.filter(name => !form.identifiedBy.includes(name));
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function handleIdentificationDateBlur() {
+    const { dayIdentified, monthIdentified, yearIdentified } = form;
+    if (!isValidPartialDate(yearIdentified, monthIdentified, dayIdentified)) {
+      statusMessageKey = "invalid-id-date-error";
+      statusMessageDefault = "Error: Invalid identification date.";
+      statusType = "error";
+    } else if (
+      yearIdentified && form.year &&
+      comparePartialDates(yearIdentified, monthIdentified, dayIdentified, form.year, form.month, form.day) < 0
+    ) {
+      statusMessageKey = "id-date-before-collection-error";
+      statusMessageDefault = "Error: Identification date cannot be before collection date.";
+      statusType = "error";
+    } else {
+      if (
+        statusMessageKey === "invalid-id-date-error" ||
+        statusMessageKey === "id-date-before-collection-error"
+      ) {
+        statusMessageKey = "";
+        statusMessageDefault = "";
+        statusType = "";
+      }
+    }
   }
 
   function handleGlobalKeyDown(/** @type {KeyboardEvent} */ e) {
@@ -508,39 +969,761 @@
       </div>
     </div>
 
-    <!-- Section 1: Date and Collectors -->
-    <DateCollectorSection
-      bind:form
-      bind:titleCasedStates
-      bind:statusMessageKey
-      bind:statusMessageDefault
-      bind:statusType
-      {undoTitleCaseField}
-      {titleCaseField}
-      {t}
-    />
+    <!-- Section: Collection Details -->
+    <div class="space-y-3 pt-2">
+      <h3 data-i18n-key="collection-event-heading" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">{t("collection-event-heading", "Collection Details")}</h3>
+      
+      <!-- Primary Collector, Collector Number, Date -->
+      <div class="grid grid-cols-12 gap-3">
+        <!-- Primary Collector -->
+        <div class="col-span-3">
+          <Autocomplete
+            id="capture-recordedBy"
+            label="Primary Collector"
+            labelKey="recorded-by-label"
+            placeholder="Partial eg 'Raza'"
+            placeholderKey="recorded-by-placeholder"
+            bind:value={form.recordedBy}
+            suggestions={collectorSuggestions}
+            oninput={handleCollectorInput}
+            delay={300}
+            promptNewAgent={true}
+          />
+        </div>
+  
+        <!-- Collector Number -->
+        <div class="col-span-2">
+          <label for="capture-recordNumber" data-i18n-key="record-number-label" class="block text-xs font-semibold text-slate-650 uppercase tracking-wider mb-1">{t("record-number-label", "Collector No.")}</label>
+          <input
+            id="capture-recordNumber"
+            data-i18n-key="record-number-placeholder"
+            type="text"
+            placeholder={t("record-number-placeholder", "eg 1042")}
+            bind:value={form.recordNumber}
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          />
+        </div>
+        
+        <!-- Verbatim Collection Date -->
+        <div class="col-span-3">
+          <label for="capture-verbatimEventDate" data-i18n-key="verbatim-event-date-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">
+            <div class="flex justify-between">
+              <span>{t("verbatim-event-date-label", "Verbatim Date")}</span>
+              <div class="flex items-center divide-x divide-slate-300 select-none">
+                <button
+                  type="button"
+                  onclick={() => eventDateLanguage = "EN"}
+                  class="px-1 py-0.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {eventDateLanguage === 'EN' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-400'}"
+                >
+                  EN
+                </button>
+                <button
+                  type="button"
+                  onclick={() => eventDateLanguage = "FR"}
+                  class="px-1 py-0.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {eventDateLanguage === 'FR' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-400'}"
+                >
+                  FR
+                </button>
+              </div>
+            </div>
+          </label>
+          <input
+            id="capture-verbatimEventDate"
+            data-i18n-key="verbatim-event-date-placeholder"
+            type="text"
+            placeholder={t("verbatim-event-date-placeholder", "eg 'May 20, `84'")}
+            bind:value={form.verbatimEventDate}
+            onblur={parseVerbatimDate}
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          />
+        </div>
+  
+        <!-- Numeric Collection Date Fields -->
+        <div class="col-span-4 flex gap-2">
+          <div class="flex-1">
+            <label for="capture-year" data-i18n-key="year-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("year-label", "Year")}</label>
+            <input
+              id="capture-year"
+              type="number"
+              bind:value={form.year}
+              onblur={handleCollectionDateBlur}
+              class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+            />
+          </div>
+          <div class="flex-1">
+            <label for="capture-month" data-i18n-key="month-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("month-label", "Month")}</label>
+            <input
+              id="capture-month"
+              type="number"
+              min="1"
+              max="12"
+              bind:value={form.month}
+              onblur={handleCollectionDateBlur}
+              class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+            />
+          </div>
+          <div class="flex-1">
+            <label for="capture-day" data-i18n-key="day-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("day-label", "Day")}</label>
+            <input
+              id="capture-day"
+              type="number"
+              min="1"
+              max="31"
+              bind:value={form.day}
+              onblur={handleCollectionDateBlur}
+              class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+            />
+          </div>
+        </div>
+      </div>
+  
+      <!-- Additional Collectors -->
+      <div class="grid grid-cols-12 gap-3 pt-1">
+        <div class="col-span-12">
+          <MultiSelectAutocomplete
+            id="capture-additionalCollectors"
+            label="Additional Collectors"
+            labelKey="add-collectors-label"
+            placeholder="Type name and press Enter..."
+            placeholderKey="add-collectors-placeholder"
+            bind:selectedValues={form.additionalCollectors}
+            suggestions={additionalCollectorsSuggestions}
+            oninput={handleAdditionalCollectorsInput}
+            delay={300}
+          />
+        </div>
+      </div>
 
-    <!-- Section 2: Geographic Locality -->
-    <GeographySection
-      bind:form
-      bind:titleCasedStates
-      bind:coordinatesError
-      {undoTitleCaseField}
-      {titleCaseField}
-      {t}
-    />
+      <!-- Plant Description (fieldNotes) -->
+      <div>
+        <label for="capture-fieldNotes" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("field-notes-label", "Field Notes")}</label>
+        <div class="relative flex items-center">
+          <textarea
+            id="capture-fieldNotes"
+            placeholder={t("field-notes-placeholder", "eg 'Shrub 2m tall with yellow flowers'")}
+            bind:value={form.fieldNotes}
+            rows="2"
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all pr-12"
+          ></textarea>
+          <div class="absolute right-5 flex items-center gap-1 z-100">
+            {#if form.fieldNotes === titleCasedStates.fieldNotes.titleCased && titleCasedStates.fieldNotes.titleCased !== ""}
+              <button
+                type="button"
+                onclick={() => undoTitleCaseField(form, titleCasedStates, "fieldNotes")}
+                data-i18n-key="undo-title-case"
+                title={t("undo-title-case", "Undo Casing")}
+                class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                <UndoIcon />
+              </button>
+            {:else}
+              <button
+                type="button"
+                onclick={() => titleCaseField(form, titleCasedStates, "fieldNotes")}
+                data-i18n-key="title-case-field-notes"
+                title={t("title-case-field-notes", "Title case Field Notes")}
+                class="w-6 h-6 p-1.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                <AaIcon />
+              </button>
+            {/if}
+          </div>  
+        </div>
+      </div>
 
-    <!-- Section 3: Taxonomy -->
-    <TaxonomySection bind:form {t} />
+      <!-- General Notes (occurrenceRemarks) -->
+      <div>
+        <label for="capture-occurrenceRemarks" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("occurrence-remarks-label", "General Notes")}</label>
+        <div class="relative flex items-center">
+          <textarea
+            id="capture-occurrenceRemarks"
+            placeholder={t("occurrence-remarks-placeholder", "eg 'Common in tapia forest'")}
+            bind:value={form.occurrenceRemarks}
+            rows="2"
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all pr-12"
+          ></textarea>
+          <div class="absolute right-5 flex items-center gap-1 z-100">
 
-    <!-- Section 4: Determination / Identification -->
-    <DeterminationSection
-      bind:form
-      bind:statusMessageKey
-      bind:statusMessageDefault
-      bind:statusType
-      {t}
-    />
+            {#if form.occurrenceRemarks === titleCasedStates.occurrenceRemarks.titleCased && titleCasedStates.occurrenceRemarks.titleCased !== ""}
+              <button
+                type="button"
+                onclick={() => undoTitleCaseField(form, titleCasedStates, "occurrenceRemarks")}
+                data-i18n-key="undo-title-case"
+                title={t("undo-title-case", "Undo Casing")}
+                class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                <UndoIcon />
+              </button>
+            {:else}
+              <button
+                type="button"
+                onclick={() => titleCaseField(form, titleCasedStates, "occurrenceRemarks")}
+                data-i18n-key="title-case-occurrence-remarks"
+                title={t("title-case-occurrence-remarks", "Title case General Notes")}
+                class="w-6 h-6 p-1.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                <AaIcon />
+              </button>
+            {/if}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section: Geographic Locality -->
+    <div class="space-y-3 pt-2">
+      <h3 data-i18n-key="geographic-locality-heading" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">{t("geographic-locality-heading", "Geographic Locality")}</h3>
+      
+      <!-- Country and Admins -->
+      <div class="grid grid-cols-4 gap-3">
+        <div>
+          <label for="capture-country" data-i18n-key="country-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("country-label", "Country")}</label>
+          <div class="relative flex items-center">
+            <Autocomplete
+              id="capture-country"
+              label=""
+              placeholder={isAnyGeoPopulated ? "" : "eg Madagascar"}
+              placeholderKey={isAnyGeoPopulated ? undefined : "country-placeholder"}
+              bind:value={form.country}
+              suggestions={countrySuggestions}
+              oninput={handleCountryInput}
+              delay={300}
+            />
+            {#if form.country === titleCasedStates.country.titleCased && titleCasedStates.country.titleCased !== ""}
+              <button
+                type="button"
+                onclick={() => undoTitleCaseField(form, titleCasedStates, "country")}
+                data-i18n-key="undo-title-case"
+                title={t("undo-title-case", "Undo Casing")}
+                class="absolute right-2 bottom-1.5 w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                <UndoIcon />
+              </button>
+            {:else}
+              <button
+                type="button"
+                onclick={() => titleCaseField(form, titleCasedStates, "country")}
+                data-i18n-key="title-case"
+                title={t("title-case", "Proper Case")}
+                class="absolute right-2 bottom-1.5 w-6 h-6 p-1.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                <AaIcon />
+              </button>
+            {/if}
+          </div>
+        </div>
+
+        <div>
+          <label for="capture-stateProvince" data-i18n-key="state-province-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">
+            {form.country && form.country.toLowerCase() === "madagascar" ? t("state-province-label", "Province") : t("state-province-label", "Admin Div 1")}
+          </label>
+          <div class="relative flex items-center">
+            <Autocomplete
+              id="capture-stateProvince"
+              label=""
+              placeholder={isAnyGeoPopulated ? "" : (form.country && form.country.toLowerCase() === "madagascar" ? "eg Fianarantsoa" : "eg Province/State")}
+              placeholderKey={isAnyGeoPopulated ? undefined : (form.country && form.country.toLowerCase() === "madagascar" ? "state-province-placeholder-mada" : "state-province-placeholder")}
+              bind:value={form.stateProvince}
+              suggestions={stateProvinceSuggestions}
+              oninput={handleStateProvinceInput}
+              onfocus={handleStateProvinceFocus}
+              delay={300}
+            />
+            {#if form.stateProvince === titleCasedStates.stateProvince.titleCased && titleCasedStates.stateProvince.titleCased !== ""}
+              <button
+                type="button"
+                onclick={() => undoTitleCaseField(form, titleCasedStates, "stateProvince")}
+                data-i18n-key="undo-title-case"
+                title={t("undo-title-case", "Undo Casing")}
+                class="absolute right-2 bottom-1.5 w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                <UndoIcon />
+              </button>
+            {:else}
+              <button
+                type="button"
+                onclick={() => titleCaseField(form, titleCasedStates, "stateProvince")}
+                data-i18n-key="title-case"
+                title={t("title-case", "Proper Case")}
+                class="absolute right-2 bottom-1.5 w-6 h-6 p-1.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                <AaIcon />
+              </button>
+            {/if}
+          </div>
+        </div>
+
+        <div>
+          <label for="capture-county" data-i18n-key="county-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">
+            {form.country && form.country.toLowerCase() === "madagascar" ? t("county-label", "Region") : t("county-label", "Admin Div 2")}
+          </label>
+          <div class="relative flex items-center">
+            <Autocomplete
+              id="capture-county"
+              label=""
+              placeholder={isAnyGeoPopulated ? "" : (form.country && form.country.toLowerCase() === "madagascar" ? "eg Amoron'i Mania" : "eg Region/County")}
+              placeholderKey={isAnyGeoPopulated ? undefined : (form.country && form.country.toLowerCase() === "madagascar" ? "county-placeholder-mada" : "county-placeholder")}
+              bind:value={form.county}
+              suggestions={countySuggestions}
+              oninput={handleCountyInput}
+              onfocus={handleCountyFocus}
+              delay={300}
+            />
+            {#if form.county === titleCasedStates.county.titleCased && titleCasedStates.county.titleCased !== ""}
+              <button
+                type="button"
+                onclick={() => undoTitleCaseField(form, titleCasedStates, "county")}
+                data-i18n-key="undo-title-case"
+                title={t("undo-title-case", "Undo Casing")}
+                class="absolute right-2 bottom-1.5 w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                <UndoIcon />
+              </button>
+            {:else}
+              <button
+                type="button"
+                onclick={() => titleCaseField(form, titleCasedStates, "county")}
+                data-i18n-key="title-case"
+                title={t("title-case", "Proper Case")}
+                class="absolute right-2 bottom-1.5 w-6 h-6 p-1.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                <AaIcon />
+              </button>
+            {/if}
+          </div>
+        </div>
+
+        <div>
+          <label for="capture-municipality" data-i18n-key="municipality-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("municipality-label", "Municipality")}</label>
+          <div class="relative flex items-center">
+            <Autocomplete
+              id="capture-municipality"
+              label=""
+              placeholder={isAnyGeoPopulated ? "" : (form.country && form.country.toLowerCase() === "madagascar" ? "eg Ambositra" : "eg Municipality")}
+              placeholderKey={isAnyGeoPopulated ? undefined : (form.country && form.country.toLowerCase() === "madagascar" ? "municipality-placeholder-mada" : "municipality-placeholder")}
+              bind:value={form.municipality}
+              suggestions={municipalitySuggestions}
+              oninput={handleMunicipalityInput}
+              onfocus={handleMunicipalityFocus}
+              delay={300}
+            />
+            {#if form.municipality === titleCasedStates.municipality.titleCased && titleCasedStates.municipality.titleCased !== ""}
+              <button
+                type="button"
+                onclick={() => undoTitleCaseField(form, titleCasedStates, "municipality")}
+                data-i18n-key="undo-title-case"
+                title={t("undo-title-case", "Undo Casing")}
+                class="absolute right-2 bottom-1.5 w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                <UndoIcon />
+              </button>
+            {:else}
+              <button
+                type="button"
+                onclick={() => titleCaseField(form, titleCasedStates, "municipality")}
+                data-i18n-key="title-case"
+                title={t("title-case", "Proper Case")}
+                class="absolute right-2 bottom-1.5 w-6 h-6 p-1.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                <AaIcon />
+              </button>
+            {/if}
+          </div>
+        </div>
+      </div>
+
+      <!-- Locality and Cultivated -->
+      <div class="grid grid-cols-12 gap-3">
+        <!-- Locality Field -->
+        <div class="col-span-9">
+          <label for="capture-locality" data-i18n-key="locality-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("locality-label", "Locality")}</label>
+          <div class="relative flex items-center ">
+            <div class="w-full">
+              <Autocomplete
+                id="capture-locality"
+                label=""
+                placeholder="eg 10km north of Ambositra, on road to Antsirabe"
+                placeholderKey="locality-placeholder"
+                bind:value={form.locality}
+                suggestions={localitySuggestions}
+                oninput={handleLocalityInput}
+                delay={300}
+                bind:inputRef={localityInputRef}
+                extraInputClass="pr-20"
+              />
+            </div>
+            
+            <!-- Buttons -->
+            <div class="absolute right-5 flex items-center gap-1 z-100">
+              <button
+                type="button"
+                onclick={handleCopyLocality}
+                title={t("copy-locality-title", "Copy Locality")}
+                class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                {#if localityCopied}
+                  <CheckIcon />
+                {:else}
+                  <CopyIcon />
+                {/if}
+              </button>
+              <button
+                type="button"
+                onclick={handlePasteLocality}
+                title={t("paste-locality-title", "Paste Locality")}
+                class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                <PasteIcon />
+              </button>
+              {#if form.locality === titleCasedStates.locality.titleCased && titleCasedStates.locality.titleCased !== ""}
+                <button
+                  type="button"
+                  onclick={() => undoTitleCaseField(form, titleCasedStates, "locality")}
+                  data-i18n-key="undo-title-case"
+                  title={t("undo-title-case", "Undo Casing")}
+                  class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                  tabindex="-1"
+                >
+                  <UndoIcon />
+                </button>
+              {:else}
+                <button
+                  type="button"
+                  onclick={() => titleCaseField(form, titleCasedStates, "locality")}
+                  data-i18n-key="title-case"
+                  title={t("title-case", "Proper Case")}
+                  class="w-6 h-6 p-1.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                  tabindex="-1"
+                >
+                  <AaIcon />
+                </button>
+              {/if}
+            </div>
+
+          </div>
+        </div>
+        <!-- Cultivated Specimen Flag -->
+        <div class="col-span-3 flex items-center pt-5">
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              bind:checked={form.cultivated}
+              class="w-4 h-4 border border-slate-300 rounded-none checked:bg-slate-800 outline-none cursor-pointer"
+            />
+            <span data-i18n-key="cultivated-label" class="text-xs font-semibold text-slate-600 uppercase tracking-wider">{t("cultivated-label", "Cultivated Specimen")}</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Coordinates -->
+      <div class="col-span-4">
+        <label for="capture-verbatimCoordinates" data-i18n-key="verbatim-coordinates-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+          {t("verbatim-coordinates-label", "Coordinates")}
+          {#if coordinatesError}
+            <span data-i18n-key="coord-error-badge" class="text-[9px] text-red-500 font-bold ml-1 uppercase">{t("coord-error-badge", "(Invalid)")}</span>
+          {/if}
+        </label>
+        <input
+          id="capture-verbatimCoordinates"
+          data-i18n-key="verbatim-coordinates-placeholder"
+          type="text"
+          placeholder={t("verbatim-coordinates-placeholder", "eg 20°34'S, 47°12'E")}
+          bind:value={form.verbatimCoordinates}
+          onblur={handleCoordinatesBlur}
+          class="w-full bg-white border text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all {coordinatesError ? 'border-red-500 bg-red-50 focus:border-red-500 focus:ring-red-500' : 'border-slate-300'}"
+        />
+        {#if form.decimalLatitude && form.decimalLongitude}
+          <div class="text-[10px] text-slate-400 mt-1">
+            {(Number(form.decimalLatitude)).toFixed(6)}, {(Number(form.decimalLongitude)).toFixed(6)}
+          </div>
+        {/if}
+      </div>
+
+      <!-- Locality Notes -->
+      <div class="grid grid-cols-12 gap-3">
+        <div class="col-span-12">
+          <label for="capture-locationNotes" data-i18n-key="location-notes-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("location-notes-label", "Locality Notes")}</label>
+          <div class="relative flex items-center">
+            <textarea
+              id="capture-locationNotes"
+              data-i18n-key="location-notes-placeholder"
+              placeholder={t("location-notes-placeholder", "eg 'Found in humid forest'")}
+              bind:value={form.locationNotes}
+              bind:this={locationNotesRef}
+              rows="2"
+              class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all pr-24"
+            ></textarea>
+            
+            <!-- Clipboard Buttons -->
+            <div class="absolute right-5 bottom-3.5 flex items-center gap-1 z-10">
+              <button
+                type="button"
+                onclick={handleCopyLocationNotes}
+                title={t("copy-location-notes-title", "Copy Notes")}
+                class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                {#if locationNotesCopied}
+                  <CheckIcon />
+                {:else}
+                  <CopyIcon />
+                {/if}
+              </button>
+              <button
+                type="button"
+                onclick={handlePasteLocationNotes}
+                title={t("paste-location-notes-title", "Paste Notes")}
+                class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                <PasteIcon />
+              </button>
+              {#if form.locationNotes === titleCasedStates.locationNotes.titleCased && titleCasedStates.locationNotes.titleCased !== ""}
+                <button
+                  type="button"
+                  onclick={() => undoTitleCaseField(form, titleCasedStates, "locationNotes")}
+                  data-i18n-key="undo-title-case"
+                  title={t("undo-title-case", "Undo Casing")}
+                  class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                  tabindex="-1"
+                >
+                  <UndoIcon />
+                </button>
+              {:else}
+                <button
+                  type="button"
+                  onclick={() => titleCaseField(form, titleCasedStates, "locationNotes")}
+                  data-i18n-key="title-case-notes"
+                  title={t("title-case-notes", "Title case Locality Notes")}
+                  class="w-6 h-6 p-1.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                  tabindex="-1"
+                >
+                  <AaIcon />
+                </button>
+              {/if}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Verbatim Locality -->
+      <div class="grid grid-cols-12 gap-3">
+        <div class="col-span-12">
+          <label for="capture-verbatimLocality" data-i18n-key="verbatim-locality-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("verbatim-locality-label", "Verbatim Locality (copy data above)")}</label>
+          <div class="relative flex items-center">
+            <textarea
+              id="capture-verbatimLocality"
+              data-i18n-key="verbatim-locality-placeholder"
+              placeholder={t("verbatim-locality-placeholder", "Select any portion above and click 'copy' to populate")}
+              bind:value={form.verbatimLocality}
+              bind:this={verbatimLocalityRef}
+              rows="3"
+              class="w-full bg-slate-100 border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all pr-12"
+              readonly
+            ></textarea>
+            <button
+              type="button"
+              onclick={handleCopyVerbatimLocality}
+              title={t("copy-verbatim-locality-title", "Copy selected text to clipboard")}
+              class="absolute w-6 h-6 right-2 bottom-3.5 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+              tabindex="-1"
+            >
+              {#if verbatimLocalityCopied}
+                <CheckIcon />
+              {:else}
+                <CopyIcon />
+              {/if}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Verbatim Elevation and Habitat -->
+      <div class="grid grid-cols-12 gap-3">
+        <div class="col-span-4">
+          <label for="capture-verbatimElevation" data-i18n-key="verbatim-elevation-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("verbatim-elevation-label", "Verbatim Elevation")}</label>
+          <input
+            id="capture-verbatimElevation"
+            data-i18n-key="verbatim-elevation-placeholder"
+            type="text"
+            placeholder={t("verbatim-elevation-placeholder", "eg 1200m or 3400ft")}
+            bind:value={form.verbatimElevation}
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          />
+        </div>
+        <div class="col-span-8">
+          <label for="capture-habitat" data-i18n-key="habitat-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("habitat-label", "Habitat")}</label>
+          <div class="relative flex items-center">
+            <input
+              id="capture-habitat"
+              data-i18n-key="habitat-placeholder"
+              type="text"
+              placeholder={t("habitat-placeholder", "eg Tapia woodland")}
+              bind:value={form.habitat}
+              class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all pr-12"
+            />
+            <div class="absolute right-5 flex items-center gap-1 z-100">
+
+              {#if form.habitat === titleCasedStates.habitat.titleCased && titleCasedStates.habitat.titleCased !== ""}
+                <button
+                  type="button"
+                  onclick={() => undoTitleCaseField(form, titleCasedStates, "habitat")}
+                  data-i18n-key="undo-title-case"
+                  title={t("undo-title-case", "Undo Casing")}
+                  class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                  tabindex="-1"
+                >
+                  <UndoIcon />
+                </button>
+              {:else}
+                <button
+                  type="button"
+                  onclick={() => titleCaseField(form, titleCasedStates, "habitat")}
+                  data-i18n-key="title-case-habitat"
+                  title={t("title-case-habitat", "Title case Habitat")}
+                  class="w-6 h-6 p-1.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                  tabindex="-1"
+                >
+                  <AaIcon />
+                </button>
+              {/if}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Section: Determination / Identification -->
+    <div class="space-y-3 pt-2">
+      <h3 data-i18n-key="identification-heading" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">{t("identification-heading", "Identification")}</h3>
+      
+      <div class="grid grid-cols-12 gap-3">
+        <!-- Qualifier -->
+        <div class="col-span-3">
+          <label for="capture-identificationQualifier" data-i18n-key="id-qualifier-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("id-qualifier-label", "Qualifier")}</label>
+          <select
+            id="capture-identificationQualifier"
+            bind:value={form.identificationQualifier}
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          >
+            <option value="" data-i18n-key="qualifier-none-option">{t("qualifier-none-option", "(None)")}</option>
+            <option value="cf.">cf.</option>
+            <option value="aff.">aff.</option>
+            <option value="nr.">nr.</option>
+          </select>
+        </div>
+
+        <!-- Scientific Name -->
+        <div class="col-span-6">
+          <Autocomplete
+            id="capture-scientificName"
+            label="Scientific Name"
+            labelKey="scientific-name-label"
+            placeholder="Partial search eg 'ab man'"
+            placeholderKey="scientific-name-placeholder"
+            bind:value={form.scientificName}
+            suggestions={taxonSuggestions}
+            oninput={handleTaxonInput}
+            onselect={handleTaxonSelect}
+            delay={300}
+          />
+        </div>
+
+        <!-- Type Status -->
+        <div class="col-span-3">
+          <label for="capture-typeStatus" data-i18n-key="type-status-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("type-status-label", "Type Status")}</label>
+          <Autocomplete
+            id="capture-typeStatus"
+            label=""
+            placeholder="eg holotype"
+            placeholderKey="type-status-placeholder"
+            bind:value={form.typeStatus}
+            suggestions={typeStatusSuggestions}
+            oninput={handleTypeStatusInput}
+            onfocus={handleTypeStatusFocus}
+            delay={0}
+          />
+        </div>
+      </div>
+      <div class="grid grid-cols-12 gap-3 pt-2">
+        <!-- Det By -->
+        <div class="col-span-6">
+          <MultiSelectAutocomplete
+            id="capture-identifiedBy"
+            label="Det By"
+            labelKey="det-by-label"
+            placeholder="Type name and press Enter..."
+            placeholderKey="det-by-placeholder"
+            bind:selectedValues={form.identifiedBy}
+            suggestions={identifiedBySuggestions}
+            oninput={handleIdentifiedByInput}
+            delay={300}
+          />
+        </div>
+  
+        <!-- Identification Date Fields -->
+        <div class="col-span-2">
+          <label for="capture-yearIdentified" data-i18n-key="det-year-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("det-year-label", "Year Ident.")}</label>
+          <input
+            id="capture-yearIdentified"
+            type="number"
+            bind:value={form.yearIdentified}
+            onblur={handleIdentificationDateBlur}
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          />
+        </div>
+        <div class="col-span-2">
+          <label for="capture-monthIdentified" data-i18n-key="det-month-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("det-month-label", "Month Ident.")}</label>
+          <input
+            id="capture-monthIdentified"
+            type="number"
+            min="1"
+            max="12"
+            bind:value={form.monthIdentified}
+            onblur={handleIdentificationDateBlur}
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          />
+        </div>
+        <div class="col-span-2">
+          <label for="capture-dayIdentified" data-i18n-key="det-day-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("det-day-label", "Day Ident.")}</label>
+          <input
+            id="capture-dayIdentified"
+            type="number"
+            min="1"
+            max="31"
+            bind:value={form.dayIdentified}
+            onblur={handleIdentificationDateBlur}
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          />
+        </div>
+      </div>
+      <!-- Identification Notes -->
+      <div class="">
+        <label for="capture-identificationRemarks" data-i18n-key="det-remarks-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("det-remarks-label", "Identification Notes")}</label>
+        <input
+          id="capture-identificationRemarks"
+          data-i18n-key="det-remarks-placeholder"
+          type="text"
+          placeholder={t("det-remarks-placeholder", "eg 'cf. species A'")}
+          bind:value={form.identificationRemarks}
+          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+        />
+      </div>
+    </div>
 
   </form>
 
