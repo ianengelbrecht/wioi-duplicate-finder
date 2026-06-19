@@ -229,38 +229,51 @@
     </div>
 
     <!-- Active User & Session Control -->
-    <div class="flex items-center gap-4 text-xs font-semibold">
-      <!-- Language Selector -->
-      <div class="flex items-center border border-slate-300 divide-x divide-slate-300 select-none">
-        <button
-          type="button"
-          onclick={() => currentLanguage = "EN"}
-          class="px-2.5 py-1.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {currentLanguage === 'EN' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-650'}"
+    <div class="flex items-center gap-8 text-xs font-semibold">
+      <!-- Language Selector and Github -->
+      <div class="flex items-center gap-2">
+
+        <div class="flex items-center border border-slate-300 divide-x divide-slate-300 select-none">
+          <button
+            type="button"
+            onclick={() => currentLanguage = "EN"}
+            class="px-2.5 py-1.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {currentLanguage === 'EN' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-650'}"
+          >
+            EN
+          </button>
+          <button
+            type="button"
+            onclick={() => currentLanguage = "FR"}
+            class="px-2.5 py-1.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {currentLanguage === 'FR' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-650'}"
+          >
+            FR
+          </button>
+          <button
+            type="button"
+            onclick={() => currentLanguage = "PT"}
+            class="px-2.5 py-1.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {currentLanguage === 'PT' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-650'}"
+          >
+            PT
+          </button>
+          <button
+            type="button"
+            onclick={() => currentLanguage = "MG"}
+            class="px-2.5 py-1.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {currentLanguage === 'MG' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-650'}"
+          >
+            MG
+          </button>
+        </div>
+        <!-- Github button -->
+        <a
+          href="https://github.com/your-repo"
+          target="_blank"
+          rel="noopener noreferrer"
+          class=""
         >
-          EN
-        </button>
-        <button
-          type="button"
-          onclick={() => currentLanguage = "FR"}
-          class="px-2.5 py-1.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {currentLanguage === 'FR' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-650'}"
-        >
-          FR
-        </button>
-        <button
-          type="button"
-          onclick={() => currentLanguage = "PT"}
-          class="px-2.5 py-1.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {currentLanguage === 'PT' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-650'}"
-        >
-          PT
-        </button>
-        <button
-          type="button"
-          onclick={() => currentLanguage = "MG"}
-          class="px-2.5 py-1.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {currentLanguage === 'MG' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-650'}"
-        >
-          MG
-        </button>
+          <img src="github.png" alt="GitHub" class="w-5 h-5 inline-block mr-1" />
+        </a>
       </div>
+      
 
       {#if authStore.currentUser}
         <div class="text-right">
