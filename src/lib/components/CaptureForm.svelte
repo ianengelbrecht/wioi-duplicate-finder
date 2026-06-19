@@ -459,6 +459,14 @@
   function parseVerbatimDate() {
     let dateStr = form.verbatimEventDate.trim();
     if (!dateStr) return;
+    
+    // Remove apostrophe like chars so we can parse this more successfully
+    dateStr = dateStr
+      // normalize apostrophe-like chars to plain apostrophe
+      .replace(/[\u2018\u2019\u02BC\u0060]/g, "'")
+      // remove apostrophe before 2-digit year after start, space, slash, dash, comma
+      .replace(/(^|[\s,/-])'(\d{2})(?=$|[\s,./-])/g, "$1$2");
+
     let { day, month, year } = parser.attempt(dateStr, eventDateLanguage === "FR" ? "fr-FR" : "en-US");
     form.day = day ? String(day) : "";
     form.month = month ? String(month) : "";
@@ -973,7 +981,7 @@
             label="Primary Collector"
             labelKey="recorded-by-label"
             placeholder="Partial eg 'Raza'"
-            placeholderKey="recorded-by-placeholder"
+            placeholderKey="names-field-placeholder"
             bind:value={form.recordedBy}
             suggestions={collectorSuggestions}
             oninput={handleCollectorInput}
@@ -1076,7 +1084,7 @@
             label="Additional Collectors"
             labelKey="add-collectors-label"
             placeholder="Type name and press Enter..."
-            placeholderKey="add-collectors-placeholder"
+            placeholderKey="names-field-placeholder"
             bind:selectedValues={form.additionalCollectors}
             suggestions={additionalCollectorsSuggestions}
             oninput={handleAdditionalCollectorsInput}
@@ -1212,7 +1220,8 @@
 
         <div>
           <label for="capture-stateProvince" data-i18n-key="state-province-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">
-            {form.country && form.country.toLowerCase() === "madagascar" ? t("state-province-label", "Province") : t("state-province-label", "Admin Div 1")}
+            {form.country && form.country.toLowerCase() === "madagascar" ? t("state-province-label", "Province") : t("state-province-label", "Admin 2")}
+            <span data-i18n-key="state-province-sub" class="text-[70%]">{t("state-province-sub", "(state/prov/etc)")}</span>
           </label>
           <div class="relative flex items-center">
             <Autocomplete
@@ -1254,7 +1263,9 @@
 
         <div>
           <label for="capture-county" data-i18n-key="county-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">
-            {form.country && form.country.toLowerCase() === "madagascar" ? t("county-label", "Region") : t("county-label", "Admin Div 2")}
+            {form.country && form.country.toLowerCase() === "madagascar" ? t("county-label", "Region") : t("county-label", "Admin 3")}
+            <span data-i18n-key="county-sub" class="text-[70%]">{t("county-sub", "(county/etc)")}</span>
+
           </label>
           <div class="relative flex items-center">
             <Autocomplete
@@ -1295,7 +1306,7 @@
         </div>
 
         <div>
-          <label for="capture-municipality" data-i18n-key="municipality-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("municipality-label", "Municipality")}</label>
+          <label for="capture-municipality" data-i18n-key="municipality-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("municipality-label", "Admin 4")}</label>
           <div class="relative flex items-center">
             <Autocomplete
               id="capture-municipality"
@@ -1658,7 +1669,7 @@
             label="Det By"
             labelKey="det-by-label"
             placeholder="Type name and press Enter..."
-            placeholderKey="det-by-placeholder"
+            placeholderKey="names-field-placeholder"
             bind:selectedValues={form.identifiedBy}
             suggestions={identifiedBySuggestions}
             oninput={handleIdentifiedByInput}
