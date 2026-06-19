@@ -215,7 +215,7 @@
   }
 </script>
 
-<div class="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
+<div class="{authStore.view === "dashboard" ? "h-screen" : "min-h-screen"} bg-slate-50 text-slate-800 flex flex-col font-sans">
   <!-- Top Navigation Header -->
   <header class="bg-white border-b border-slate-300 px-6 py-4 flex justify-between items-center z-10">
     <div class="flex items-center gap-3">
@@ -316,19 +316,27 @@
     {:else if authStore.view === "dashboard"}
       <div class="flex-1 max-w-5xl mx-auto w-full p-6 grid grid-cols-1 md:grid-cols-3 gap-6 min-h-0">
         <!-- Sidebar Navigation Tabs -->
-        <div class="md:col-span-1 flex flex-col gap-2">
-          <button
-            onclick={() => activeTab = "settings"}
-            class="w-full text-left px-4 py-3 text-xs font-bold uppercase tracking-wider border rounded-none transition-all {activeTab === 'settings' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}"
-          >
-            {t("application-settings", "Application Settings")}
-          </button>
-          <button
-            onclick={() => activeTab = "sessions"}
-            class="w-full text-left px-4 py-3 text-xs font-bold uppercase tracking-wider border rounded-none transition-all {activeTab === 'sessions' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}"
-          >
-            {t("capture-sessions-heading", "Capture Sessions")}
-          </button>
+        <div class="md:col-span-1 flex flex-col justify-between ">
+          <div class="flex flex-col gap-2">
+            <button
+              onclick={() => activeTab = "settings"}
+              class="w-full text-left px-4 py-3 text-xs font-bold uppercase tracking-wider border rounded-none transition-all {activeTab === 'settings' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}"
+            >
+              {t("application-settings", "Application Settings")}
+            </button>
+            <button
+              onclick={() => activeTab = "sessions"}
+              class="w-full text-left px-4 py-3 text-xs font-bold uppercase tracking-wider border rounded-none transition-all {activeTab === 'sessions' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}"
+            >
+              {t("capture-sessions-heading", "Capture Sessions")}
+            </button>
+          </div>
+          <!-- Funders logos -->
+          <div class="">
+            <a href="https://varuna-biodiversite.org" target="_blank" rel="noopener noreferrer">
+              <img src="funders_desat.png" alt="Funders Logos" class="w-full" />
+            </a>
+          </div>
         </div>
 
         <!-- Main Dashboard Tab Panels -->

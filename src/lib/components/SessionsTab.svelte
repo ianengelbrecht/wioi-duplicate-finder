@@ -120,7 +120,7 @@
   }
 </script>
 
-<div class="space-y-6 flex-1 flex flex-col">
+<div class="min-h-0 overflow-hidden space-y-6 flex-1 flex flex-col">
   <div>
     <h2 data-i18n-key="dashboard-title" class="text-md font-bold text-slate-900 uppercase tracking-wide">{t("dashboard-title", "Data Capture Sessions")}</h2>
     <p data-i18n-key="select-session-desc" class="text-xs text-slate-500 mt-1">{t("select-session-desc", "Select a session to start capturing or launch a new named session.")}</p>
@@ -144,105 +144,107 @@
   </form>
 
   <!-- Session Listing -->
-  <div class="flex-1 min-h-0">
+  <div class="flex-1 min-h-0 pb-12">
     <h3 data-i18n-key="sessions-heading" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">{t("sessions-heading", "Sessions")}</h3>
     
     {#if workspaceStore.sessionList.length > 0}
-      <ul class="border border-slate-200 divide-y divide-slate-200">
-        {#each workspaceStore.sessionList as ses}
-          <li class="hover:bg-slate-50 transition-colors flex justify-between items-center pr-4">
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <div
-              onclick={() => onSelectSession(ses)}
-              class="flex-1 text-left p-4 flex justify-between items-center cursor-pointer outline-none"
-            >
+      <div class="h-full overflow-y-auto">
+        <ul class="border border-slate-200 divide-y divide-slate-200 ">
+          {#each workspaceStore.sessionList as ses}
+            <li class="hover:bg-slate-50 transition-colors flex justify-between items-center pr-4">
               <!-- svelte-ignore a11y_click_events_have_key_events -->
               <!-- svelte-ignore a11y_no_static_element_interactions -->
-              <div class="flex-1 mr-4">
-                {#if editingSessionId === ses.id}
-                  <!-- svelte-ignore a11y_autofocus -->
-                  <input
-                    type="text"
-                    bind:value={editingName}
-                    onblur={() => saveSessionName(ses)}
-                    onkeydown={(e) => handleEditingKeydown(e, ses)}
-                    class="bg-white border border-slate-300 text-slate-800 text-sm px-2 py-1 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none w-full"
-                    autofocus
-                  />
-                {:else}
-                  <span 
-                    onclick={(e) => startEditing(ses, e)}
-                    class="text-sm font-semibold text-slate-900 block cursor-text hover:text-slate-600 hover:underline w-fit"
-                    title="Click to rename"
-                  >
-                    {ses.name}
-                  </span>
-                {/if}
-                <div class="flex flex-wrap items-center gap-3 mt-1 text-[10px] text-slate-500">
-                  {#if ses.lastRecordAt}
-                    <span>
-                      {t("last-record", "last record")}:
-                      <strong class="text-slate-700 font-semibold">
-                        {new Date(ses.lastRecordAt.replace(' ', 'T') + 'Z').toLocaleString(currentLanguage === "EN" ? "en-US" : currentLanguage.toLowerCase(), {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </strong>
-                    </span>
+              <div
+                onclick={() => onSelectSession(ses)}
+                class="flex-1 text-left p-4 flex justify-between items-center cursor-pointer outline-none"
+              >
+                <!-- svelte-ignore a11y_click_events_have_key_events -->
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div class="flex-1 mr-4">
+                  {#if editingSessionId === ses.id}
+                    <!-- svelte-ignore a11y_autofocus -->
+                    <input
+                      type="text"
+                      bind:value={editingName}
+                      onblur={() => saveSessionName(ses)}
+                      onkeydown={(e) => handleEditingKeydown(e, ses)}
+                      class="bg-white border border-slate-300 text-slate-800 text-sm px-2 py-1 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none w-full"
+                      autofocus
+                    />
                   {:else}
-                    <span data-i18n-key="no-records-captured" class="text-slate-400 italic">
-                      {t("no-records-captured", "No records captured")}
+                    <span 
+                      onclick={(e) => startEditing(ses, e)}
+                      class="text-sm font-semibold text-slate-900 block cursor-text hover:text-slate-600 hover:underline w-fit"
+                      title="Click to rename"
+                    >
+                      {ses.name}
                     </span>
                   {/if}
-
-                  {#if ses.recordCount > 0}
-                    {#if ses.lastExportedAt}
+                  <div class="flex flex-wrap items-center gap-3 mt-1 text-[10px] text-slate-500">
+                    {#if ses.lastRecordAt}
                       <span>
-                        {t("last-export", "last export")}:
-                        <span
-                          class="px-1 py-0.5 rounded-none font-medium {isExportWarning(ses)
-                            ? 'bg-red-50 text-red-700 border border-red-200'
-                            : 'text-slate-700'}"
-                        >
-                          {new Date(ses.lastExportedAt.replace(' ', 'T') + 'Z').toLocaleString(currentLanguage === "EN" ? "en-US" : currentLanguage.toLowerCase(), {
+                        {t("last-record", "last record")}:
+                        <strong class="text-slate-700 font-semibold">
+                          {new Date(ses.lastRecordAt.replace(' ', 'T') + 'Z').toLocaleString(currentLanguage === "EN" ? "en-US" : currentLanguage.toLowerCase(), {
                             year: 'numeric',
                             month: 'short',
                             day: 'numeric',
                             hour: '2-digit',
                             minute: '2-digit'
                           })}
-                        </span>
+                        </strong>
                       </span>
                     {:else}
-                      <span>
-                        <span data-i18n-key="never-exported" class="px-1 py-0.5 rounded-none font-medium bg-red-50 text-red-700 border border-red-200">
-                          {t("never-exported", "Never exported")}
-                        </span>
+                      <span data-i18n-key="no-records-captured" class="text-slate-400 italic">
+                        {t("no-records-captured", "No records captured")}
                       </span>
                     {/if}
-                  {/if}
+  
+                    {#if ses.recordCount > 0}
+                      {#if ses.lastExportedAt}
+                        <span>
+                          {t("last-export", "last export")}:
+                          <span
+                            class="px-1 py-0.5 rounded-none font-medium {isExportWarning(ses)
+                              ? 'bg-red-50 text-red-700 border border-red-200'
+                              : 'text-slate-700'}"
+                          >
+                            {new Date(ses.lastExportedAt.replace(' ', 'T') + 'Z').toLocaleString(currentLanguage === "EN" ? "en-US" : currentLanguage.toLowerCase(), {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </span>
+                      {:else}
+                        <span>
+                          <span data-i18n-key="never-exported" class="px-1 py-0.5 rounded-none font-medium bg-red-50 text-red-700 border border-red-200">
+                            {t("never-exported", "Never exported")}
+                          </span>
+                        </span>
+                      {/if}
+                    {/if}
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <span class="text-xs bg-slate-100 font-bold px-2 py-1 border border-slate-300">
+                    {ses.recordCount} {t("specimens-count", "specimens")}
+                  </span>
                 </div>
               </div>
-              <div class="flex items-center gap-3">
-                <span class="text-xs bg-slate-100 font-bold px-2 py-1 border border-slate-300">
-                  {ses.recordCount} {t("specimens-count", "specimens")}
-                </span>
-              </div>
-            </div>
-            <button
-              data-i18n-key="delete-btn"
-              onclick={(e) => promptDeleteSession(ses.id, ses.name, e)}
-              class="bg-red-55 bg-red-50 hover:bg-red-100 text-red-650 border border-red-200 px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors ml-2"
-            >
-              {t("delete-btn", "Delete")}
-            </button>
-          </li>
-        {/each}
-      </ul>
+              <button
+                data-i18n-key="delete-btn"
+                onclick={(e) => promptDeleteSession(ses.id, ses.name, e)}
+                class="bg-red-55 bg-red-50 hover:bg-red-100 text-red-650 border border-red-200 px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors ml-2"
+              >
+                {t("delete-btn", "Delete")}
+              </button>
+            </li>
+          {/each}
+        </ul>
+      </div>
     {:else}
       <div class="h-48 flex flex-col justify-center items-center text-slate-400 border border-dashed border-slate-300 p-6 text-center">
         <span data-i18n-key="no-sessions-title" class="text-xs font-medium uppercase tracking-wider mb-1">{t("no-sessions-title", "No Sessions Available")}</span>

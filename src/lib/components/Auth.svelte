@@ -108,5 +108,10 @@
         {isRegister ? t("already-have-account", "Already have an account? Sign In") : t("need-account", "Need an account? Register")}
       </button>
     </div>
+    <div>
+      <a href="https://varuna-biodiversite.org/" target="_blank" rel="noopener noreferrer">
+        <img src="funders_desat.png" alt="Funders Logos" class="w-full" />
+      </a>
+    </div>
   </div>
 </div>
