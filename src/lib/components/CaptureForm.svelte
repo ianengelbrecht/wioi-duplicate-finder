@@ -583,22 +583,13 @@
   let localityCopyTimeout = null;
 
   async function handleCopyLocality() {
-    if (localityInputRef) {
-      const success = await copySelectedOrValue(localityInputRef, form.locality);
-      if (success) {
-        console.log('Copy successful');
-        localityCopied = true;
-        if (localityCopyTimeout) clearTimeout(localityCopyTimeout);
-        localityCopyTimeout = setTimeout(() => {
-          localityCopied = false;
-        }, 2000);
-      }
-      else {
-        console.log('Copy failed');
-      }
-    }
-    else {
-      console.log('localityInputRef is null');
+    const success = await copySelectedOrValue(localityInputRef, form.locality);
+    if (success) {
+      localityCopied = true;
+      if (localityCopyTimeout) clearTimeout(localityCopyTimeout);
+      localityCopyTimeout = setTimeout(() => {
+        localityCopied = false;
+      }, 2000);
     }
   }
 
