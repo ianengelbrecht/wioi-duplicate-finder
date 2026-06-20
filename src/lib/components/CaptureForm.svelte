@@ -27,6 +27,7 @@
    * @property {string} collectionCode
    * @property {any} [activeRecord=null]
    * @property {() => void} [onSaveSuccess]
+   * @property {string} [currentLanguage="EN"]
    */
 
   /** @type {CaptureFormProps} */
@@ -34,7 +35,8 @@
     sessionId = null,
     collectionCode, // no default, this must be set
     activeRecord = $bindable(null), // The selected record to edit (or empty for new)
-    onSaveSuccess = () => {}
+    onSaveSuccess = () => {}, 
+    currentLanguage = "EN" // "EN" or "FR"
   } = $props();
 
   let form = $state({
@@ -467,7 +469,9 @@
       // remove apostrophe before 2-digit year after start, space, slash, dash, comma
       .replace(/(^|[\s,/-])'(\d{2})(?=$|[\s,./-])/g, "$1$2");
 
-    let { day, month, year } = parser.attempt(dateStr, eventDateLanguage === "FR" ? "fr-FR" : "en-US");
+    let locale = eventDateLanguage === "FR" ? "fr-FR" : eventDateLanguage === "PT" ? "pt-PT" : "en-US";
+
+    let { day, month, year } = parser.attempt(dateStr, locale);
     form.day = day ? String(day) : "";
     form.month = month ? String(month) : "";
     form.year = year ? String(year) : "";
@@ -807,7 +811,7 @@
   let typeStatusSuggestions = $state([]);
 
   const typeStatuses = [
-    "Holotype", "Isotype", "Syntype", "Lectotype", "Neotype", "Paratype", "Epitype", "Isolectotype", "Isosyntype", "Isoneotype", "Original material"
+    "holotype", "isotype", "syntype", "lectotype", "neotype", "paratype", "paralectotype", "epitype", "isolectotype", "isosyntype", "isoneotype", "type", "topotype"
   ];
 
   /**
@@ -1016,13 +1020,24 @@
                 >
                   EN
                 </button>
-                <button
-                  type="button"
-                  onclick={() => eventDateLanguage = "FR"}
-                  class="px-1 py-0.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {eventDateLanguage === 'FR' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-400'}"
-                >
-                  FR
-                </button>
+                {#if currentLanguage === "EN" || currentLanguage === "FR" || currentLanguage === "MG"}
+                  <button
+                    type="button"
+                    onclick={() => eventDateLanguage = "FR"}
+                    class="px-1 py-0.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {eventDateLanguage === 'FR' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-400'}"
+                  >
+                    FR
+                  </button>
+                {/if}
+                {#if currentLanguage === "PT"}
+                  <button
+                    type="button"
+                    onclick={() => eventDateLanguage = "PT"}
+                    class="px-1 py-0.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {eventDateLanguage === 'PT' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-400'}"
+                  >
+                    PT
+                  </button>
+                {/if}
               </div>
             </div>
           </label>
@@ -1179,6 +1194,7 @@
       
       <!-- Country and Admins -->
       <div class="grid grid-cols-4 gap-3">
+        <!-- Country -->
         <div>
           <label for="capture-country" data-i18n-key="country-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("country-label", "Country")}</label>
           <div class="relative flex items-center">
@@ -1218,6 +1234,7 @@
           </div>
         </div>
 
+        <!-- Admin 2 -->
         <div>
           <label for="capture-stateProvince" data-i18n-key="state-province-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">
             {form.country && form.country.toLowerCase() === "madagascar" ? t("state-province-label", "Province") : t("state-province-label", "Admin 2")}
@@ -1261,6 +1278,7 @@
           </div>
         </div>
 
+        <!-- Admin 3 -->
         <div>
           <label for="capture-county" data-i18n-key="county-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">
             {form.country && form.country.toLowerCase() === "madagascar" ? t("county-label", "Region") : t("county-label", "Admin 3")}
@@ -1305,6 +1323,7 @@
           </div>
         </div>
 
+        <!-- Admin 4 -->
         <div>
           <label for="capture-municipality" data-i18n-key="municipality-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("municipality-label", "Admin 4")}</label>
           <div class="relative flex items-center">
@@ -1424,7 +1443,7 @@
             <input
               type="checkbox"
               bind:checked={form.cultivated}
-              class="w-4 h-4 border border-slate-300 rounded-none checked:bg-slate-800 outline-none cursor-pointer"
+              class="w-4 h-4 border border-slate-300 rounded-none accent-slate-800 outline-none cursor-pointer"
             />
             <span data-i18n-key="cultivated-label" class="text-xs font-semibold text-slate-600 uppercase tracking-wider">{t("cultivated-label", "Cultivated Specimen")}</span>
           </label>
@@ -1615,7 +1634,7 @@
       
       <div class="grid grid-cols-12 gap-3">
         <!-- Qualifier -->
-        <div class="col-span-3">
+        <div class="col-span-2">
           <label for="capture-identificationQualifier" data-i18n-key="id-qualifier-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("id-qualifier-label", "Qualifier")}</label>
           <select
             id="capture-identificationQualifier"
@@ -1630,7 +1649,7 @@
         </div>
 
         <!-- Scientific Name -->
-        <div class="col-span-6">
+        <div class="col-span-7">
           <Autocomplete
             id="capture-scientificName"
             label="Scientific Name"

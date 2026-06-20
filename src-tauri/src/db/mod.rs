@@ -171,6 +171,9 @@ pub fn shutdown_database(app: &AppHandle) {
 }
 
 fn prune_database_backups(backups_dir: &Path, today: NaiveDate) {
+    use chrono::{Datelike, Duration};
+    use std::collections::HashSet;
+
     let entries = match fs::read_dir(backups_dir) {
         Ok(e) => e,
         Err(err) => {
@@ -214,21 +217,86 @@ fn prune_database_backups(backups_dir: &Path, today: NaiveDate) {
     // Sort backups by datetime descending (latest first)
     backups.sort_by(|a, b| b.datetime.cmp(&a.datetime));
     
-    let mut kept_yesterday = false;
+    // Pre-calculate target daily dates, ISO weeks, and calendar months to keep
+    let mut allowed_daily_dates = HashSet::new();
+    for i in 1..=7 {
+        if let Some(d) = today.checked_sub_signed(Duration::days(i)) {
+            allowed_daily_dates.insert(d);
+        }
+    }
+
+    let mut allowed_weekly_weeks = HashSet::new();
+    for i in 0..4 {
+        if let Some(d) = today.checked_sub_signed(Duration::days(i * 7)) {
+            let iso = d.iso_week();
+            allowed_weekly_weeks.insert((iso.year(), iso.week()));
+        }
+    }
+
+    let mut allowed_monthly_months = HashSet::new();
+    for i in 0..6 {
+        let mut year = today.year();
+        let mut month = today.month() as i32 - i;
+        while month <= 0 {
+            month += 12;
+            year -= 1;
+        }
+        allowed_monthly_months.insert((year, month as u32));
+    }
+
+    let mut kept_days = HashSet::new();
+    let mut kept_weeks = HashSet::new();
+    let mut kept_months = HashSet::new();
     
     for backup in backups {
         let mut keep = false;
+        let date = backup.datetime.date();
+        let age_days = backup.age_days;
         
         // Rule 1: Keep all backups for the current day (age <= 0)
-        if backup.age_days <= 0 {
+        if age_days <= 0 {
             keep = true;
+            // Also mark the week and month of today's backups as kept/satisfied,
+            // since today's latest backup is the latest backup for this week and month.
+            let iso = date.iso_week();
+            kept_weeks.insert((iso.year(), iso.week()));
+            kept_months.insert((date.year(), date.month()));
         }
         
-        // Rule 2: Keep only the latest backup for the last day before today (age == 1)
-        if backup.age_days == 1 {
-            if !kept_yesterday {
-                kept_yesterday = true;
+        // Rule 2: Keep only the latest backup for each day of the last seven days (1 <= age_days <= 7)
+        if !keep && allowed_daily_dates.contains(&date) {
+            if !kept_days.contains(&date) {
                 keep = true;
+                kept_days.insert(date);
+                // Also mark the week and month of this backup as kept/satisfied
+                let iso = date.iso_week();
+                kept_weeks.insert((iso.year(), iso.week()));
+                kept_months.insert((date.year(), date.month()));
+            }
+        }
+        
+        // Rule 3: Keep only the latest backup for each week of the last four weeks
+        if !keep {
+            let iso = date.iso_week();
+            let week_key = (iso.year(), iso.week());
+            if allowed_weekly_weeks.contains(&week_key) {
+                if !kept_weeks.contains(&week_key) {
+                    keep = true;
+                    kept_weeks.insert(week_key);
+                    // Also mark the month of this backup as kept/satisfied
+                    kept_months.insert((date.year(), date.month()));
+                }
+            }
+        }
+        
+        // Rule 4: Keep only the latest backup for each month of the last six months
+        if !keep {
+            let month_key = (date.year(), date.month());
+            if allowed_monthly_months.contains(&month_key) {
+                if !kept_months.contains(&month_key) {
+                    keep = true;
+                    kept_months.insert(month_key);
+                }
             }
         }
         
@@ -1014,4 +1082,92 @@ pub fn populate_agents_table(conn: &mut Connection) -> std::result::Result<(), S
 
     info!("Agents table populated successfully!");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use chrono::NaiveDate;
+
+    #[test]
+    fn test_prune_database_backups() {
+        let temp_dir = std::env::temp_dir().join("test_prune_database_backups");
+        let _ = fs::remove_dir_all(&temp_dir);
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        // Let's assume today is June 20, 2026
+        let today = NaiveDate::from_ymd_opt(2026, 6, 20).unwrap();
+
+        // Create some backup files
+        let backup_files = vec![
+            // Today's backups (keep all)
+            "backup_2026-06-20_18-00-00.db",
+            "backup_2026-06-20_17-00-00.db",
+            // Last 7 days daily backups (keep latest of each day)
+            "backup_2026-06-19_12-00-00.db", // Day 1
+            "backup_2026-06-19_10-00-00.db", // Day 1 - delete
+            "backup_2026-06-18_15-00-00.db", // Day 2
+            "backup_2026-06-17_15-00-00.db", // Day 3
+            "backup_2026-06-16_15-00-00.db", // Day 4
+            "backup_2026-06-15_15-00-00.db", // Day 5
+            "backup_2026-06-14_15-00-00.db", // Day 6
+            "backup_2026-06-13_15-00-00.db", // Day 7
+            // Last 4 weeks (weekly backups - keep latest of each ISO week)
+            "backup_2026-06-12_12-00-00.db", // Week 24 - delete (since June 13 is newer and already kept under Daily)
+            "backup_2026-06-12_10-00-00.db", // Week 24 - delete
+            "backup_2026-06-05_12-00-00.db", // Week 23 - keep
+            "backup_2026-06-05_10-00-00.db", // Week 23 - delete
+            "backup_2026-05-29_12-00-00.db", // Week 22 - keep
+            // Last 6 months (monthly backups - keep latest of each calendar month)
+            "backup_2026-05-22_12-00-00.db", // May - delete (since May 29 is newer and already kept under Weekly)
+            "backup_2026-05-21_12-00-00.db", // May - delete
+            "backup_2026-04-15_12-00-00.db", // April - keep
+            "backup_2026-04-14_12-00-00.db", // April - delete
+            "backup_2026-03-15_12-00-00.db", // March - keep
+            "backup_2026-02-15_12-00-00.db", // Feb - keep
+            "backup_2026-01-15_12-00-00.db", // Jan - keep
+            // Month 7: December 2025 (more than 6 months ago - delete)
+            "backup_2025-12-15_12-00-00.db", // delete
+        ];
+
+        for name in &backup_files {
+            let path = temp_dir.join(name);
+            fs::write(&path, "dummy content").unwrap();
+        }
+
+        // Call the pruning logic
+        prune_database_backups(&temp_dir, today);
+
+        // Read remaining files
+        let mut remaining: Vec<String> = fs::read_dir(&temp_dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        remaining.sort();
+
+        let mut expected = vec![
+            "backup_2026-06-20_18-00-00.db", // Today 1
+            "backup_2026-06-20_17-00-00.db", // Today 2
+            "backup_2026-06-19_12-00-00.db", // Day 1
+            "backup_2026-06-18_15-00-00.db", // Day 2
+            "backup_2026-06-17_15-00-00.db", // Day 3
+            "backup_2026-06-16_15-00-00.db", // Day 4
+            "backup_2026-06-15_15-00-00.db", // Day 5
+            "backup_2026-06-14_15-00-00.db", // Day 6
+            "backup_2026-06-13_15-00-00.db", // Day 7
+            "backup_2026-06-05_12-00-00.db", // Week 23
+            "backup_2026-05-29_12-00-00.db", // Week 22
+            "backup_2026-04-15_12-00-00.db", // April month
+            "backup_2026-03-15_12-00-00.db", // March month
+            "backup_2026-02-15_12-00-00.db", // Feb month
+            "backup_2026-01-15_12-00-00.db", // Jan month
+        ];
+        expected.sort();
+
+        assert_eq!(remaining, expected);
+
+        // Clean up
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
 }

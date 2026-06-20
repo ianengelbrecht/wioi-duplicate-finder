@@ -420,6 +420,7 @@
                 await loadCapturedRecords();
                 await loadSessions();
               }} 
+              {currentLanguage}
             />
           </div>
         </div>
