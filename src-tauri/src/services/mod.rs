@@ -1,16 +1,26 @@
-use rusqlite::{params};
-use tauri::AppHandle;
+use crate::db::{get_connection, hash_password};
+use crate::models::{
+    CapturedRecord, ExportSettingsDto, ReferenceSpecimen, SessionDto, TaxonAutocompleteResult,
+    UserDto,
+};
+use crate::parsers::split_names;
+use crate::repositories::{
+    AgentRepository, ExportRepository, GeographyRepository, SessionRepository, SpecimenRepository,
+    TaxonomyRepository, UserRepository,
+};
+use rusqlite::params;
 use serde_json::json;
 use std::fs;
-use crate::db::{get_connection, hash_password};
-use crate::models::{UserDto, SessionDto, CapturedRecord, ExportSettingsDto, TaxonAutocompleteResult, ReferenceSpecimen};
-use crate::repositories::{UserRepository, SessionRepository, SpecimenRepository, TaxonomyRepository, AgentRepository, ExportRepository, GeographyRepository};
-use crate::parsers::{split_names};
+use tauri::AppHandle;
 
 pub struct AuthService;
 
 impl AuthService {
-    pub fn register_user(app: &AppHandle, username: &str, password: &str) -> Result<String, String> {
+    pub fn register_user(
+        app: &AppHandle,
+        username: &str,
+        password: &str,
+    ) -> Result<String, String> {
         let username_clean = username.trim();
         if username_clean.is_empty() || password.is_empty() {
             return Err("Username and password cannot be empty.".to_string());
@@ -21,14 +31,20 @@ impl AuthService {
 
         match UserRepository::insert_user(&conn, username_clean, &hash) {
             Ok(_) => Ok("User registered successfully!".to_string()),
-            Err(rusqlite::Error::SqliteFailure(err, _)) if err.code == rusqlite::ErrorCode::ConstraintViolation => {
+            Err(rusqlite::Error::SqliteFailure(err, _))
+                if err.code == rusqlite::ErrorCode::ConstraintViolation =>
+            {
                 Err("Username already exists. Please choose another.".to_string())
             }
             Err(e) => Err(e.to_string()),
         }
     }
 
-    pub fn login_user(app: &AppHandle, username: &str, password: &str) -> Result<Option<UserDto>, String> {
+    pub fn login_user(
+        app: &AppHandle,
+        username: &str,
+        password: &str,
+    ) -> Result<Option<UserDto>, String> {
         let username_clean = username.trim();
         let hash = hash_password(password);
         let conn = get_connection(app)?;
@@ -62,8 +78,7 @@ impl SessionService {
 
     pub fn get_sessions(app: &AppHandle, user_id: i32) -> Result<Vec<SessionDto>, String> {
         let conn = get_connection(app)?;
-        SessionRepository::get_sessions(&conn, user_id)
-            .map_err(|e| e.to_string())
+        SessionRepository::get_sessions(&conn, user_id).map_err(|e| e.to_string())
     }
 
     pub fn rename_session(app: &AppHandle, id: i32, name: &str) -> Result<(), String> {
@@ -73,20 +88,18 @@ impl SessionService {
         }
 
         let conn = get_connection(app)?;
-        SessionRepository::rename_session(&conn, id, name_clean)
-            .map_err(|e| e.to_string())
+        SessionRepository::rename_session(&conn, id, name_clean).map_err(|e| e.to_string())
     }
 
     pub fn delete_session(app: &AppHandle, id: i32) -> Result<(), String> {
         let mut conn = get_connection(app)?;
         let tx = conn.transaction().map_err(|e| e.to_string())?;
-        
+
         SpecimenRepository::delete_captured_records_by_session(&tx, id)
             .map_err(|e| e.to_string())?;
-            
-        SessionRepository::delete_session(&tx, id)
-            .map_err(|e| e.to_string())?;
-            
+
+        SessionRepository::delete_session(&tx, id).map_err(|e| e.to_string())?;
+
         tx.commit().map_err(|e| e.to_string())?;
         Ok(())
     }
@@ -95,13 +108,18 @@ impl SessionService {
 pub struct SpecimenService;
 
 impl SpecimenService {
-    pub fn get_captured_records(app: &AppHandle, session_id: i32) -> Result<Vec<CapturedRecord>, String> {
+    pub fn get_captured_records(
+        app: &AppHandle,
+        session_id: i32,
+    ) -> Result<Vec<CapturedRecord>, String> {
         let conn = get_connection(app)?;
-        SpecimenRepository::get_captured_records(&conn, session_id)
-            .map_err(|e| e.to_string())
+        SpecimenRepository::get_captured_records(&conn, session_id).map_err(|e| e.to_string())
     }
 
-    pub fn save_captured_record(app: &AppHandle, record: CapturedRecord) -> Result<serde_json::Value, String> {
+    pub fn save_captured_record(
+        app: &AppHandle,
+        record: CapturedRecord,
+    ) -> Result<serde_json::Value, String> {
         let mut conn = get_connection(app)?;
         let tx = conn.transaction().map_err(|e| e.to_string())?;
 
@@ -119,8 +137,8 @@ impl SpecimenService {
             }
         }
 
-        let id = SpecimenRepository::save_captured_record(&tx, &record)
-            .map_err(|e| e.to_string())?;
+        let id =
+            SpecimenRepository::save_captured_record(&tx, &record).map_err(|e| e.to_string())?;
 
         tx.commit().map_err(|e| e.to_string())?;
 
@@ -129,27 +147,57 @@ impl SpecimenService {
 
     pub fn delete_captured_record(app: &AppHandle, id: i32) -> Result<(), String> {
         let conn = get_connection(app)?;
-        SpecimenRepository::delete_captured_record(&conn, id)
-            .map_err(|e| e.to_string())
+        SpecimenRepository::delete_captured_record(&conn, id).map_err(|e| e.to_string())
     }
 }
 
 pub struct TaxonomyService;
 
 impl TaxonomyService {
-    pub fn search_reference(app: &AppHandle, filters: serde_json::Value) -> Result<Vec<ReferenceSpecimen>, String> {
-        let recorded_by = filters.get("recordedBy").and_then(|v| v.as_str()).unwrap_or("").trim();
-        let record_number = filters.get("recordNumber").and_then(|v| v.as_str()).unwrap_or("").trim();
-        let locality = filters.get("locality").and_then(|v| v.as_str()).unwrap_or("").trim();
-        let scientific_name = filters.get("scientificName").and_then(|v| v.as_str()).unwrap_or("").trim();
-        let family = filters.get("family").and_then(|v| v.as_str()).unwrap_or("").trim();
-        let country = filters.get("country").and_then(|v| v.as_str()).unwrap_or("").trim();
-        let state_province = filters.get("stateProvince").and_then(|v| v.as_str()).unwrap_or("").trim();
-        
+    pub fn search_reference(
+        app: &AppHandle,
+        filters: serde_json::Value,
+    ) -> Result<Vec<ReferenceSpecimen>, String> {
+        let recorded_by = filters
+            .get("recordedBy")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim();
+        let record_number = filters
+            .get("recordNumber")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim();
+        let locality = filters
+            .get("locality")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim();
+        let scientific_name = filters
+            .get("scientificName")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim();
+        let family = filters
+            .get("family")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim();
+        let country = filters
+            .get("country")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim();
+        let state_province = filters
+            .get("stateProvince")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim();
+
         let year = filters.get("year").and_then(|v| v.as_i64());
         let month = filters.get("month").and_then(|v| v.as_i64());
         let day = filters.get("day").and_then(|v| v.as_i64());
-        
+
         let has_recorded_by = !recorded_by.is_empty();
         let has_record_number = !record_number.is_empty();
         let has_locality = !locality.is_empty();
@@ -157,47 +205,74 @@ impl TaxonomyService {
         let has_family = !family.is_empty();
         let has_country = !country.is_empty();
         let has_state_province = !state_province.is_empty();
-        
+
         let has_year = year.is_some();
         let has_month = month.is_some();
         let has_day = day.is_some();
         let has_date = has_year || has_month || has_day;
-        
-        let has_other = has_family || has_scientific_name || has_country || has_state_province || has_locality;
-        
+
+        let has_other =
+            has_family || has_scientific_name || has_country || has_state_province || has_locality;
+
         let mut non_date_fields_count = 0;
-        if has_recorded_by { non_date_fields_count += 1; }
-        if has_record_number { non_date_fields_count += 1; }
-        if has_family { non_date_fields_count += 1; }
-        if has_scientific_name { non_date_fields_count += 1; }
-        if has_country { non_date_fields_count += 1; }
-        if has_state_province { non_date_fields_count += 1; }
-        if has_locality { non_date_fields_count += 1; }
-        
+        if has_recorded_by {
+            non_date_fields_count += 1;
+        }
+        if has_record_number {
+            non_date_fields_count += 1;
+        }
+        if has_family {
+            non_date_fields_count += 1;
+        }
+        if has_scientific_name {
+            non_date_fields_count += 1;
+        }
+        if has_country {
+            non_date_fields_count += 1;
+        }
+        if has_state_province {
+            non_date_fields_count += 1;
+        }
+        if has_locality {
+            non_date_fields_count += 1;
+        }
+
         let mut total_filled_count = non_date_fields_count;
-        if has_year { total_filled_count += 1; }
-        if has_month { total_filled_count += 1; }
-        if has_day { total_filled_count += 1; }
-        
+        if has_year {
+            total_filled_count += 1;
+        }
+        if has_month {
+            total_filled_count += 1;
+        }
+        if has_day {
+            total_filled_count += 1;
+        }
+
         if total_filled_count == 0 {
             return Err("Please enter at least one query search field.".to_string());
         }
-        
+
         // Rule 1: collector requires at least a collector number, or if just collector and one of the date fields, then also one of the other fields
         if has_recorded_by && !has_record_number && !(has_date && has_other) {
             return Err("Collector search requires a collector number, or if just a collector and a date field, it also requires at least one of (family, scientific name, country, Admin Div 1, or locality).".to_string());
         }
-        
+
         // Rule 2: collector number always requires a collector
         if has_record_number && !has_recorded_by {
-            return Err("Collector number always requires a collector name, regardless of other fields.".to_string());
+            return Err(
+                "Collector number always requires a collector name, regardless of other fields."
+                    .to_string(),
+            );
         }
-        
+
         // Rule 3: date searches require at least two other non-date fields
         if has_date && non_date_fields_count < 2 {
-            return Err("Searches on year, month, or day require at least two other non-date fields.".to_string());
+            return Err(
+                "Searches on year, month, or day require at least two other non-date fields."
+                    .to_string(),
+            );
         }
-        
+
         // Rule 4: family, scientific name, country, stateProvince, or locality requires at least two other fields (total of 3 or more fields)
         if has_other && total_filled_count < 3 {
             return Err("Searching on family, scientific name, country, Admin Div 1, or locality requires at least two other fields (total of 3 or more fields).".to_string());
@@ -207,42 +282,60 @@ impl TaxonomyService {
         TaxonomyRepository::search_reference(&conn, &filters)
     }
 
-    pub fn autocomplete_scientific_name(app: &AppHandle, query: &str) -> Result<Vec<TaxonAutocompleteResult>, String> {
+    pub fn autocomplete_scientific_name(
+        app: &AppHandle,
+        query: &str,
+    ) -> Result<Vec<TaxonAutocompleteResult>, String> {
         let conn = get_connection(app)?;
-        TaxonomyRepository::autocomplete_scientific_name(&conn, query)
-            .map_err(|e| e.to_string())
+        TaxonomyRepository::autocomplete_scientific_name(&conn, query).map_err(|e| e.to_string())
     }
 
-    pub fn resolve_wcvp_families(app: &AppHandle, queries: Vec<serde_json::Value>) -> Result<serde_json::Value, String> {
+    pub fn resolve_wcvp_families(
+        app: &AppHandle,
+        queries: Vec<serde_json::Value>,
+    ) -> Result<serde_json::Value, String> {
         let conn = get_connection(app)?;
         let mut results = serde_json::Map::new();
         let mut cache: std::collections::HashMap<String, String> = std::collections::HashMap::new();
-        
+
         for query in queries {
-            let rec_id = query.get("id").and_then(|v| v.as_i64()).unwrap_or(0).to_string();
-            let taxon_id = query.get("taxonID").and_then(|v| v.as_str()).map(|s| s.trim());
-            let scientific_name = query.get("scientificName").and_then(|v| v.as_str()).unwrap_or("").trim();
-            
+            let rec_id = query
+                .get("id")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0)
+                .to_string();
+            let taxon_id = query
+                .get("taxonID")
+                .and_then(|v| v.as_str())
+                .map(|s| s.trim());
+            let scientific_name = query
+                .get("scientificName")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim();
+
             let mut resolved_family = None;
-            
+
             // 1. If taxonID is present
             if let Some(tid) = taxon_id {
                 if !tid.is_empty() {
                     if let Some(cached) = cache.get(tid) {
                         resolved_family = Some(cached.clone());
                     } else {
-                        if let Ok(Some(fam)) = TaxonomyRepository::find_family_recursive(&conn, tid) {
+                        if let Ok(Some(fam)) = TaxonomyRepository::find_family_recursive(&conn, tid)
+                        {
                             cache.insert(tid.to_string(), fam.clone());
                             resolved_family = Some(fam);
                         }
                     }
                 }
             }
-            
+
             // 2. If taxonID is absent or recursive search failed
             if resolved_family.is_none() && !scientific_name.is_empty() {
                 if let Some(first_word) = scientific_name.split_whitespace().next() {
-                    let first_word_clean = first_word.trim_matches(|c: char| c.is_ascii_punctuation());
+                    let first_word_clean =
+                        first_word.trim_matches(|c: char| c.is_ascii_punctuation());
                     if !first_word_clean.is_empty() {
                         if first_word_clean.to_ascii_lowercase().ends_with("ceae") {
                             resolved_family = Some(first_word_clean.to_string());
@@ -255,10 +348,13 @@ impl TaxonomyService {
                                 let mut stmt = conn.prepare(
                                     "SELECT plant_name_id FROM wcvp_taxonomy WHERE taxon_name LIKE ?1 LIMIT 1"
                                 ).map_err(|e| e.to_string())?;
-                                
-                                let start_id: Option<String> = stmt.query_row(params![genus_pattern], |r| r.get(0)).ok();
+
+                                let start_id: Option<String> =
+                                    stmt.query_row(params![genus_pattern], |r| r.get(0)).ok();
                                 if let Some(sid) = start_id {
-                                    if let Ok(Some(fam)) = TaxonomyRepository::find_family_recursive(&conn, &sid) {
+                                    if let Ok(Some(fam)) =
+                                        TaxonomyRepository::find_family_recursive(&conn, &sid)
+                                    {
                                         cache.insert(first_word_clean.to_string(), fam.clone());
                                         resolved_family = Some(fam);
                                     }
@@ -268,10 +364,13 @@ impl TaxonomyService {
                     }
                 }
             }
-            
-            results.insert(rec_id, serde_json::Value::String(resolved_family.unwrap_or_default()));
+
+            results.insert(
+                rec_id,
+                serde_json::Value::String(resolved_family.unwrap_or_default()),
+            );
         }
-        
+
         Ok(serde_json::Value::Object(results))
     }
 }
@@ -281,26 +380,22 @@ pub struct AgentService;
 impl AgentService {
     pub fn autocomplete_recorded_by(app: &AppHandle, query: &str) -> Result<Vec<String>, String> {
         let conn = get_connection(app)?;
-        AgentRepository::autocomplete_recorded_by(&conn, query)
-            .map_err(|e| e.to_string())
+        AgentRepository::autocomplete_recorded_by(&conn, query).map_err(|e| e.to_string())
     }
 
     pub fn autocomplete_agent(app: &AppHandle, query: &str) -> Result<Vec<String>, String> {
         let conn = get_connection(app)?;
-        AgentRepository::autocomplete_agent(&conn, query)
-            .map_err(|e| e.to_string())
+        AgentRepository::autocomplete_agent(&conn, query).map_err(|e| e.to_string())
     }
 
     pub fn check_agent_exists(app: &AppHandle, name: &str) -> Result<bool, String> {
         let conn = get_connection(app)?;
-        AgentRepository::check_agent_exists(&conn, name)
-            .map_err(|e| e.to_string())
+        AgentRepository::check_agent_exists(&conn, name).map_err(|e| e.to_string())
     }
 
     pub fn add_agent(app: &AppHandle, name: &str) -> Result<(), String> {
         let conn = get_connection(app)?;
-        AgentRepository::add_agent(&conn, name)
-            .map_err(|e| e.to_string())
+        AgentRepository::add_agent(&conn, name).map_err(|e| e.to_string())
     }
 }
 
@@ -309,8 +404,7 @@ pub struct GeographyService;
 impl GeographyService {
     pub fn get_table_counts(app: &AppHandle) -> Result<serde_json::Value, String> {
         let conn = get_connection(app)?;
-        GeographyRepository::get_table_counts(&conn)
-            .map_err(|e| e.to_string())
+        GeographyRepository::get_table_counts(&conn).map_err(|e| e.to_string())
     }
 
     pub fn autocomplete_locality(app: &AppHandle, query: &str) -> Result<Vec<String>, String> {
@@ -327,15 +421,27 @@ impl GeographyService {
         county: &str,
     ) -> Result<Vec<String>, String> {
         let conn = get_connection(app)?;
-        GeographyRepository::autocomplete_geography(&conn, field, query, country, state_province, county)
-            .map_err(|e| e.to_string())
+        GeographyRepository::autocomplete_geography(
+            &conn,
+            field,
+            query,
+            country,
+            state_province,
+            county,
+        )
+        .map_err(|e| e.to_string())
     }
 }
 
 pub struct ExportService;
 
 impl ExportService {
-    pub fn save_export_settings(app: &AppHandle, user_id: i32, format: &str, mappings: &str) -> Result<(), String> {
+    pub fn save_export_settings(
+        app: &AppHandle,
+        user_id: i32,
+        format: &str,
+        mappings: &str,
+    ) -> Result<(), String> {
         let conn = get_connection(app)?;
         ExportRepository::save_export_settings(&conn, user_id, format, mappings)
             .map_err(|e| e.to_string())
@@ -353,13 +459,17 @@ impl ExportService {
         }
     }
 
-    pub fn export_session_csv(app: &AppHandle, session_id: i32, filepath: &str, csv_content: &str) -> Result<String, String> {
+    pub fn export_session_csv(
+        app: &AppHandle,
+        session_id: i32,
+        filepath: &str,
+        csv_content: &str,
+    ) -> Result<String, String> {
         fs::write(filepath, csv_content).map_err(|e| e.to_string())?;
 
         let conn = get_connection(app)?;
-        SessionRepository::update_last_exported(&conn, session_id)
-            .map_err(|e| e.to_string())?;
-            
+        SessionRepository::update_last_exported(&conn, session_id).map_err(|e| e.to_string())?;
+
         Ok(format!("Successfully exported records to {}", filepath))
     }
 }

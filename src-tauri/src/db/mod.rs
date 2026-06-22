@@ -1,13 +1,15 @@
-use rusqlite::{Connection, Result, params};
-use tauri::{AppHandle, Manager};
-use std::path::{PathBuf, Path};
-use std::fs;
-use pbkdf2::pbkdf2_hmac_array;
-use sha2::Sha256;
 use chrono::{Local, NaiveDate, NaiveDateTime};
-use log::{info, warn, error};
+use log::{error, info, warn};
+use pbkdf2::pbkdf2_hmac_array;
+use rusqlite::{params, Connection, Result};
+use sha2::Sha256;
+use std::fs;
+use std::path::{Path, PathBuf};
+use tauri::{AppHandle, Manager};
 
-use crate::parsers::{normalize_taxon_name, normalize_locality, normalize_search_recorded_by, split_names};
+use crate::parsers::{
+    normalize_locality, normalize_search_recorded_by, normalize_taxon_name, split_names,
+};
 
 /// Encodes binary data to standard hex string.
 pub fn to_hex(bytes: &[u8]) -> String {
@@ -17,7 +19,8 @@ pub fn to_hex(bytes: &[u8]) -> String {
 /// Hashing function for securing user credentials.
 pub fn hash_password(password: &str) -> String {
     let salt = "herbarium_duplicate_finder_salt_2026";
-    let password_bytes = pbkdf2_hmac_array::<Sha256, 32>(password.as_bytes(), salt.as_bytes(), 10_000);
+    let password_bytes =
+        pbkdf2_hmac_array::<Sha256, 32>(password.as_bytes(), salt.as_bytes(), 10_000);
     to_hex(&password_bytes)
 }
 
@@ -28,7 +31,7 @@ pub fn get_db_path(app: &AppHandle) -> PathBuf {
         path.push("duplicate-finder-data");
         path
     });
-    
+
     // Ensure the app directory exists
     let _ = fs::create_dir_all(&app_dir);
     app_dir.join("reference.db")
@@ -38,12 +41,13 @@ pub fn get_db_path(app: &AppHandle) -> PathBuf {
 pub fn get_connection(app: &AppHandle) -> std::result::Result<Connection, String> {
     let db_path = get_db_path(app);
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
-    
+
     // Always enable WAL, normal synchronous mode, and foreign keys
     let _ = conn.execute("PRAGMA journal_mode=WAL;", []);
     let _ = conn.execute("PRAGMA synchronous=NORMAL;", []);
-    conn.execute("PRAGMA foreign_keys=ON;", []).map_err(|e| e.to_string())?;
-    
+    conn.execute("PRAGMA foreign_keys=ON;", [])
+        .map_err(|e| e.to_string())?;
+
     Ok(conn)
 }
 
@@ -71,9 +75,13 @@ fn set_last_quick_check_datetime(conn: &Connection) {
 /// Copies the bundled reference database if not present, runs migrations, and seeds fallback test data.
 pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
     let db_path = get_db_path(app);
-    
+
     if !db_path.exists() {
-        if let Ok(resource_path) = app.path().resource_dir().map(|p| p.join("resources/reference.db")) {
+        if let Ok(resource_path) = app
+            .path()
+            .resource_dir()
+            .map(|p| p.join("resources/reference.db"))
+        {
             if resource_path.exists() {
                 if let Err(err) = fs::copy(&resource_path, &db_path) {
                     error!("Failed to copy reference.db resource: {}", err);
@@ -81,16 +89,19 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
                     info!("Successfully copied pre-bundled reference.db resource!");
                 }
             } else {
-                warn!("Reference DB resource not found at {:?}, initializing empty DB.", resource_path);
+                warn!(
+                    "Reference DB resource not found at {:?}, initializing empty DB.",
+                    resource_path
+                );
             }
         } else {
             error!("Could not resolve resource path for reference.db, initializing empty DB.");
         }
     }
-    
+
     info!("Opened database at absolute path: {:?}", db_path);
     let mut conn = get_connection(app)?;
-    
+
     // Ensure app_metadata table exists so we can store quick check datetime
     let _ = conn.execute(
         "CREATE TABLE IF NOT EXISTS app_metadata (
@@ -99,7 +110,7 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
         );",
         [],
     );
-    
+
     // Run quick integrity check on startup only if not already run today
     let today = Local::now().date_naive();
     let last_check = get_last_quick_check_date(&conn);
@@ -107,7 +118,7 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
         Some(date) => date != today,
         None => true,
     };
-    
+
     if should_check {
         info!("Running startup database integrity quick_check...");
         match conn.query_row("PRAGMA quick_check;", [], |r| r.get::<_, String>(0)) {
@@ -128,19 +139,19 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
     } else {
         info!("Skipping database quick_check on startup (already run today).");
     }
-    
+
     // Setup tables
     run_migrations(&conn).map_err(|e| e.to_string())?;
-    
+
     // Auto-normalize imported CSV reference records if they exist and are empty
     auto_normalize_reference_data(&mut conn).map_err(|e| e.to_string())?;
 
     // Startup population of the agents table
     populate_agents_table(&mut conn).map_err(|e| e.to_string())?;
-    
+
     Ok(())
 }
- 
+
 /// Runs database backup, optimizations, and integrity checks on shutdown.
 pub fn shutdown_database(app: &AppHandle) {
     let db_path = get_db_path(app);
@@ -150,7 +161,7 @@ pub fn shutdown_database(app: &AppHandle) {
     if let Ok(conn) = get_connection(app) {
         info!("Running database optimization and integrity checks on shutdown...");
         let _ = conn.execute("PRAGMA optimize;", []);
-        
+
         match conn.query_row("PRAGMA quick_check;", [], |r| r.get::<_, String>(0)) {
             Ok(res) => {
                 if res != "ok" {
@@ -165,7 +176,7 @@ pub fn shutdown_database(app: &AppHandle) {
             }
         }
     }
-    
+
     // Perform database backup
     perform_database_backup(app);
 }
@@ -181,15 +192,15 @@ fn prune_database_backups(backups_dir: &Path, today: NaiveDate) {
             return;
         }
     };
-    
+
     struct BackupFile {
         path: PathBuf,
         datetime: NaiveDateTime,
         age_days: i64,
     }
-    
+
     let mut backups = Vec::new();
-    
+
     for entry in entries {
         if let Ok(entry) = entry {
             let path = entry.path();
@@ -198,7 +209,9 @@ fn prune_database_backups(backups_dir: &Path, today: NaiveDate) {
                     if filename.starts_with("backup_") && filename.ends_with(".db") {
                         if filename.len() >= 29 {
                             let ts_str = &filename[7..filename.len() - 3];
-                            if let Ok(dt) = NaiveDateTime::parse_from_str(ts_str, "%Y-%m-%d_%H-%M-%S") {
+                            if let Ok(dt) =
+                                NaiveDateTime::parse_from_str(ts_str, "%Y-%m-%d_%H-%M-%S")
+                            {
                                 let date = dt.date();
                                 let age_days = (today - date).num_days();
                                 backups.push(BackupFile {
@@ -213,10 +226,10 @@ fn prune_database_backups(backups_dir: &Path, today: NaiveDate) {
             }
         }
     }
-    
+
     // Sort backups by datetime descending (latest first)
     backups.sort_by(|a, b| b.datetime.cmp(&a.datetime));
-    
+
     // Pre-calculate target daily dates, ISO weeks, and calendar months to keep
     let mut allowed_daily_dates = HashSet::new();
     for i in 1..=7 {
@@ -247,12 +260,12 @@ fn prune_database_backups(backups_dir: &Path, today: NaiveDate) {
     let mut kept_days = HashSet::new();
     let mut kept_weeks = HashSet::new();
     let mut kept_months = HashSet::new();
-    
+
     for backup in backups {
         let mut keep = false;
         let date = backup.datetime.date();
         let age_days = backup.age_days;
-        
+
         // Rule 1: Keep all backups for the current day (age <= 0)
         if age_days <= 0 {
             keep = true;
@@ -262,7 +275,7 @@ fn prune_database_backups(backups_dir: &Path, today: NaiveDate) {
             kept_weeks.insert((iso.year(), iso.week()));
             kept_months.insert((date.year(), date.month()));
         }
-        
+
         // Rule 2: Keep only the latest backup for each day of the last seven days (1 <= age_days <= 7)
         if !keep && allowed_daily_dates.contains(&date) {
             if !kept_days.contains(&date) {
@@ -274,7 +287,7 @@ fn prune_database_backups(backups_dir: &Path, today: NaiveDate) {
                 kept_months.insert((date.year(), date.month()));
             }
         }
-        
+
         // Rule 3: Keep only the latest backup for each week of the last four weeks
         if !keep {
             let iso = date.iso_week();
@@ -288,7 +301,7 @@ fn prune_database_backups(backups_dir: &Path, today: NaiveDate) {
                 }
             }
         }
-        
+
         // Rule 4: Keep only the latest backup for each month of the last six months
         if !keep {
             let month_key = (date.year(), date.month());
@@ -299,12 +312,16 @@ fn prune_database_backups(backups_dir: &Path, today: NaiveDate) {
                 }
             }
         }
-        
+
         if !keep {
             info!("Pruning old database backup file: {:?}", backup.path);
             let _ = fs::remove_file(&backup.path);
         } else {
-            info!("Keeping database backup file: {:?} (age: {} days)", backup.path.file_name().unwrap(), backup.age_days);
+            info!(
+                "Keeping database backup file: {:?} (age: {} days)",
+                backup.path.file_name().unwrap(),
+                backup.age_days
+            );
         }
     }
 }
@@ -314,14 +331,14 @@ pub fn perform_database_backup(app: &AppHandle) {
     if !db_path.exists() {
         return;
     }
-    
+
     let mut custom_backups_dir = None;
     if let Ok(conn) = get_connection(app) {
-        if let Ok(mappings_str) = conn.query_row(
-            "SELECT mappings FROM export_settings LIMIT 1",
-            [],
-            |row| row.get::<_, String>(0)
-        ) {
+        if let Ok(mappings_str) =
+            conn.query_row("SELECT mappings FROM export_settings LIMIT 1", [], |row| {
+                row.get::<_, String>(0)
+            })
+        {
             if let Ok(mappings) = serde_json::from_str::<serde_json::Value>(&mappings_str) {
                 if let Some(custom_path) = mappings.get("backupLocation").and_then(|v| v.as_str()) {
                     let trim_path = custom_path.trim();
@@ -332,27 +349,27 @@ pub fn perform_database_backup(app: &AppHandle) {
             }
         }
     }
-    
+
     let backups_dir = custom_backups_dir.unwrap_or_else(|| {
         let app_dir = db_path.parent().unwrap();
         app_dir.join("backups")
     });
-    
+
     if let Err(e) = fs::create_dir_all(&backups_dir) {
         error!("Failed to create backups directory: {}", e);
         return;
     }
-    
+
     let now = Local::now();
     let backup_filename = format!("backup_{}.db", now.format("%Y-%m-%d_%H-%M-%S"));
     let backup_path = backups_dir.join(&backup_filename);
-    
+
     if let Err(e) = fs::copy(&db_path, &backup_path) {
         error!("Failed to copy database to backup: {}", e);
         return;
     }
     info!("Database backup created: {:?}", backup_path);
-    
+
     prune_database_backups(&backups_dir, now.naive_local().date());
 }
 
@@ -411,32 +428,38 @@ fn run_migrations(conn: &Connection) -> Result<()> {
     )?;
 
     // Migrations for existing databases: check and add normalized_locality if missing
-    let col_exists: bool = conn.query_row(
-        "SELECT COUNT(*) FROM pragma_table_info('gbif') WHERE name='normalized_locality'",
-        [],
-        |r| r.get::<_, i32>(0).map(|c| c > 0)
-    ).unwrap_or(false);
-    
+    let col_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('gbif') WHERE name='normalized_locality'",
+            [],
+            |r| r.get::<_, i32>(0).map(|c| c > 0),
+        )
+        .unwrap_or(false);
+
     if !col_exists {
         let _ = conn.execute("ALTER TABLE gbif ADD COLUMN normalized_locality TEXT", []);
     }
 
-    let fn_exists: bool = conn.query_row(
-        "SELECT COUNT(*) FROM pragma_table_info('gbif') WHERE name='fieldNumber'",
-        [],
-        |r| r.get::<_, i32>(0).map(|c| c > 0)
-    ).unwrap_or(false);
-    
+    let fn_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('gbif') WHERE name='fieldNumber'",
+            [],
+            |r| r.get::<_, i32>(0).map(|c| c > 0),
+        )
+        .unwrap_or(false);
+
     if !fn_exists {
         let _ = conn.execute("ALTER TABLE gbif ADD COLUMN fieldNumber TEXT", []);
     }
 
-    let cfn_exists: bool = conn.query_row(
-        "SELECT COUNT(*) FROM pragma_table_info('gbif') WHERE name='cleanedFieldNumber'",
-        [],
-        |r| r.get::<_, i32>(0).map(|c| c > 0)
-    ).unwrap_or(false);
-    
+    let cfn_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('gbif') WHERE name='cleanedFieldNumber'",
+            [],
+            |r| r.get::<_, i32>(0).map(|c| c > 0),
+        )
+        .unwrap_or(false);
+
     if !cfn_exists {
         let _ = conn.execute("ALTER TABLE gbif ADD COLUMN cleanedFieldNumber TEXT", []);
     }
@@ -503,7 +526,10 @@ fn run_migrations(conn: &Connection) -> Result<()> {
     )?;
 
     let _ = conn.execute("ALTER TABLE sessions ADD COLUMN last_exported_at TEXT", []);
-    let _ = conn.execute("ALTER TABLE captured_records ADD COLUMN cultivated INTEGER DEFAULT 0", []);
+    let _ = conn.execute(
+        "ALTER TABLE captured_records ADD COLUMN cultivated INTEGER DEFAULT 0",
+        [],
+    );
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS captured_records (
@@ -571,40 +597,77 @@ fn run_migrations(conn: &Connection) -> Result<()> {
     )?;
 
     // Create standard indexes for query optimization
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_recordNumber ON gbif(recordNumber);", [])?;
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_year ON gbif(year);", [])?;
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_month ON gbif(month);", [])?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_gbif_recordNumber ON gbif(recordNumber);",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_gbif_year ON gbif(year);",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_gbif_month ON gbif(month);",
+        [],
+    )?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_day ON gbif(day);", [])?;
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_date ON gbif(year, month, day);", [])?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_gbif_date ON gbif(year, month, day);",
+        [],
+    )?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_normalizedRecordedBy ON gbif(normalizedRecordedBy COLLATE NOCASE);", [])?;
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_searchRecordedBy ON gbif(searchRecordedBy);", [])?;
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_country ON gbif(country COLLATE NOCASE);", [])?;
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_stateProvince ON gbif(stateProvince COLLATE NOCASE);", [])?;
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_county ON gbif(county COLLATE NOCASE);", [])?;
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_municipality ON gbif(municipality COLLATE NOCASE);", [])?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_gbif_searchRecordedBy ON gbif(searchRecordedBy);",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_gbif_country ON gbif(country COLLATE NOCASE);",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_gbif_stateProvince ON gbif(stateProvince COLLATE NOCASE);",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_gbif_county ON gbif(county COLLATE NOCASE);",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_gbif_municipality ON gbif(municipality COLLATE NOCASE);",
+        [],
+    )?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_geo_hierarchy ON gbif(country COLLATE NOCASE, stateProvince COLLATE NOCASE, county COLLATE NOCASE, municipality COLLATE NOCASE);", [])?;
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_family ON gbif(family COLLATE NOCASE);", [])?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_gbif_family ON gbif(family COLLATE NOCASE);",
+        [],
+    )?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_normalized_sci_name ON gbif(normalized_scientific_name);", [])?;
 
     conn.execute("CREATE INDEX IF NOT EXISTS idx_wcvp_taxonomy_plant_name_id ON wcvp_taxonomy(plant_name_id);", [])?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_wcvp_taxonomy_accepted_plant_name_id ON wcvp_taxonomy(accepted_plant_name_id);", [])?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_wcvp_taxonomy_basionym_plant_name_id ON wcvp_taxonomy(basionym_plant_name_id);", [])?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_wcvp_taxonomy_parent_plant_name_id ON wcvp_taxonomy(parent_plant_name_id);", [])?;
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_wcvp_taxonomy_taxon_name ON wcvp_taxonomy(taxon_name);", [])?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_wcvp_taxonomy_taxon_name ON wcvp_taxonomy(taxon_name);",
+        [],
+    )?;
 
     // Drop gbif_fts and recreate if it does not have the normalized_locality or cleanedFieldNumber column
-    let fts_col_exists: bool = conn.query_row(
-        "SELECT COUNT(*) FROM pragma_table_info('gbif_fts') WHERE name='normalized_locality'",
-        [],
-        |r| r.get::<_, i32>(0).map(|c| c > 0)
-    ).unwrap_or(false);
-    
-    let fts_cfn_exists: bool = conn.query_row(
-        "SELECT COUNT(*) FROM pragma_table_info('gbif_fts') WHERE name='cleanedFieldNumber'",
-        [],
-        |r| r.get::<_, i32>(0).map(|c| c > 0)
-    ).unwrap_or(false);
-    
+    let fts_col_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('gbif_fts') WHERE name='normalized_locality'",
+            [],
+            |r| r.get::<_, i32>(0).map(|c| c > 0),
+        )
+        .unwrap_or(false);
+
+    let fts_cfn_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('gbif_fts') WHERE name='cleanedFieldNumber'",
+            [],
+            |r| r.get::<_, i32>(0).map(|c| c > 0),
+        )
+        .unwrap_or(false);
+
     if !fts_col_exists || !fts_cfn_exists {
         let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ai", []);
         let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ad", []);
@@ -649,7 +712,10 @@ fn run_migrations(conn: &Connection) -> Result<()> {
         );",
         [],
     )?;
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_agents_searchAgentName ON agents(searchAgentName);", [])?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_agents_searchAgentName ON agents(searchAgentName);",
+        [],
+    )?;
 
     Ok(())
 }
@@ -862,7 +928,7 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
         [],
         |r| r.get(0)
     )?;
-    
+
     let count_locality: i64 = conn.query_row(
         "SELECT COUNT(*) FROM gbif WHERE (normalized_locality IS NULL OR normalized_locality = '') AND (locality IS NOT NULL AND locality != '' OR locationRemarks IS NOT NULL AND locationRemarks != '' OR verbatimLocality IS NOT NULL AND verbatimLocality != '')",
         [],
@@ -870,12 +936,15 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
     )?;
 
     if count_gbif > 0 || count_locality > 0 {
-        info!("Detected un-normalized data in gbif ({} names, {} localities). Normalizing...", count_gbif, count_locality);
-        
+        info!(
+            "Detected un-normalized data in gbif ({} names, {} localities). Normalizing...",
+            count_gbif, count_locality
+        );
+
         let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ai", []);
         let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ad", []);
         let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_au", []);
-        
+
         let mut updates_names = Vec::new();
         if count_gbif > 0 {
             let mut stmt = conn.prepare(
@@ -886,11 +955,15 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
                 let id: i64 = row.get(0)?;
                 let name: String = row.get(1)?;
                 let normalized = normalize_taxon_name(&name);
-                let val = if normalized.trim().is_empty() { "-".to_string() } else { normalized };
+                let val = if normalized.trim().is_empty() {
+                    "-".to_string()
+                } else {
+                    normalized
+                };
                 updates_names.push((id, val));
             }
         }
-        
+
         let mut updates_locality = Vec::new();
         if count_locality > 0 {
             let mut stmt = conn.prepare(
@@ -902,7 +975,7 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
                 let locality_val: Option<String> = row.get(1)?;
                 let remarks_val: Option<String> = row.get(2)?;
                 let verbatim_val: Option<String> = row.get(3)?;
-                
+
                 let combined = format!(
                     "{} {} {}",
                     locality_val.unwrap_or_default(),
@@ -910,33 +983,39 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
                     verbatim_val.unwrap_or_default()
                 );
                 let normalized = normalize_locality(&combined);
-                let val = if normalized.trim().is_empty() { "-".to_string() } else { normalized };
+                let val = if normalized.trim().is_empty() {
+                    "-".to_string()
+                } else {
+                    normalized
+                };
                 updates_locality.push((id, val));
             }
         }
-        
+
         {
             let tx = conn.transaction()?;
-            
+
             if !updates_names.is_empty() {
-                let mut stmt_update = tx.prepare("UPDATE gbif SET normalized_scientific_name = ?1 WHERE gbifID = ?2")?;
+                let mut stmt_update = tx
+                    .prepare("UPDATE gbif SET normalized_scientific_name = ?1 WHERE gbifID = ?2")?;
                 for (id, normalized) in updates_names {
                     stmt_update.execute(params![normalized, id])?;
                 }
             }
-            
+
             if !updates_locality.is_empty() {
-                let mut stmt_update = tx.prepare("UPDATE gbif SET normalized_locality = ?1 WHERE gbifID = ?2")?;
+                let mut stmt_update =
+                    tx.prepare("UPDATE gbif SET normalized_locality = ?1 WHERE gbifID = ?2")?;
                 for (id, normalized) in updates_locality {
                     stmt_update.execute(params![normalized, id])?;
                 }
             }
-            
+
             tx.commit()?;
         }
-        
+
         recreate_gbif_triggers(conn)?;
-        
+
         info!("Rebuilding FTS5 full-text index for gbif...");
         conn.execute("INSERT INTO gbif_fts(gbif_fts) VALUES('rebuild');", [])?;
         info!("Rebuilt FTS5 index successfully!");
@@ -949,14 +1028,17 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
     ).unwrap_or(0);
 
     if count_cfn > 0 {
-        info!("Detected {} un-normalized field numbers in gbif. Normalizing...", count_cfn);
-        
+        info!(
+            "Detected {} un-normalized field numbers in gbif. Normalizing...",
+            count_cfn
+        );
+
         let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ai", []);
         let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_ad", []);
         let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_au", []);
         let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_cfn_insert", []);
         let _ = conn.execute("DROP TRIGGER IF EXISTS gbif_cfn_update", []);
-        
+
         conn.execute(
             "UPDATE gbif SET cleanedFieldNumber = (
                 WITH RECURSIVE char_pos(pos, digit_seq, in_digit) AS (
@@ -980,27 +1062,30 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
             WHERE fieldNumber IS NOT NULL AND fieldNumber != '' AND (cleanedFieldNumber IS NULL OR cleanedFieldNumber = '');",
             [],
         )?;
-        
+
         recreate_gbif_triggers(conn)?;
-        
+
         info!("Rebuilding FTS5 full-text index for gbif...");
         conn.execute("INSERT INTO gbif_fts(gbif_fts) VALUES('rebuild');", [])?;
         info!("Rebuilt FTS5 index successfully!");
     }
-    
+
     let count_wcvp: i64 = conn.query_row(
         "SELECT COUNT(*) FROM wcvp_taxonomy WHERE taxon_name IS NOT NULL AND taxon_name != '' AND (normalized_taxon_name IS NULL OR normalized_taxon_name = '')",
         [],
         |r| r.get(0)
     )?;
-    
+
     if count_wcvp > 0 {
-        info!("Detected {} un-normalized taxa in wcvp_taxonomy. Normalizing...", count_wcvp);
-        
+        info!(
+            "Detected {} un-normalized taxa in wcvp_taxonomy. Normalizing...",
+            count_wcvp
+        );
+
         let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_ai", []);
         let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_ad", []);
         let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_au", []);
-        
+
         let mut updates_wcvp = Vec::new();
         {
             let mut stmt = conn.prepare(
@@ -1011,26 +1096,35 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
                 let id: String = row.get(0)?;
                 let name: String = row.get(1)?;
                 let normalized = normalize_taxon_name(&name);
-                let val = if normalized.trim().is_empty() { "-".to_string() } else { normalized };
+                let val = if normalized.trim().is_empty() {
+                    "-".to_string()
+                } else {
+                    normalized
+                };
                 updates_wcvp.push((id, val));
             }
         }
-        
+
         {
             let tx = conn.transaction()?;
             {
-                let mut stmt_update = tx.prepare("UPDATE wcvp_taxonomy SET normalized_taxon_name = ?1 WHERE plant_name_id = ?2")?;
+                let mut stmt_update = tx.prepare(
+                    "UPDATE wcvp_taxonomy SET normalized_taxon_name = ?1 WHERE plant_name_id = ?2",
+                )?;
                 for (id, normalized) in updates_wcvp {
                     stmt_update.execute(params![normalized, id])?;
                 }
             }
             tx.commit()?;
         }
-        
+
         recreate_wcvp_triggers(conn)?;
-        
+
         info!("Rebuilding FTS5 full-text index for wcvp_taxonomy...");
-        conn.execute("INSERT INTO wcvp_taxonomy_fts(wcvp_taxonomy_fts) VALUES('rebuild');", [])?;
+        conn.execute(
+            "INSERT INTO wcvp_taxonomy_fts(wcvp_taxonomy_fts) VALUES('rebuild');",
+            [],
+        )?;
         info!("WCVP normalization and index rebuild completed!");
     }
 
@@ -1038,7 +1132,9 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
 }
 
 pub fn populate_agents_table(conn: &mut Connection) -> std::result::Result<(), String> {
-    let count: i64 = conn.query_row("SELECT COUNT(*) FROM agents", [], |r| r.get(0)).map_err(|e| e.to_string())?;
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM agents", [], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
     if count > 0 {
         return Ok(());
     }
@@ -1048,7 +1144,9 @@ pub fn populate_agents_table(conn: &mut Connection) -> std::result::Result<(), S
     let mut agents = std::collections::HashSet::new();
 
     {
-        let mut stmt = conn.prepare("SELECT DISTINCT recordedBy, identifiedBy FROM gbif").map_err(|e| e.to_string())?;
+        let mut stmt = conn
+            .prepare("SELECT DISTINCT recordedBy, identifiedBy FROM gbif")
+            .map_err(|e| e.to_string())?;
         let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
 
         while let Some(row) = rows.next().map_err(|e| e.to_string())? {
@@ -1070,7 +1168,11 @@ pub fn populate_agents_table(conn: &mut Connection) -> std::result::Result<(), S
 
     let tx = conn.transaction().map_err(|e| e.to_string())?;
     {
-        let mut insert_stmt = tx.prepare_cached("INSERT OR IGNORE INTO agents (agentName, searchAgentName) VALUES (?1, ?2)").map_err(|e| e.to_string())?;
+        let mut insert_stmt = tx
+            .prepare_cached(
+                "INSERT OR IGNORE INTO agents (agentName, searchAgentName) VALUES (?1, ?2)",
+            )
+            .map_err(|e| e.to_string())?;
         for agent in agents {
             if !agent.is_empty() {
                 let search_name = normalize_search_recorded_by(&agent);
@@ -1087,8 +1189,8 @@ pub fn populate_agents_table(conn: &mut Connection) -> std::result::Result<(), S
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
     use chrono::NaiveDate;
+    use std::fs;
 
     #[test]
     fn test_prune_database_backups() {

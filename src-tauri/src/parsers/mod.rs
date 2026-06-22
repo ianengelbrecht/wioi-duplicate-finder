@@ -8,52 +8,52 @@ pub fn normalize_taxon_name(name: &str) -> String {
     if words.is_empty() {
         return String::new();
     }
-    
+
     let mut normalized_words = Vec::new();
-    
+
     // 1. Keep the first word (genus)
     normalized_words.push(words[0].to_lowercase());
-    
+
     // Known rank indicators to skip
     let rank_indicators = [
-        "subsp.", "subsp", "var.", "var", "f.", "f", "ssp.", "ssp", 
-        "forma", "form", "subg.", "subgenus", "sect.", "section"
+        "subsp.", "subsp", "var.", "var", "f.", "f", "ssp.", "ssp", "forma", "form", "subg.",
+        "subgenus", "sect.", "section",
     ];
-    
+
     // Known author connectors to skip
     let connectors = ["ex", "in", "and", "&"];
-    
+
     for &word in words.iter().skip(1) {
         // Strip punctuation like parentheses, brackets, periods for checking, e.g. "(L.)" -> "L"
         let clean_word = word.trim_matches(|c: char| c.is_ascii_punctuation());
-        
+
         if clean_word.is_empty() {
             continue;
         }
-        
+
         let lower_word = clean_word.to_lowercase();
-        
+
         // Skip rank indicators
         if rank_indicators.contains(&lower_word.as_str()) {
             continue;
         }
-        
+
         // Skip connectors
         if connectors.contains(&lower_word.as_str()) {
             continue;
         }
-        
+
         // Skip author names (if clean_word starts with an uppercase letter)
         if let Some(first_char) = clean_word.chars().next() {
             if first_char.is_uppercase() {
                 continue;
             }
         }
-        
+
         // If it reaches here, it is a lowercase epithet! Keep it.
         normalized_words.push(lower_word);
     }
-    
+
     normalized_words.join(" ")
 }
 
@@ -67,10 +67,14 @@ pub fn normalize_locality(s: &str) -> String {
     let mut mapped = String::new();
     for c in s.chars() {
         let mc = match c {
-            'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'Å' => 'a',
+            'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'Å' => {
+                'a'
+            }
             'è' | 'é' | 'ê' | 'ë' | 'È' | 'É' | 'Ê' | 'Ë' => 'e',
             'ì' | 'í' | 'î' | 'ï' | 'Ì' | 'Í' | 'Î' | 'Ï' => 'i',
-            'ò' | 'ó' | 'ô' | 'õ' | 'ö' | 'ø' | 'Ò' | 'Ó' | 'Ô' | 'Õ' | 'Ö' | 'Ø' => 'o',
+            'ò' | 'ó' | 'ô' | 'õ' | 'ö' | 'ø' | 'Ò' | 'Ó' | 'Ô' | 'Õ' | 'Ö' | 'Ø' => {
+                'o'
+            }
             'ù' | 'ú' | 'û' | 'ü' | 'Ù' | 'Ú' | 'Û' | 'Ü' => 'u',
             'ñ' | 'Ñ' => 'n',
             'ç' | 'Ç' => 'c',
@@ -86,9 +90,10 @@ pub fn normalize_locality(s: &str) -> String {
 
     let stopwords = [
         // English
-        "the", "a", "an", "and", "or", "near", "about", "along", "to", "of", "in", "on", "at", "by", "from", "with", "under", "over", "between", "around",
-        // French
-        "le", "la", "les", "un", "une", "des", "du", "de", "et", "ou", "pres", "vers", "dans", "sur", "sous", "par", "pour", "avec", "chez", "au", "aux"
+        "the", "a", "an", "and", "or", "near", "about", "along", "to", "of", "in", "on", "at", "by",
+        "from", "with", "under", "over", "between", "around", // French
+        "le", "la", "les", "un", "une", "des", "du", "de", "et", "ou", "pres", "vers", "dans",
+        "sur", "sous", "par", "pour", "avec", "chez", "au", "aux",
     ];
 
     let mut result_words = Vec::new();
@@ -107,12 +112,17 @@ pub fn normalize_locality(s: &str) -> String {
 
 /// Normalizes a collector name for searchRecordedBy (uppercase, alphanumeric + spaces only).
 pub fn normalize_search_recorded_by(s: &str) -> String {
-    let mapped: String = s.chars()
+    let mapped: String = s
+        .chars()
         .map(|c| match c {
-            'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'Å' => 'A',
+            'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'Å' => {
+                'A'
+            }
             'è' | 'é' | 'ê' | 'ë' | 'È' | 'É' | 'Ê' | 'Ë' => 'E',
             'ì' | 'í' | 'î' | 'ï' | 'Ì' | 'Í' | 'Î' | 'Ï' => 'I',
-            'ò' | 'ó' | 'ô' | 'õ' | 'ö' | 'ø' | 'Ò' | 'Ó' | 'Ô' | 'Õ' | 'Ö' | 'Ø' => 'O',
+            'ò' | 'ó' | 'ô' | 'õ' | 'ö' | 'ø' | 'Ò' | 'Ó' | 'Ô' | 'Õ' | 'Ö' | 'Ø' => {
+                'O'
+            }
             'ù' | 'ú' | 'û' | 'ü' | 'Ù' | 'Ú' | 'Û' | 'Ü' => 'U',
             'ñ' | 'Ñ' => 'N',
             'ç' | 'Ç' => 'C',
@@ -141,7 +151,10 @@ pub fn normalize_search_recorded_by(s: &str) -> String {
 
 /// Helper function to check if a string consists entirely of initials
 pub fn is_initials(s: &str) -> bool {
-    let tokens: Vec<&str> = s.split(|c| c == ' ' || c == '.').filter(|t| !t.is_empty()).collect();
+    let tokens: Vec<&str> = s
+        .split(|c| c == ' ' || c == '.')
+        .filter(|t| !t.is_empty())
+        .collect();
     if tokens.is_empty() {
         return false;
     }
@@ -176,7 +189,8 @@ pub fn split_names(raw_str: &str) -> Vec<String> {
         vec![raw_str.to_string()]
     };
 
-    parts.into_iter()
+    parts
+        .into_iter()
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .collect()
@@ -222,17 +236,20 @@ mod tests {
             normalize_taxon_name("Senebiera heleniana (L.) DC. var. heleniana"),
             "senebiera heleniana heleniana"
         );
-        assert_eq!(
-            normalize_taxon_name(""),
-            ""
-        );
+        assert_eq!(normalize_taxon_name(""), "");
     }
 
     #[test]
     fn test_normalize_search_recorded_by() {
-        assert_eq!(normalize_search_recorded_by("Müller-Landry"), "MULLERLANDRY");
+        assert_eq!(
+            normalize_search_recorded_by("Müller-Landry"),
+            "MULLERLANDRY"
+        );
         assert_eq!(normalize_search_recorded_by("Smith, J."), "SMITH J");
-        assert_eq!(normalize_search_recorded_by("J. René Smith"), "J RENE SMITH");
+        assert_eq!(
+            normalize_search_recorded_by("J. René Smith"),
+            "J RENE SMITH"
+        );
     }
 
     #[test]

@@ -1,12 +1,21 @@
-use rusqlite::{Connection, params, Error};
+use crate::models::{
+    CapturedRecord, ExportSettingsDto, ReferenceSpecimen, SessionDto, TaxonAutocompleteResult,
+    UserDto,
+};
+use crate::parsers::{
+    extract_digits, normalize_locality, normalize_search_recorded_by, normalize_taxon_name,
+};
+use rusqlite::{params, Connection, Error};
 use serde_json::json;
-use crate::models::{UserDto, SessionDto, CapturedRecord, ExportSettingsDto, TaxonAutocompleteResult, ReferenceSpecimen};
-use crate::parsers::{normalize_search_recorded_by, normalize_locality, normalize_taxon_name, extract_digits};
 
 pub struct UserRepository;
 
 impl UserRepository {
-    pub fn insert_user(conn: &Connection, username: &str, password_hash: &str) -> Result<(), Error> {
+    pub fn insert_user(
+        conn: &Connection,
+        username: &str,
+        password_hash: &str,
+    ) -> Result<(), Error> {
         conn.execute(
             "INSERT INTO users (username, password_hash) VALUES (?1, ?2)",
             params![username, password_hash],
@@ -14,8 +23,13 @@ impl UserRepository {
         Ok(())
     }
 
-    pub fn get_user_by_credentials(conn: &Connection, username: &str, password_hash: &str) -> Result<Option<UserDto>, Error> {
-        let mut stmt = conn.prepare("SELECT id, username FROM users WHERE username = ?1 AND password_hash = ?2")?;
+    pub fn get_user_by_credentials(
+        conn: &Connection,
+        username: &str,
+        password_hash: &str,
+    ) -> Result<Option<UserDto>, Error> {
+        let mut stmt = conn
+            .prepare("SELECT id, username FROM users WHERE username = ?1 AND password_hash = ?2")?;
         let mut rows = stmt.query_map(params![username, password_hash], |row| {
             Ok(UserDto {
                 id: row.get(0)?,
@@ -95,7 +109,10 @@ impl SessionRepository {
 pub struct SpecimenRepository;
 
 impl SpecimenRepository {
-    pub fn get_captured_records(conn: &Connection, session_id: i32) -> Result<Vec<CapturedRecord>, Error> {
+    pub fn get_captured_records(
+        conn: &Connection,
+        session_id: i32,
+    ) -> Result<Vec<CapturedRecord>, Error> {
         let mut stmt = conn.prepare(
             "SELECT id, collectionCode, catalogNumber, duplicates, recordNumber, recordedBy, 
                     verbatimEventDate, year, month, day, country, stateProvince, county, municipality, 
@@ -156,7 +173,7 @@ impl SpecimenRepository {
 
     pub fn save_captured_record(conn: &Connection, record: &CapturedRecord) -> Result<i32, Error> {
         let cultivated_int = if record.cultivated { 1 } else { 0 };
-        
+
         if let Some(existing_id) = record.id {
             conn.execute(
                 "UPDATE captured_records SET 
@@ -172,9 +189,9 @@ impl SpecimenRepository {
                     record.collection_code, record.catalog_number, record.duplicates, record.record_number, record.recorded_by,
                     record.verbatim_event_date, record.year, record.month, record.day, record.country,
                     record.state_province, record.county, record.municipality, record.locality, record.location_remarks,
-                    record.verbatim_coordinates, record.decimal_latitude, record.decimal_longitude, record.verbatim_elevation, record.habitat, 
-                    record.occurrence_remarks, record.field_notes, record.type_status, record.identification_qualifier, record.scientific_name, 
-                    record.identified_by, record.year_identified, record.month_identified, record.day_identified, record.identification_remarks, 
+                    record.verbatim_coordinates, record.decimal_latitude, record.decimal_longitude, record.verbatim_elevation, record.habitat,
+                    record.occurrence_remarks, record.field_notes, record.type_status, record.identification_qualifier, record.scientific_name,
+                    record.identified_by, record.year_identified, record.month_identified, record.day_identified, record.identification_remarks,
                     record.taxon_id, cultivated_int, existing_id, record.session_id
                 ]
             )?;
@@ -206,8 +223,14 @@ impl SpecimenRepository {
         Ok(())
     }
 
-    pub fn delete_captured_records_by_session(conn: &Connection, session_id: i32) -> Result<(), Error> {
-        conn.execute("DELETE FROM captured_records WHERE session_id = ?1", params![session_id])?;
+    pub fn delete_captured_records_by_session(
+        conn: &Connection,
+        session_id: i32,
+    ) -> Result<(), Error> {
+        conn.execute(
+            "DELETE FROM captured_records WHERE session_id = ?1",
+            params![session_id],
+        )?;
         Ok(())
     }
 }
@@ -215,19 +238,50 @@ impl SpecimenRepository {
 pub struct TaxonomyRepository;
 
 impl TaxonomyRepository {
-    pub fn search_reference(conn: &Connection, filters: &serde_json::Value) -> Result<Vec<ReferenceSpecimen>, String> {
-        let recorded_by = filters.get("recordedBy").and_then(|v| v.as_str()).unwrap_or("").trim();
-        let record_number = filters.get("recordNumber").and_then(|v| v.as_str()).unwrap_or("").trim();
-        let locality = filters.get("locality").and_then(|v| v.as_str()).unwrap_or("").trim();
-        let scientific_name = filters.get("scientificName").and_then(|v| v.as_str()).unwrap_or("").trim();
-        let family = filters.get("family").and_then(|v| v.as_str()).unwrap_or("").trim();
-        let country = filters.get("country").and_then(|v| v.as_str()).unwrap_or("").trim();
-        let state_province = filters.get("stateProvince").and_then(|v| v.as_str()).unwrap_or("").trim();
-        
+    pub fn search_reference(
+        conn: &Connection,
+        filters: &serde_json::Value,
+    ) -> Result<Vec<ReferenceSpecimen>, String> {
+        let recorded_by = filters
+            .get("recordedBy")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim();
+        let record_number = filters
+            .get("recordNumber")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim();
+        let locality = filters
+            .get("locality")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim();
+        let scientific_name = filters
+            .get("scientificName")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim();
+        let family = filters
+            .get("family")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim();
+        let country = filters
+            .get("country")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim();
+        let state_province = filters
+            .get("stateProvince")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim();
+
         let year = filters.get("year").and_then(|v| v.as_i64());
         let month = filters.get("month").and_then(|v| v.as_i64());
         let day = filters.get("day").and_then(|v| v.as_i64());
-        
+
         let has_recorded_by = !recorded_by.is_empty();
         let has_record_number = !record_number.is_empty();
         let has_locality = !locality.is_empty();
@@ -235,17 +289,17 @@ impl TaxonomyRepository {
         let has_family = !family.is_empty();
         let has_country = !country.is_empty();
         let has_state_province = !state_province.is_empty();
-        
+
         let mut sql = String::from(
             "SELECT recordedBy, recordNumber, locality, locationRemarks, verbatimLocality, 
                     scientificName, family, country, stateProvince, year, month, day,
                     identificationQualifier, collectionCode, decimalLatitude, decimalLongitude,
                     verbatimCoordinates, verbatimElevation, elevation, habitat, occurrenceRemarks,
                     fieldNotes, fieldNumber
-             FROM gbif WHERE 1=1"
+             FROM gbif WHERE 1=1",
         );
         let mut params_vec: Vec<serde_json::Value> = Vec::new();
-        
+
         if has_recorded_by {
             let normalized = normalize_search_recorded_by(recorded_by);
             sql.push_str(" AND searchRecordedBy LIKE ? COLLATE NOCASE");
@@ -255,7 +309,7 @@ impl TaxonomyRepository {
             let digits = extract_digits(record_number);
             if !digits.is_empty() {
                 let terms: Vec<&str> = digits.split_whitespace().collect();
-                
+
                 let mut fts_clauses = Vec::new();
                 for term in &terms {
                     fts_clauses.push(format!("cleanedFieldNumber:{}", term));
@@ -310,7 +364,7 @@ impl TaxonomyRepository {
             sql.push_str(" AND day = ?");
             params_vec.push(json!(d));
         }
-        
+
         if has_locality {
             let normalized = normalize_locality(locality);
             let terms: Vec<&str> = normalized.split_whitespace().collect();
@@ -321,12 +375,14 @@ impl TaxonomyRepository {
                 }
                 if !match_clauses.is_empty() {
                     let fts_query = match_clauses.join(" AND ");
-                    sql.push_str(" AND gbifID IN (SELECT rowid FROM gbif_fts WHERE gbif_fts MATCH ?)");
+                    sql.push_str(
+                        " AND gbifID IN (SELECT rowid FROM gbif_fts WHERE gbif_fts MATCH ?)",
+                    );
                     params_vec.push(json!(fts_query));
                 }
             }
         }
-        
+
         if has_scientific_name {
             let normalized = normalize_taxon_name(scientific_name);
             let terms: Vec<&str> = normalized.split_whitespace().collect();
@@ -342,79 +398,85 @@ impl TaxonomyRepository {
                 params_vec.push(json!(fts_query));
             }
         }
-        
+
         sql.push_str(" LIMIT 250");
-        
+
         let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
-        
-        let rusql_params: Vec<Box<dyn rusqlite::ToSql>> = params_vec.iter().map(|v| {
-            if let Some(s) = v.as_str() {
-                Box::new(s.to_string()) as Box<dyn rusqlite::ToSql>
-            } else if let Some(i) = v.as_i64() {
-                Box::new(i) as Box<dyn rusqlite::ToSql>
-            } else {
-                Box::new("") as Box<dyn rusqlite::ToSql>
-            }
-        }).collect();
-        
-        let ref_params: Vec<&dyn rusqlite::ToSql> = rusql_params.iter().map(|b| b.as_ref()).collect();
-        
-        let rows = stmt.query_map(&ref_params[..], |row| {
-            let recorded_by: Option<String> = row.get(0)?;
-            let record_number: Option<String> = row.get(1)?;
-            let locality: Option<String> = row.get(2)?;
-            let location_notes: Option<String> = row.get(3)?;
-            let verbatim_locality: Option<String> = row.get(4)?;
-            let scientific_name: Option<String> = row.get(5)?;
-            let family: Option<String> = row.get(6)?;
-            let country: Option<String> = row.get(7)?;
-            let state_province: Option<String> = row.get(8)?;
-            let year: Option<i32> = row.get(9)?;
-            let month: Option<i32> = row.get(10)?;
-            let day: Option<i32> = row.get(11)?;
-            let id_qualifier: Option<String> = row.get(12)?;
-            let collection_code: Option<String> = row.get(13)?;
-            let decimal_latitude: Option<f64> = row.get(14)?;
-            let decimal_longitude: Option<f64> = row.get(15)?;
-            let verbatim_coordinates: Option<String> = row.get(16)?;
-            let verbatim_elevation: Option<String> = row.get(17)?;
-            let elevation: Option<String> = row.get(18)?;
-            let habitat: Option<String> = row.get(19)?;
-            let occurrence_remarks: Option<String> = row.get(20)?;
-            let field_notes: Option<String> = row.get(21)?;
-            let field_number: Option<String> = row.get(22)?;
-            
-            Ok(ReferenceSpecimen {
-                id: None,
-                recorded_by: recorded_by.unwrap_or_default(),
-                record_number: record_number.unwrap_or_default(),
-                locality: locality.unwrap_or_default(),
-                location_notes: location_notes.unwrap_or_default(),
-                verbatim_locality: verbatim_locality.unwrap_or_default(),
-                scientific_name: scientific_name.unwrap_or_default(),
-                family: family.unwrap_or_default(),
-                genus: "".to_string(),
-                specific_epithet: "".to_string(),
-                infra_specific_epithet: "".to_string(),
-                country: country.unwrap_or_default(),
-                state_province: state_province.unwrap_or_default(),
-                year,
-                month,
-                day,
-                identification_qualifier: id_qualifier.unwrap_or_default(),
-                collection_code: collection_code.unwrap_or_default(),
-                decimal_latitude,
-                decimal_longitude,
-                verbatim_coordinates: verbatim_coordinates.unwrap_or_default(),
-                verbatim_elevation: verbatim_elevation.unwrap_or_default(),
-                elevation: elevation.unwrap_or_default(),
-                habitat: habitat.unwrap_or_default(),
-                occurrence_remarks: occurrence_remarks.unwrap_or_default(),
-                field_notes: field_notes.unwrap_or_default(),
-                field_number: field_number.unwrap_or_default(),
+
+        let rusql_params: Vec<Box<dyn rusqlite::ToSql>> = params_vec
+            .iter()
+            .map(|v| {
+                if let Some(s) = v.as_str() {
+                    Box::new(s.to_string()) as Box<dyn rusqlite::ToSql>
+                } else if let Some(i) = v.as_i64() {
+                    Box::new(i) as Box<dyn rusqlite::ToSql>
+                } else {
+                    Box::new("") as Box<dyn rusqlite::ToSql>
+                }
             })
-        }).map_err(|e| e.to_string())?;
-        
+            .collect();
+
+        let ref_params: Vec<&dyn rusqlite::ToSql> =
+            rusql_params.iter().map(|b| b.as_ref()).collect();
+
+        let rows = stmt
+            .query_map(&ref_params[..], |row| {
+                let recorded_by: Option<String> = row.get(0)?;
+                let record_number: Option<String> = row.get(1)?;
+                let locality: Option<String> = row.get(2)?;
+                let location_notes: Option<String> = row.get(3)?;
+                let verbatim_locality: Option<String> = row.get(4)?;
+                let scientific_name: Option<String> = row.get(5)?;
+                let family: Option<String> = row.get(6)?;
+                let country: Option<String> = row.get(7)?;
+                let state_province: Option<String> = row.get(8)?;
+                let year: Option<i32> = row.get(9)?;
+                let month: Option<i32> = row.get(10)?;
+                let day: Option<i32> = row.get(11)?;
+                let id_qualifier: Option<String> = row.get(12)?;
+                let collection_code: Option<String> = row.get(13)?;
+                let decimal_latitude: Option<f64> = row.get(14)?;
+                let decimal_longitude: Option<f64> = row.get(15)?;
+                let verbatim_coordinates: Option<String> = row.get(16)?;
+                let verbatim_elevation: Option<String> = row.get(17)?;
+                let elevation: Option<String> = row.get(18)?;
+                let habitat: Option<String> = row.get(19)?;
+                let occurrence_remarks: Option<String> = row.get(20)?;
+                let field_notes: Option<String> = row.get(21)?;
+                let field_number: Option<String> = row.get(22)?;
+
+                Ok(ReferenceSpecimen {
+                    id: None,
+                    recorded_by: recorded_by.unwrap_or_default(),
+                    record_number: record_number.unwrap_or_default(),
+                    locality: locality.unwrap_or_default(),
+                    location_notes: location_notes.unwrap_or_default(),
+                    verbatim_locality: verbatim_locality.unwrap_or_default(),
+                    scientific_name: scientific_name.unwrap_or_default(),
+                    family: family.unwrap_or_default(),
+                    genus: "".to_string(),
+                    specific_epithet: "".to_string(),
+                    infra_specific_epithet: "".to_string(),
+                    country: country.unwrap_or_default(),
+                    state_province: state_province.unwrap_or_default(),
+                    year,
+                    month,
+                    day,
+                    identification_qualifier: id_qualifier.unwrap_or_default(),
+                    collection_code: collection_code.unwrap_or_default(),
+                    decimal_latitude,
+                    decimal_longitude,
+                    verbatim_coordinates: verbatim_coordinates.unwrap_or_default(),
+                    verbatim_elevation: verbatim_elevation.unwrap_or_default(),
+                    elevation: elevation.unwrap_or_default(),
+                    habitat: habitat.unwrap_or_default(),
+                    occurrence_remarks: occurrence_remarks.unwrap_or_default(),
+                    field_notes: field_notes.unwrap_or_default(),
+                    field_number: field_number.unwrap_or_default(),
+                })
+            })
+            .map_err(|e| e.to_string())?;
+
         let mut list = Vec::new();
         for r in rows {
             list.push(r.map_err(|e| e.to_string())?);
@@ -422,12 +484,15 @@ impl TaxonomyRepository {
         Ok(list)
     }
 
-    pub fn autocomplete_scientific_name(conn: &Connection, query: &str) -> Result<Vec<TaxonAutocompleteResult>, Error> {
+    pub fn autocomplete_scientific_name(
+        conn: &Connection,
+        query: &str,
+    ) -> Result<Vec<TaxonAutocompleteResult>, Error> {
         let terms: Vec<&str> = query.split_whitespace().collect();
         if terms.is_empty() {
             return Ok(Vec::new());
         }
-        
+
         let mut fts_query = String::new();
         for (i, term) in terms.iter().enumerate() {
             let clean = term.trim_matches(|c: char| c.is_ascii_punctuation());
@@ -438,14 +503,14 @@ impl TaxonomyRepository {
                 fts_query.push_str(&format!("{}*", clean));
             }
         }
-        
+
         let mut stmt = conn.prepare(
             "SELECT plant_name_id, taxon_name, family, genus, species, taxon_authors, taxon_rank 
              FROM wcvp_taxonomy 
              WHERE rowid IN (SELECT rowid FROM wcvp_taxonomy_fts WHERE wcvp_taxonomy_fts MATCH ?1) 
-             LIMIT 15"
+             LIMIT 15",
         )?;
-            
+
         let rows = stmt.query_map(params![fts_query], |row| {
             let id: String = row.get(0)?;
             let name: String = row.get(1)?;
@@ -454,12 +519,12 @@ impl TaxonomyRepository {
             let species: Option<String> = row.get(4)?;
             let authors: Option<String> = row.get(5)?;
             let rank: Option<String> = row.get(6)?;
-            
+
             let full_name = match &authors {
                 Some(a) if !a.trim().is_empty() => format!("{} {}", name, a.trim()),
                 _ => name,
             };
-            
+
             Ok(TaxonAutocompleteResult {
                 taxon_id: id,
                 scientific_name: full_name,
@@ -470,7 +535,7 @@ impl TaxonomyRepository {
                 rank: rank.unwrap_or_default(),
             })
         })?;
-        
+
         let mut list = Vec::new();
         for r in rows {
             list.push(r?);
@@ -478,11 +543,13 @@ impl TaxonomyRepository {
         Ok(list)
     }
 
-    pub fn find_family_recursive(conn: &Connection, start_id: &str) -> Result<Option<String>, Error> {
-        let mut stmt = conn.prepare(
-            "SELECT family FROM wcvp_taxonomy WHERE plant_name_id = ?1"
-        )?;
-        if let Ok(Some(fam)) = stmt.query_row(params![start_id], |r| r.get::<_, Option<String>>(0)) {
+    pub fn find_family_recursive(
+        conn: &Connection,
+        start_id: &str,
+    ) -> Result<Option<String>, Error> {
+        let mut stmt = conn.prepare("SELECT family FROM wcvp_taxonomy WHERE plant_name_id = ?1")?;
+        if let Ok(Some(fam)) = stmt.query_row(params![start_id], |r| r.get::<_, Option<String>>(0))
+        {
             if !fam.trim().is_empty() {
                 return Ok(Some(fam));
             }
@@ -490,14 +557,14 @@ impl TaxonomyRepository {
 
         let mut current_id = start_id.to_string();
         let mut depth = 0;
-        
+
         while depth < 30 {
             let mut stmt = conn.prepare(
                 "SELECT plant_name_id, parent_plant_name_id, taxon_rank, taxon_name, family 
                  FROM wcvp_taxonomy 
-                 WHERE plant_name_id = ?1"
+                 WHERE plant_name_id = ?1",
             )?;
-            
+
             let row = stmt.query_row(params![current_id], |r| {
                 let pid: Option<String> = r.get(0)?;
                 let parent_id: Option<String> = r.get(1)?;
@@ -506,7 +573,7 @@ impl TaxonomyRepository {
                 let family: Option<String> = r.get(4)?;
                 Ok((pid, parent_id, rank, name, family))
             });
-            
+
             match row {
                 Ok((_, parent_id, rank, name, family)) => {
                     if let Some(r) = rank {
@@ -532,7 +599,7 @@ impl TaxonomyRepository {
             }
             depth += 1;
         }
-        
+
         Ok(None)
     }
 }
@@ -549,11 +616,12 @@ impl AgentRepository {
                 SELECT recordedBy AS collector FROM captured_records WHERE recordedBy LIKE ?2 COLLATE NOCASE
              ) WHERE collector IS NOT NULL AND collector != '' LIMIT 10"
         )?;
-            
-        let rows = stmt.query_map(params![format!("{}%", normalized), format!("{}%", query)], |row| {
-            row.get(0)
-        })?;
-        
+
+        let rows = stmt.query_map(
+            params![format!("{}%", normalized), format!("{}%", query)],
+            |row| row.get(0),
+        )?;
+
         let mut list = Vec::new();
         for r in rows {
             list.push(r?);
@@ -563,9 +631,10 @@ impl AgentRepository {
 
     pub fn autocomplete_agent(conn: &Connection, query: &str) -> Result<Vec<String>, Error> {
         let normalized = normalize_search_recorded_by(query);
-        let mut stmt = conn.prepare("SELECT agentName FROM agents WHERE searchAgentName LIKE ?1 LIMIT 10")?;
+        let mut stmt =
+            conn.prepare("SELECT agentName FROM agents WHERE searchAgentName LIKE ?1 LIMIT 10")?;
         let rows = stmt.query_map(params![format!("{}%", normalized)], |row| row.get(0))?;
-        
+
         let mut list = Vec::new();
         for r in rows {
             list.push(r?);
@@ -593,7 +662,12 @@ impl AgentRepository {
 pub struct ExportRepository;
 
 impl ExportRepository {
-    pub fn save_export_settings(conn: &Connection, user_id: i32, format: &str, mappings: &str) -> Result<(), Error> {
+    pub fn save_export_settings(
+        conn: &Connection,
+        user_id: i32,
+        format: &str,
+        mappings: &str,
+    ) -> Result<(), Error> {
         conn.execute(
             "INSERT INTO export_settings (user_id, format, mappings) 
              VALUES (?1, ?2, ?3) 
@@ -603,8 +677,12 @@ impl ExportRepository {
         Ok(())
     }
 
-    pub fn get_export_settings(conn: &Connection, user_id: i32) -> Result<Option<ExportSettingsDto>, Error> {
-        let mut stmt = conn.prepare("SELECT format, mappings FROM export_settings WHERE user_id = ?1")?;
+    pub fn get_export_settings(
+        conn: &Connection,
+        user_id: i32,
+    ) -> Result<Option<ExportSettingsDto>, Error> {
+        let mut stmt =
+            conn.prepare("SELECT format, mappings FROM export_settings WHERE user_id = ?1")?;
         let mut rows = stmt.query_map(params![user_id], |row| {
             Ok(ExportSettingsDto {
                 format: row.get(0)?,
@@ -628,11 +706,11 @@ impl GeographyRepository {
         let gbif_count: i64 = conn
             .query_row("SELECT COUNT(*) FROM gbif", [], |r| r.get(0))
             .unwrap_or(0);
-            
+
         let wcvp_count: i64 = conn
             .query_row("SELECT COUNT(*) FROM wcvp_taxonomy", [], |r| r.get(0))
             .unwrap_or(0);
-            
+
         Ok(json!({
             "gbif": gbif_count,
             "wcvp": wcvp_count
@@ -642,24 +720,24 @@ impl GeographyRepository {
     pub fn autocomplete_locality(conn: &Connection, query: &str) -> Result<Vec<String>, String> {
         let normalized = normalize_locality(query);
         let terms: Vec<&str> = normalized.split_whitespace().collect();
-        
+
         let mut sql = String::from("SELECT MIN(TRIM(locality)) AS uniq_locality FROM (\n");
         let mut params_vec: Vec<String> = Vec::new();
-        
+
         if !terms.is_empty() {
             let mut match_clauses = Vec::new();
             for term in &terms {
                 match_clauses.push(format!("normalized_locality:{}*", term));
             }
             let fts_query = match_clauses.join(" AND ");
-            
+
             sql.push_str("    SELECT locality FROM gbif WHERE gbifID IN (\n");
             sql.push_str("        SELECT rowid FROM gbif_fts WHERE gbif_fts MATCH ?1\n");
             sql.push_str("    )\n");
             params_vec.push(fts_query);
-            
+
             sql.push_str("    UNION ALL\n");
-            
+
             sql.push_str("    SELECT locality FROM captured_records WHERE 1=1");
             for (i, term) in terms.iter().enumerate() {
                 sql.push_str(&format!(" AND locality LIKE ?{}", i + 2));
@@ -672,24 +750,28 @@ impl GeographyRepository {
             sql.push_str("    SELECT locality FROM captured_records WHERE locality LIKE ?1\n");
             params_vec.push(format!("%{}%", query));
         }
-        
+
         sql.push_str(") WHERE locality IS NOT NULL AND TRIM(locality) != ''\n");
         sql.push_str("GROUP BY LOWER(TRIM(locality))\n");
         sql.push_str("LIMIT 10");
-        
+
         let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
-        
-        let rusql_params: Vec<Box<dyn rusqlite::ToSql>> = params_vec.iter().map(|s| {
-            Box::new(s.to_string()) as Box<dyn rusqlite::ToSql>
-        }).collect();
-        
-        let ref_params: Vec<&dyn rusqlite::ToSql> = rusql_params.iter().map(|b| b.as_ref()).collect();
-        
-        let rows = stmt.query_map(&ref_params[..], |row| {
-            let val: String = row.get(0)?;
-            Ok(val)
-        }).map_err(|e| e.to_string())?;
-        
+
+        let rusql_params: Vec<Box<dyn rusqlite::ToSql>> = params_vec
+            .iter()
+            .map(|s| Box::new(s.to_string()) as Box<dyn rusqlite::ToSql>)
+            .collect();
+
+        let ref_params: Vec<&dyn rusqlite::ToSql> =
+            rusql_params.iter().map(|b| b.as_ref()).collect();
+
+        let rows = stmt
+            .query_map(&ref_params[..], |row| {
+                let val: String = row.get(0)?;
+                Ok(val)
+            })
+            .map_err(|e| e.to_string())?;
+
         let mut list = Vec::new();
         for r in rows {
             list.push(r.map_err(|e| e.to_string())?);
@@ -769,11 +851,13 @@ impl GeographyRepository {
         }
 
         let mut stmt = conn.prepare(&sql)?;
-        
-        let rusql_params: Vec<Box<dyn rusqlite::ToSql>> = params_vec.iter().map(|v| {
-            Box::new(v.clone()) as Box<dyn rusqlite::ToSql>
-        }).collect();
-        let ref_params: Vec<&dyn rusqlite::ToSql> = rusql_params.iter().map(|b| b.as_ref()).collect();
+
+        let rusql_params: Vec<Box<dyn rusqlite::ToSql>> = params_vec
+            .iter()
+            .map(|v| Box::new(v.clone()) as Box<dyn rusqlite::ToSql>)
+            .collect();
+        let ref_params: Vec<&dyn rusqlite::ToSql> =
+            rusql_params.iter().map(|b| b.as_ref()).collect();
 
         let rows = stmt.query_map(&ref_params[..], |row| {
             let val: Option<String> = row.get(0)?;

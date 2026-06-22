@@ -1,30 +1,31 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+pub mod commands;
 pub mod db;
-pub mod parsers;
 pub mod models;
+pub mod parsers;
 pub mod repositories;
 pub mod services;
-pub mod commands;
 
 use db::shutdown_database;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_log::Builder::new()
-            .targets([
-                tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
-                tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
-                    file_name: Some("app".to_string()),
-                }),
-            ])
-            .build())
-        .setup(|_app| {
-            Ok(())
-        })
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .targets([
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
+                        file_name: Some("app".to_string()),
+                    }),
+                ])
+                .build(),
+        )
+        .setup(|_app| Ok(()))
         .invoke_handler(tauri::generate_handler![
             commands::initialize_database,
             commands::register_user,
