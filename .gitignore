@@ -36,4 +36,7 @@ duplicate-finder-data/
 Thumbs.db
 desktop.ini
 
+# Secrets
+.tauri/
+
 *.csv

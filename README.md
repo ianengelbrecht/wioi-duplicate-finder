@@ -54,3 +54,7 @@ If you need to make changes, add features, or update validation rules, you can i
 The AI will handle updating the Svelte frontend, the Rust backend, and database migrations automatically.
 
 That said, it's often easier to make simple changes directly to the files in your IDE, if you know how to do so.
+
+## Deployment
+
+The project is set up with the updater plugin to allow for automatic updates. This requires the relevant public private key pair to sign app on build. See [the Tauri building instructions](https://v2.tauri.app/plugin/updater/#building) for details.
