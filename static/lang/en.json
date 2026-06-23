@@ -121,7 +121,7 @@
   "sessions-heading": "Sessions",
   "no-records-captured": "No records captured",
   "application-settings": "Application Settings",
-  "settings-description": "Configure the collection code and export format for your herbarium.",
+  "settings-description": "Configure the reference data and settings for your herbarium.",
   "working-collection-code": "Working Collection Code",
   "export-format-sub": "(files are exported as comma separated values -- CSV).",
   "specimens-captured-heading": "Specimens Captured",

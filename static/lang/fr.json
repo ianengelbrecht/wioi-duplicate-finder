@@ -121,7 +121,7 @@
   "sessions-heading": "Sessions",
   "no-records-captured": "Aucun enregistrement saisi",
   "application-settings": "Paramètres de l'application",
-  "settings-description": "Configurez le code de collection et le format d'exportation pour votre herbier.",
+  "settings-description": "Configurez les données de référence et les paramètres pour votre herbier.",
   "working-collection-code": "Code de collection de travail",
   "export-format-sub": "(les fichiers sont exportés sous forme de valeurs séparées par des virgules -- CSV).",
   "specimens-captured-heading": "Spécimens saisis",

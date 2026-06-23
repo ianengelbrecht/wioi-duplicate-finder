@@ -121,7 +121,7 @@
   "sessions-heading": "Sessões",
   "no-records-captured": "Nenhum registro capturado",
   "application-settings": "Configurações do Aplicativo",
-  "settings-description": "Configure o código da coleção e o formato de exportação do seu herbário.",
+  "settings-description": "Configure os dados de referência e as configurações do seu herbário.",
   "working-collection-code": "Código de Coleção de Trabalho",
   "export-format-sub": "(os arquivos são exportados como valores separados por vírgula -- CSV).",
   "specimens-captured-heading": "Espécimes Capturados",

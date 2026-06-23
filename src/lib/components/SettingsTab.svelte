@@ -123,14 +123,11 @@
   {/if}
 
   <!-- Reference Dataset Setting -->
-  <div class="p-4 border border-slate-350 bg-white space-y-4 rounded-none">
-    <div>
-      <h3 data-i18n-key="reference-dataset" class="text-xs font-bold text-slate-900 uppercase tracking-wider font-outfit">
+  <div class="space-y-2 pt-2 border-t border-slate-100 bg-white rounded-none">
+    <div class="">
+      <h3 data-i18n-key="reference-dataset" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
         {t("reference-dataset", "Reference Dataset")}
       </h3>
-      <p data-i18n-key="reference-dataset-desc" class="text-xs text-slate-500 mt-1 font-inter">
-        {t("reference-dataset-desc", "View current reference data stats or load a custom dataset from a CSV file.")}
-      </p>
     </div>
 
     <!-- Stats -->
@@ -182,13 +179,13 @@
     </div>
 
     <!-- Action Button -->
-    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
+    <div class="flex flex-col sm:flex-row items-end sm:items-center justify-end gap-3 pt-2">
       <button
         type="button"
         data-i18n-key="load-new-dataset"
         onclick={handleImportReferenceCsv}
         disabled={isImporting}
-        class="bg-slate-800 hover:bg-slate-900 disabled:bg-slate-400 text-white px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors cursor-pointer font-inter"
+        class="bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:text-slate-400 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors cursor-pointer font-inter"
       >
         {isImporting ? t("importing-dataset", "Importing...") : t("load-new-dataset", "Load New Dataset")}
       </button>
@@ -206,7 +203,7 @@
   </div>
 
   <!-- Collection Code Setting -->
-  <div class="space-y-2">
+  <div class="space-y-2 pt-2 border-t border-slate-100">
     <label for="settings-collectionCode" data-i18n-key="working-collection-code" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">{t("working-collection-code", "Working Collection Code")}</label>
     <input
       id="settings-collectionCode"
