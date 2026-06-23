@@ -926,6 +926,42 @@ fn recreate_wcvp_triggers(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+pub fn get_wcvp_version(conn: &Connection) -> std::result::Result<i32, String> {
+    let query = "SELECT value FROM app_metadata WHERE key = 'wcvp_version';";
+    match conn.query_row(query, [], |r| r.get::<_, String>(0)) {
+        Ok(v_str) => {
+            if let Ok(v) = v_str.parse::<i32>() {
+                Ok(v)
+            } else {
+                Ok(15)
+            }
+        }
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(15),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+pub fn set_wcvp_version(conn: &Connection, version: i32) -> std::result::Result<(), String> {
+    conn.execute(
+        "INSERT OR REPLACE INTO app_metadata (key, value) VALUES ('wcvp_version', ?1);",
+        [version.to_string()],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+pub fn recreate_wcvp_triggers_and_rebuild_fts(
+    conn: &Connection,
+) -> std::result::Result<(), String> {
+    recreate_wcvp_triggers(conn).map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO wcvp_taxonomy_fts(wcvp_taxonomy_fts) VALUES('rebuild');",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
     let count_gbif: i64 = conn.query_row(
         "SELECT COUNT(*) FROM gbif WHERE scientificName IS NOT NULL AND scientificName != '' AND (normalized_scientific_name IS NULL OR normalized_scientific_name = '')",
@@ -1287,5 +1323,131 @@ mod tests {
 
         // Clean up
         let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_wcvp_version_and_import() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute(
+            "CREATE TABLE app_metadata (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );",
+            [],
+        )
+        .unwrap();
+
+        conn.execute(
+            "CREATE TABLE wcvp_taxonomy (
+                plant_name_id TEXT,
+                ipni_id TEXT,
+                taxon_rank TEXT,
+                taxon_status TEXT,
+                family TEXT,
+                genus_hybrid TEXT,
+                genus TEXT,
+                species_hybrid TEXT,
+                species TEXT,
+                infraspecific_rank TEXT,
+                infraspecies TEXT,
+                parenthetical_author TEXT,
+                primary_author TEXT,
+                publication_author TEXT,
+                place_of_publication TEXT,
+                volume_and_page TEXT,
+                first_published TEXT,
+                nomenclatural_remarks TEXT,
+                geographic_area TEXT,
+                lifeform_description TEXT,
+                climate_description TEXT,
+                taxon_name TEXT,
+                normalized_taxon_name TEXT,
+                taxon_authors TEXT,
+                accepted_plant_name_id TEXT,
+                basionym_plant_name_id TEXT,
+                replaced_synonym_author TEXT,
+                homotypic_synonym TEXT,
+                parent_plant_name_id TEXT,
+                powo_id TEXT,
+                hybrid_formula TEXT,
+                reviewed TEXT
+            );",
+            [],
+        )
+        .unwrap();
+
+        conn.execute(
+            "CREATE VIRTUAL TABLE wcvp_taxonomy_fts USING fts5(
+                taxon_name,
+                content='wcvp_taxonomy'
+            );",
+            [],
+        )
+        .unwrap();
+
+        let default_v = get_wcvp_version(&conn).unwrap();
+        assert_eq!(default_v, 15);
+
+        set_wcvp_version(&conn, 16).unwrap();
+        let saved_v = get_wcvp_version(&conn).unwrap();
+        assert_eq!(saved_v, 16);
+
+        let temp_csv = std::env::temp_dir().join("test_wcvp.csv");
+        let csv_content = "plant_name_id|family|genus|species|taxon_name|reviewed\n\
+                           1001|Myrtaceae|Eucalyptus|globulus|Eucalyptus globulus|1\n\
+                           1002|Fabaceae|Acacia|dealbata|Acacia dealbata|0\n";
+        fs::write(&temp_csv, csv_content).unwrap();
+
+        let mut conn_mut = conn;
+        crate::repositories::ReferenceRepository::import_wcvp_csv(
+            &mut conn_mut,
+            temp_csv.to_str().unwrap(),
+            17,
+        )
+        .unwrap();
+
+        let v_after = get_wcvp_version(&conn_mut).unwrap();
+        assert_eq!(v_after, 17);
+
+        let count: i64 = conn_mut
+            .query_row("SELECT COUNT(*) FROM wcvp_taxonomy", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 2);
+
+        let norm_name: String = conn_mut
+            .query_row(
+                "SELECT normalized_taxon_name FROM wcvp_taxonomy WHERE plant_name_id = '1001'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(norm_name, "eucalyptus globulus");
+
+        let csv_content_updated = "plant_name_id|family|genus|species|taxon_name|reviewed\n\
+                                   1001|Myrtaceae|Eucalyptus|globulus|Eucalyptus globulus|0\n\
+                                   1003|Rosaceae|Rosa|canina|Rosa canina|1\n";
+        fs::write(&temp_csv, csv_content_updated).unwrap();
+        crate::repositories::ReferenceRepository::import_wcvp_csv(
+            &mut conn_mut,
+            temp_csv.to_str().unwrap(),
+            18,
+        )
+        .unwrap();
+
+        let total_count: i64 = conn_mut
+            .query_row("SELECT COUNT(*) FROM wcvp_taxonomy", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(total_count, 3);
+
+        let reviewed_1001: Option<String> = conn_mut
+            .query_row(
+                "SELECT reviewed FROM wcvp_taxonomy WHERE plant_name_id = '1001'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(reviewed_1001, Some("0".to_string()));
+
+        let _ = fs::remove_file(&temp_csv);
     }
 }

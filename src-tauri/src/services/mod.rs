@@ -488,4 +488,26 @@ impl ReferenceService {
         crate::db::finalize_reference_import(&mut conn)?;
         Ok(())
     }
+
+    pub fn get_wcvp_metadata(app: &AppHandle) -> Result<serde_json::Value, String> {
+        let conn = get_connection(app)?;
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM wcvp_taxonomy", [], |r| r.get(0))
+            .unwrap_or(0);
+        let version = crate::db::get_wcvp_version(&conn)?;
+        Ok(serde_json::json!({
+            "recordCount": count,
+            "version": version
+        }))
+    }
+
+    pub fn import_wcvp_dataset(
+        app: &AppHandle,
+        filepath: &str,
+        version: i32,
+    ) -> Result<(), String> {
+        let mut conn = get_connection(app)?;
+        ReferenceRepository::import_wcvp_csv(&mut conn, filepath, version)?;
+        Ok(())
+    }
 }

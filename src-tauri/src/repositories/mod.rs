@@ -711,9 +711,12 @@ impl GeographyRepository {
             .query_row("SELECT COUNT(*) FROM wcvp_taxonomy", [], |r| r.get(0))
             .unwrap_or(0);
 
+        let wcvp_version = crate::db::get_wcvp_version(conn).unwrap_or(15);
+
         Ok(json!({
             "gbif": gbif_count,
-            "wcvp": wcvp_count
+            "wcvp": wcvp_count,
+            "wcvp_version": wcvp_version
         }))
     }
 
@@ -1150,6 +1153,337 @@ impl ReferenceRepository {
 
         tx.commit()
             .map_err(|e| format!("Failed to commit transaction: {}", e))?;
+        Ok(())
+    }
+
+    pub fn import_wcvp_csv(
+        conn: &mut Connection,
+        filepath: &str,
+        version: i32,
+    ) -> Result<(), String> {
+        let mut rdr = csv::ReaderBuilder::new()
+            .has_headers(true)
+            .delimiter(b'|')
+            .from_path(filepath)
+            .map_err(|e| format!("Failed to open CSV file: {}", e))?;
+
+        let headers = rdr
+            .headers()
+            .map_err(|e| format!("Failed to read CSV headers: {}", e))?;
+        let mut header_map = std::collections::HashMap::new();
+        for (i, h) in headers.iter().enumerate() {
+            header_map.insert(h.to_lowercase(), i);
+        }
+
+        let get_idx =
+            |name: &str| -> Option<usize> { header_map.get(&name.to_lowercase()).copied() };
+
+        let target_fields = vec![
+            "plant_name_id",
+            "ipni_id",
+            "taxon_rank",
+            "taxon_status",
+            "family",
+            "genus_hybrid",
+            "genus",
+            "species_hybrid",
+            "species",
+            "infraspecific_rank",
+            "infraspecies",
+            "parenthetical_author",
+            "primary_author",
+            "publication_author",
+            "place_of_publication",
+            "volume_and_page",
+            "first_published",
+            "nomenclatural_remarks",
+            "geographic_area",
+            "lifeform_description",
+            "climate_description",
+            "taxon_name",
+            "taxon_authors",
+            "accepted_plant_name_id",
+            "basionym_plant_name_id",
+            "replaced_synonym_author",
+            "homotypic_synonym",
+            "parent_plant_name_id",
+            "powo_id",
+            "hybrid_formula",
+            "reviewed",
+        ];
+
+        let mut col_indices = std::collections::HashMap::new();
+        for field in &target_fields {
+            if let Some(i) = get_idx(field) {
+                col_indices.insert(*field, i);
+            }
+        }
+
+        let get_val = |record: &csv::StringRecord, name: &str| -> Option<String> {
+            col_indices
+                .get(name)
+                .and_then(|&i| record.get(i))
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+        };
+
+        // Temporarily drop triggers for performance
+        let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_ai", []);
+        let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_ad", []);
+        let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_au", []);
+
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+        {
+            let mut stmt_select = tx.prepare_cached(
+                "SELECT ipni_id, taxon_rank, taxon_status, family, genus_hybrid, genus,
+                        species_hybrid, species, infraspecific_rank, infraspecies, parenthetical_author,
+                        primary_author, publication_author, place_of_publication, volume_and_page,
+                        first_published, nomenclatural_remarks, geographic_area, lifeform_description,
+                        climate_description, taxon_name, taxon_authors, accepted_plant_name_id,
+                        basionym_plant_name_id, replaced_synonym_author, homotypic_synonym,
+                        parent_plant_name_id, powo_id, hybrid_formula, reviewed
+                 FROM wcvp_taxonomy WHERE plant_name_id = ?1"
+            ).map_err(|e| e.to_string())?;
+
+            let mut stmt_update = tx.prepare_cached(
+                "UPDATE wcvp_taxonomy SET
+                    ipni_id = ?1, taxon_rank = ?2, taxon_status = ?3, family = ?4, genus_hybrid = ?5,
+                    genus = ?6, species_hybrid = ?7, species = ?8, infraspecific_rank = ?9, infraspecies = ?10,
+                    parenthetical_author = ?11, primary_author = ?12, publication_author = ?13,
+                    place_of_publication = ?14, volume_and_page = ?15, first_published = ?16,
+                    nomenclatural_remarks = ?17, geographic_area = ?18, lifeform_description = ?19,
+                    climate_description = ?20, taxon_name = ?21, normalized_taxon_name = ?22, taxon_authors = ?23,
+                    accepted_plant_name_id = ?24, basionym_plant_name_id = ?25, replaced_synonym_author = ?26,
+                    homotypic_synonym = ?27, parent_plant_name_id = ?28, powo_id = ?29, hybrid_formula = ?30,
+                    reviewed = ?31
+                 WHERE plant_name_id = ?32"
+            ).map_err(|e| e.to_string())?;
+
+            let mut stmt_insert = tx
+                .prepare_cached(
+                    "INSERT INTO wcvp_taxonomy (
+                    plant_name_id, ipni_id, taxon_rank, taxon_status, family, genus_hybrid, genus,
+                    species_hybrid, species, infraspecific_rank, infraspecies, parenthetical_author,
+                    primary_author, publication_author, place_of_publication, volume_and_page,
+                    first_published, nomenclatural_remarks, geographic_area, lifeform_description,
+                    climate_description, taxon_name, normalized_taxon_name, taxon_authors,
+                    accepted_plant_name_id, basionym_plant_name_id, replaced_synonym_author,
+                    homotypic_synonym, parent_plant_name_id, powo_id, hybrid_formula, reviewed
+                ) VALUES (
+                    ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
+                    ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32
+                )",
+                )
+                .map_err(|e| e.to_string())?;
+
+            for result in rdr.records() {
+                let record = result.map_err(|e| format!("CSV parse error: {}", e))?;
+
+                let plant_name_id = match get_val(&record, "plant_name_id") {
+                    Some(id) => id,
+                    None => continue,
+                };
+
+                let ipni_id = get_val(&record, "ipni_id");
+                let taxon_rank = get_val(&record, "taxon_rank");
+                let taxon_status = get_val(&record, "taxon_status");
+                let family = get_val(&record, "family");
+                let genus_hybrid = get_val(&record, "genus_hybrid");
+                let genus = get_val(&record, "genus");
+                let species_hybrid = get_val(&record, "species_hybrid");
+                let species = get_val(&record, "species");
+                let infraspecific_rank = get_val(&record, "infraspecific_rank");
+                let infraspecies = get_val(&record, "infraspecies");
+                let parenthetical_author = get_val(&record, "parenthetical_author");
+                let primary_author = get_val(&record, "primary_author");
+                let publication_author = get_val(&record, "publication_author");
+                let place_of_publication = get_val(&record, "place_of_publication");
+                let volume_and_page = get_val(&record, "volume_and_page");
+                let first_published = get_val(&record, "first_published");
+                let nomenclatural_remarks = get_val(&record, "nomenclatural_remarks");
+                let geographic_area = get_val(&record, "geographic_area");
+                let lifeform_description = get_val(&record, "lifeform_description");
+                let climate_description = get_val(&record, "climate_description");
+                let taxon_name = get_val(&record, "taxon_name");
+                let taxon_authors = get_val(&record, "taxon_authors");
+                let accepted_plant_name_id = get_val(&record, "accepted_plant_name_id");
+                let basionym_plant_name_id = get_val(&record, "basionym_plant_name_id");
+                let replaced_synonym_author = get_val(&record, "replaced_synonym_author");
+                let homotypic_synonym = get_val(&record, "homotypic_synonym");
+                let parent_plant_name_id = get_val(&record, "parent_plant_name_id");
+                let powo_id = get_val(&record, "powo_id");
+                let hybrid_formula = get_val(&record, "hybrid_formula");
+                let reviewed = get_val(&record, "reviewed");
+
+                let mut existing = None;
+
+                let query_res = stmt_select.query_row(params![plant_name_id], |row| {
+                    Ok((
+                        row.get::<_, Option<String>>(0)?,
+                        row.get::<_, Option<String>>(1)?,
+                        row.get::<_, Option<String>>(2)?,
+                        row.get::<_, Option<String>>(3)?,
+                        row.get::<_, Option<String>>(4)?,
+                        row.get::<_, Option<String>>(5)?,
+                        row.get::<_, Option<String>>(6)?,
+                        row.get::<_, Option<String>>(7)?,
+                        row.get::<_, Option<String>>(8)?,
+                        row.get::<_, Option<String>>(9)?,
+                        row.get::<_, Option<String>>(10)?,
+                        row.get::<_, Option<String>>(11)?,
+                        row.get::<_, Option<String>>(12)?,
+                        row.get::<_, Option<String>>(13)?,
+                        row.get::<_, Option<String>>(14)?,
+                        row.get::<_, Option<String>>(15)?,
+                        row.get::<_, Option<String>>(16)?,
+                        row.get::<_, Option<String>>(17)?,
+                        row.get::<_, Option<String>>(18)?,
+                        row.get::<_, Option<String>>(19)?,
+                        row.get::<_, Option<String>>(20)?,
+                        row.get::<_, Option<String>>(21)?,
+                        row.get::<_, Option<String>>(22)?,
+                        row.get::<_, Option<String>>(23)?,
+                        row.get::<_, Option<String>>(24)?,
+                        row.get::<_, Option<String>>(25)?,
+                        row.get::<_, Option<String>>(26)?,
+                        row.get::<_, Option<String>>(27)?,
+                        row.get::<_, Option<String>>(28)?,
+                        row.get::<_, Option<String>>(29)?,
+                    ))
+                });
+
+                match query_res {
+                    Ok(values) => {
+                        existing = Some(values);
+                    }
+                    Err(rusqlite::Error::QueryReturnedNoRows) => {}
+                    Err(e) => return Err(format!("Database error reading record: {}", e)),
+                }
+
+                if let Some(ext) = existing {
+                    let is_different = ipni_id != ext.0
+                        || taxon_rank != ext.1
+                        || taxon_status != ext.2
+                        || family != ext.3
+                        || genus_hybrid != ext.4
+                        || genus != ext.5
+                        || species_hybrid != ext.6
+                        || species != ext.7
+                        || infraspecific_rank != ext.8
+                        || infraspecies != ext.9
+                        || parenthetical_author != ext.10
+                        || primary_author != ext.11
+                        || publication_author != ext.12
+                        || place_of_publication != ext.13
+                        || volume_and_page != ext.14
+                        || first_published != ext.15
+                        || nomenclatural_remarks != ext.16
+                        || geographic_area != ext.17
+                        || lifeform_description != ext.18
+                        || climate_description != ext.19
+                        || taxon_name != ext.20
+                        || taxon_authors != ext.21
+                        || accepted_plant_name_id != ext.22
+                        || basionym_plant_name_id != ext.23
+                        || replaced_synonym_author != ext.24
+                        || homotypic_synonym != ext.25
+                        || parent_plant_name_id != ext.26
+                        || powo_id != ext.27
+                        || hybrid_formula != ext.28
+                        || reviewed != ext.29;
+
+                    if is_different {
+                        let taxon_name_str = taxon_name.as_deref().unwrap_or("");
+                        let normalized_taxon_name = normalize_taxon_name(taxon_name_str);
+                        stmt_update
+                            .execute(params![
+                                ipni_id,
+                                taxon_rank,
+                                taxon_status,
+                                family,
+                                genus_hybrid,
+                                genus,
+                                species_hybrid,
+                                species,
+                                infraspecific_rank,
+                                infraspecies,
+                                parenthetical_author,
+                                primary_author,
+                                publication_author,
+                                place_of_publication,
+                                volume_and_page,
+                                first_published,
+                                nomenclatural_remarks,
+                                geographic_area,
+                                lifeform_description,
+                                climate_description,
+                                taxon_name,
+                                normalized_taxon_name,
+                                taxon_authors,
+                                accepted_plant_name_id,
+                                basionym_plant_name_id,
+                                replaced_synonym_author,
+                                homotypic_synonym,
+                                parent_plant_name_id,
+                                powo_id,
+                                hybrid_formula,
+                                reviewed,
+                                plant_name_id
+                            ])
+                            .map_err(|e| {
+                                format!("Failed to update record {}: {}", plant_name_id, e)
+                            })?;
+                    }
+                } else {
+                    let taxon_name_str = taxon_name.as_deref().unwrap_or("");
+                    let normalized_taxon_name = normalize_taxon_name(taxon_name_str);
+                    stmt_insert
+                        .execute(params![
+                            plant_name_id,
+                            ipni_id,
+                            taxon_rank,
+                            taxon_status,
+                            family,
+                            genus_hybrid,
+                            genus,
+                            species_hybrid,
+                            species,
+                            infraspecific_rank,
+                            infraspecies,
+                            parenthetical_author,
+                            primary_author,
+                            publication_author,
+                            place_of_publication,
+                            volume_and_page,
+                            first_published,
+                            nomenclatural_remarks,
+                            geographic_area,
+                            lifeform_description,
+                            climate_description,
+                            taxon_name,
+                            normalized_taxon_name,
+                            taxon_authors,
+                            accepted_plant_name_id,
+                            basionym_plant_name_id,
+                            replaced_synonym_author,
+                            homotypic_synonym,
+                            parent_plant_name_id,
+                            powo_id,
+                            hybrid_formula,
+                            reviewed
+                        ])
+                        .map_err(|e| format!("Failed to insert record {}: {}", plant_name_id, e))?;
+                }
+            }
+        }
+
+        tx.commit()
+            .map_err(|e| format!("Failed to commit transaction: {}", e))?;
+
+        crate::db::set_wcvp_version(conn, version)?;
+        crate::db::recreate_wcvp_triggers_and_rebuild_fts(conn)?;
+
         Ok(())
     }
 }

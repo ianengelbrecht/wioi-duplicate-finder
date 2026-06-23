@@ -31,7 +31,7 @@ export const geographyService = {
 
   /**
    * Retrieves reference tables counts.
-   * @returns {Promise<{ gbif: number, wcvp: number }>}
+   * @returns {Promise<{ gbif: number, wcvp: number, wcvp_version: number }>}
    */
   async getTableCounts() {
     return await invoke("get_table_counts");

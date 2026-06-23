@@ -58,7 +58,9 @@ pub fn run() {
             commands::restore_database_from_backup,
             commands::select_csv_file,
             commands::get_reference_metadata,
-            commands::import_reference_dataset
+            commands::import_reference_dataset,
+            commands::get_wcvp_metadata,
+            commands::import_wcvp_dataset
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

@@ -230,5 +230,19 @@
   "importing-dataset": "Mampiditra...",
   "import-in-progress": "Mandamina ny rakitra CSV, manavao ny angona ary mamerina ny index. Andraso kely...",
   "no-countries": "Tsy misy",
-  "no-collections": "Tsy misy"
+  "no-collections": "Tsy misy",
+  "wcvp-dataset": "Tahirin-kevitra WCVP",
+  "wcvp-version-label": "Dikan-teny ankehitriny",
+  "wcvp-count-label": "Totalin'ny Taxa",
+  "wcvp-import-version-label": "Laharana Dikan-teny Vaovao",
+  "import-wcvp-btn": "Hampiditra/Hanavao ny WCVP",
+  "importing-wcvp": "Mampiditra...",
+  "wcvp-import-in-progress": "Mampiditra ny rakitra CSV, mampitaha ary manavao ny taxonomy. Andraso kely...",
+  "wcvp-import-dialog-title": "Hampiditra/Hanavao ny WCVP Checklist",
+  "wcvp-import-dialog-desc": "Farito ny laharan'ny dikan-teny (integer >= 15) ary safidio ny rakitra CSV hampidirina.",
+  "wcvp-dialog-file-label": "Safidio ny rakitra WCVP",
+  "wcvp-dialog-no-file": "Tsy misy rakitra voafidy",
+  "choose-file-btn": "Safidio ny rakitra",
+  "start-import-btn": "Hampiditra",
+  "wcvp-version-must-be-greater": "Ny laharana dikan-teny vaovao dia tsy maintsy lehibe noho ny dikan-teny ankehitriny."
 }

@@ -293,3 +293,17 @@ pub async fn get_reference_metadata(app: AppHandle) -> Result<serde_json::Value,
 pub async fn import_reference_dataset(app: AppHandle, filepath: String) -> Result<(), String> {
     ReferenceService::import_reference_dataset(&app, &filepath)
 }
+
+#[tauri::command]
+pub async fn get_wcvp_metadata(app: AppHandle) -> Result<serde_json::Value, String> {
+    ReferenceService::get_wcvp_metadata(&app)
+}
+
+#[tauri::command]
+pub async fn import_wcvp_dataset(
+    app: AppHandle,
+    filepath: String,
+    version: i32,
+) -> Result<(), String> {
+    ReferenceService::import_wcvp_dataset(&app, &filepath, version)
+}

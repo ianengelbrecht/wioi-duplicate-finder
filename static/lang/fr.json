@@ -229,5 +229,19 @@
   "importing-dataset": "Importation...",
   "import-in-progress": "Traitement du CSV, normalisation des données et reconstruction des index. Veuillez patienter...",
   "no-countries": "Aucun",
-  "no-collections": "Aucune"
+  "no-collections": "Aucune",
+  "wcvp-dataset": "Base de données WCVP",
+  "wcvp-version-label": "Version actuelle",
+  "wcvp-count-label": "Total des taxons",
+  "wcvp-import-version-label": "Numéro de la nouvelle version WCVP",
+  "import-wcvp-btn": "Importer/Mettre à jour WCVP",
+  "importing-wcvp": "Importation...",
+  "wcvp-import-in-progress": "Lecture du fichier CSV, comparaison des enregistrements et mise à jour de la taxonomie. Veuillez patienter...",
+  "wcvp-import-dialog-title": "Importer/Mettre à jour la checklist WCVP",
+  "wcvp-import-dialog-desc": "Spécifiez le numéro de version de la checklist (entier >= 15) et choisissez le fichier CSV séparé par des barres verticales à importer.",
+  "wcvp-dialog-file-label": "Sélectionner le fichier WCVP",
+  "wcvp-dialog-no-file": "Aucun fichier sélectionné",
+  "choose-file-btn": "Choisir un fichier",
+  "start-import-btn": "Démarrer l'importation",
+  "wcvp-version-must-be-greater": "Le nouveau numéro de version doit être supérieur au numéro de version actuel."
 }

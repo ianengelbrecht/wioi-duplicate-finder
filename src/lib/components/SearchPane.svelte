@@ -91,6 +91,7 @@
 
   let gbifCount = $state(/** @type {number|null} */ (null));
   let wcvpCount = $state(/** @type {number|null} */ (null));
+  let wcvpVersion = $state(/** @type {number|null} */ (null));
   let formattedGbifCount = $derived(gbifCount !== null ? gbifCount.toLocaleString() : "...");
   let formattedWcvpCount = $derived(wcvpCount !== null ? wcvpCount.toLocaleString() : "...");
 
@@ -99,6 +100,7 @@
       const counts = await geographyService.getTableCounts();
       gbifCount = counts.gbif;
       wcvpCount = counts.wcvp;
+      wcvpVersion = counts.wcvp_version;
     } catch (e) {
       console.error("Failed to fetch table counts:", e);
     }
@@ -115,7 +117,7 @@
     <h2 data-i18n-key="search-heading" class="text-sm font-bold text-slate-800 uppercase tracking-wide">{t("search-heading", "Search Existing Specimens")}</h2>
     <div class="flex gap-2">
       <span data-i18n-key="reference-data" class="text-[10px] text-slate-500 font-semibold bg-slate-200 px-2 py-0.5 uppercase">{t("reference-data", "Reference Data")} ({formattedGbifCount} {t("records-count", "Records")})</span>
-      <span data-i18n-key="wcvp-version" class="text-[10px] text-slate-500 font-semibold bg-slate-200 px-2 py-0.5 uppercase">{t("wcvp-version", "WCVP v12")} ({formattedWcvpCount} {t("taxa-count", "Taxa")})</span>
+      <span data-i18n-key="wcvp-version" class="text-[10px] text-slate-500 font-semibold bg-slate-200 px-2 py-0.5 uppercase">WCVP v{wcvpVersion !== null ? wcvpVersion : 15} ({formattedWcvpCount} {t("taxa-count", "Taxa")})</span>
     </div>
   </div>
 

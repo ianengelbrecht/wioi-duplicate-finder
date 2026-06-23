@@ -24,5 +24,23 @@ export const referenceService = {
    */
   async importReferenceDataset(filepath) {
     return await invoke("import_reference_dataset", { filepath });
+  },
+
+  /**
+   * Retrieves WCVP taxonomy dataset metadata (count, version).
+   * @returns {Promise<{ recordCount: number, version: number }>}
+   */
+  async getWcvpMetadata() {
+    return await invoke("get_wcvp_metadata");
+  },
+
+  /**
+   * Imports/updates the WCVP dataset from a CSV file path.
+   * @param {string} filepath The path to the CSV file.
+   * @param {number} version The version number of the dataset.
+   * @returns {Promise<void>}
+   */
+  async importWcvpDataset(filepath, version) {
+    return await invoke("import_wcvp_dataset", { filepath, version });
   }
 };

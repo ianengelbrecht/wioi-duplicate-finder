@@ -23,6 +23,25 @@
   let importError = $state("");
   let isImporting = $state(false);
 
+  /** @type {number} */
+  let wcvpRecordCount = $state(0);
+  /** @type {number} */
+  let wcvpVersion = $state(15);
+  /** @type {boolean} */
+  let loadingWcvpMetadata = $state(false);
+  /** @type {number} */
+  let wcvpImportVersion = $state(15);
+  /** @type {boolean} */
+  let isWcvpImporting = $state(false);
+  /** @type {string} */
+  let wcvpImportStatus = $state("");
+  /** @type {string} */
+  let wcvpImportError = $state("");
+  /** @type {boolean} */
+  let showWcvpImportDialog = $state(false);
+  /** @type {string} */
+  let selectedWcvpCsvPath = $state("");
+
   async function loadMetadata() {
     loadingMetadata = true;
     try {
@@ -37,9 +56,83 @@
     }
   }
 
+  async function loadWcvpMetadata() {
+    loadingWcvpMetadata = true;
+    try {
+      const data = await referenceService.getWcvpMetadata();
+      wcvpRecordCount = data.recordCount;
+      wcvpVersion = data.version;
+    } catch (err) {
+      console.error("Failed to load WCVP metadata:", err);
+    } finally {
+      loadingWcvpMetadata = false;
+    }
+  }
+
   onMount(() => {
     loadMetadata();
+    loadWcvpMetadata();
   });
+
+  function handleOpenWcvpImportDialog() {
+    showWcvpImportDialog = true;
+    selectedWcvpCsvPath = "";
+    wcvpImportStatus = "";
+    wcvpImportError = "";
+    wcvpImportVersion = wcvpVersion >= 15 ? wcvpVersion : 15;
+  }
+
+  async function handleSelectWcvpCsvFile() {
+    try {
+      const filepath = await referenceService.selectCsvFile();
+      if (filepath) {
+        selectedWcvpCsvPath = filepath;
+      }
+    } catch (err) {
+      console.error("Failed to select WCVP CSV file:", err);
+    }
+  }
+
+  async function handleExecuteWcvpImport() {
+    wcvpImportStatus = "";
+    wcvpImportError = "";
+    
+    const versionNum = parseInt(/** @type {any} */ (wcvpImportVersion), 10);
+    if (isNaN(versionNum) || versionNum < 15 || !Number.isInteger(versionNum)) {
+      wcvpImportError = "WCVP version must be an integer greater than or equal to 15.";
+      return;
+    }
+
+    if (versionNum <= wcvpVersion) {
+      wcvpImportError = t("wcvp-version-must-be-greater", `New version number (${versionNum}) must be greater than the current version number (${wcvpVersion}).`);
+      return;
+    }
+
+    if (!selectedWcvpCsvPath) {
+      wcvpImportError = "Please select a WCVP CSV file.";
+      return;
+    }
+
+    try {
+      isWcvpImporting = true;
+      wcvpImportStatus = "Opening file and starting WCVP import process...";
+      
+      await referenceService.importWcvpDataset(selectedWcvpCsvPath, versionNum);
+      
+      wcvpImportStatus = "WCVP dataset imported and updated successfully!";
+      await loadWcvpMetadata();
+      setTimeout(() => {
+        showWcvpImportDialog = false;
+        selectedWcvpCsvPath = "";
+        wcvpImportStatus = "";
+      }, 1500);
+    } catch (e) {
+      wcvpImportError = "Failed to import WCVP dataset: " + (/** @type {any} */ (e)).toString();
+      wcvpImportStatus = "";
+    } finally {
+      isWcvpImporting = false;
+    }
+  }
 
   async function handleImportReferenceCsv() {
     importStatus = "";
@@ -202,6 +295,47 @@
     {/if}
   </div>
 
+  <!-- WCVP Dataset Setting -->
+  <div class="space-y-2 pt-2 border-t border-slate-100 bg-white rounded-none">
+    <div class="">
+      <h3 data-i18n-key="wcvp-dataset" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+        {t("wcvp-dataset", "WCVP Dataset")}
+      </h3>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-3 border border-slate-200">
+      <div>
+        <div data-i18n-key="wcvp-version-label" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-inter">
+          {t("wcvp-version-label", "Current Version")}
+        </div>
+        <div class="text-lg font-bold text-slate-900 mt-0.5 font-outfit">
+          WCVP v{loadingWcvpMetadata ? "..." : wcvpVersion}
+        </div>
+      </div>
+      <div>
+        <div data-i18n-key="wcvp-count-label" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-inter">
+          {t("wcvp-count-label", "Total Taxa")}
+        </div>
+        <div class="text-lg font-bold text-slate-900 mt-0.5 font-outfit">
+          {loadingWcvpMetadata ? "..." : wcvpRecordCount.toLocaleString()}
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Button -->
+    <div class="flex flex-col sm:flex-row items-end sm:items-center justify-end gap-3 pt-2">
+      <button
+        type="button"
+        data-i18n-key="import-wcvp-btn"
+        onclick={handleOpenWcvpImportDialog}
+        class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors cursor-pointer font-inter"
+      >
+        {t("import-wcvp-btn", "Import/Update WCVP")}
+      </button>
+    </div>
+  </div>
+
   <!-- Collection Code Setting -->
   <div class="space-y-2 pt-2 border-t border-slate-100">
     <label for="settings-collectionCode" data-i18n-key="working-collection-code" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">{t("working-collection-code", "Working Collection Code")}</label>
@@ -314,4 +448,95 @@
       {t("save-settings-btn", "Save Settings")}
     </button>
   </div>
+
+  {#if showWcvpImportDialog}
+    <div 
+      class="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      onclick={(e) => { if (e.target === e.currentTarget && !isWcvpImporting) showWcvpImportDialog = false; }}
+      onkeydown={(e) => { 
+        if (e.key === "Escape" && !isWcvpImporting) {
+          e.preventDefault();
+          showWcvpImportDialog = false; 
+        }
+      }}
+    >
+      <div class="bg-white border border-slate-200 shadow-2xl max-w-md w-full p-5 flex flex-col gap-4 rounded-none font-inter">
+        <div>
+          <h3 data-i18n-key="wcvp-import-dialog-title" class="font-bold text-slate-900 uppercase text-xs tracking-wider">{t("wcvp-import-dialog-title", "Import/Update WCVP Checklist")}</h3>
+        </div>
+
+        <div class="space-y-3">
+          <div class="flex flex-col gap-1">
+            <label for="wcvp-dialog-version" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+              {t("wcvp-import-version-label", "Import Version Number")}
+            </label>
+            <input
+              id="wcvp-dialog-version"
+              type="number"
+              min="15"
+              step="1"
+              disabled={isWcvpImporting}
+              bind:value={wcvpImportVersion}
+              placeholder="e.g. 15"
+              class="w-full bg-white border border-slate-300 text-slate-800 text-xs px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all font-inter"
+            />
+          </div>
+
+          <div class="flex flex-col gap-1">
+            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+              {t("wcvp-dialog-file-label", "Select WCVP File")}
+            </span>
+            <div class="flex gap-2">
+              <input
+                type="text"
+                readonly
+                placeholder={t("wcvp-dialog-no-file", "No file selected")}
+                bind:value={selectedWcvpCsvPath}
+                class="flex-1 bg-slate-50 border border-slate-300 text-slate-600 text-xs px-3 py-2 outline-none rounded-none font-inter"
+              />
+              <button
+                type="button"
+                disabled={isWcvpImporting}
+                onclick={handleSelectWcvpCsvFile}
+                class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 px-3 py-1.5 text-xs font-semibold rounded-none transition-colors cursor-pointer font-inter"
+              >
+                {t("choose-file-btn", "Choose File")}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {#if wcvpImportStatus}
+          <p class="text-xs text-emerald-700 font-semibold leading-relaxed mt-1 font-inter">{wcvpImportStatus}</p>
+        {/if}
+        {#if wcvpImportError}
+          <p class="text-xs text-red-700 font-semibold leading-relaxed mt-1 font-inter">{wcvpImportError}</p>
+        {/if}
+
+        <div class="flex justify-end gap-2 mt-2 pt-2 border-t border-slate-100">
+          <button
+            type="button"
+            data-i18n-key="cancel-btn"
+            disabled={isWcvpImporting}
+            onclick={() => { showWcvpImportDialog = false; }}
+            class="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 border border-slate-200 transition-colors cursor-pointer rounded-none font-inter"
+          >
+            {t("cancel-btn", "Cancel")}
+          </button>
+          <button
+            type="button"
+            data-i18n-key="start-import-btn"
+            disabled={isWcvpImporting || !selectedWcvpCsvPath || wcvpImportVersion < 15}
+            onclick={handleExecuteWcvpImport}
+            class="px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white bg-slate-800 hover:bg-slate-900 transition-colors cursor-pointer rounded-none font-inter"
+          >
+            {isWcvpImporting ? t("importing-dataset", "Importing...") : t("start-import-btn", "Start Import")}
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
 </div>
