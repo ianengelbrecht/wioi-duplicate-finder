@@ -219,5 +219,15 @@
   "manual-backup-failed": "Échec de la sauvegarde : ",
   "db-recovery-title": "Récupération de la base de données nécessaire",
   "db-recovery-desc": "L'application n'a pas pu ouvrir ou vérifier l'intégrité de la base de données des spécimens. Cela signifie généralement que la base de données est corrompue ou manquante. Veuillez sélectionner un fichier de sauvegarde à restaurer ou réessayer la connexion.",
-  "retry-connection-btn": "Réessayer la connexion"
+  "retry-connection-btn": "Réessayer la connexion",
+  "reference-dataset": "Base de données de référence",
+  "reference-dataset-desc": "Visualisez les statistiques des données de référence ou chargez un ensemble de données personnalisé à partir d'un fichier CSV.",
+  "record-count-label": "Nombre total d'enregistrements",
+  "countries-label": "Pays",
+  "collections-label": "Collections de référence",
+  "load-new-dataset": "Charger un nouveau jeu de données",
+  "importing-dataset": "Importation...",
+  "import-in-progress": "Traitement du CSV, normalisation des données et reconstruction des index. Veuillez patienter...",
+  "no-countries": "Aucun",
+  "no-collections": "Aucune"
 }

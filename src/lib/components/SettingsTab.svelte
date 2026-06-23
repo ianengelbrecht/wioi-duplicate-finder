@@ -1,9 +1,10 @@
 <script>
-  import { getContext } from "svelte";
+  import { getContext, onMount } from "svelte";
   import { authStore } from "$lib/stores/authStore.svelte.js";
   import { workspaceStore } from "$lib/stores/workspaceStore.svelte.js";
   import { exportService } from "$lib/services/exportService.js";
   import { backupService } from "$lib/services/backupService.js";
+  import { referenceService } from "$lib/services/referenceService.js";
 
   const t = getContext("t");
 
@@ -13,6 +14,55 @@
    * }}
    */
   let { onRestoreRequest = () => {} } = $props();
+
+  let recordCount = $state(0);
+  let countries = $state(/** @type {string[]} */ ([]));
+  let collectionCodes = $state(/** @type {string[]} */ ([]));
+  let loadingMetadata = $state(false);
+  let importStatus = $state("");
+  let importError = $state("");
+  let isImporting = $state(false);
+
+  async function loadMetadata() {
+    loadingMetadata = true;
+    try {
+      const data = await referenceService.getReferenceMetadata();
+      recordCount = data.recordCount;
+      countries = data.countries;
+      collectionCodes = data.collectionCodes;
+    } catch (err) {
+      console.error("Failed to load reference metadata:", err);
+    } finally {
+      loadingMetadata = false;
+    }
+  }
+
+  onMount(() => {
+    loadMetadata();
+  });
+
+  async function handleImportReferenceCsv() {
+    importStatus = "";
+    importError = "";
+    try {
+      const filepath = await referenceService.selectCsvFile();
+      if (!filepath) {
+        return;
+      }
+      isImporting = true;
+      importStatus = "Opening file and starting import process...";
+      
+      await referenceService.importReferenceDataset(filepath);
+      
+      importStatus = "Reference dataset imported successfully!";
+      await loadMetadata();
+    } catch (e) {
+      importError = "Failed to import reference dataset: " + (/** @type {any} */ (e)).toString();
+      importStatus = "";
+    } finally {
+      isImporting = false;
+    }
+  }
 
   async function handleSaveSettings() {
     if (!authStore.currentUser) return;
@@ -62,15 +112,98 @@
 
 <div class="space-y-6">
   <div>
-    <h2 data-i18n-key="application-settings" class="text-md font-bold text-slate-900 uppercase tracking-wide">{t("application-settings", "Application settings")}</h2>
-    <p data-i18n-key="settings-description" class="text-xs text-slate-500 mt-1">{t("settings-description", "Configure the collection code and export format for your herbarium.")}</p>
+    <h2 data-i18n-key="application-settings" class="text-md font-bold text-slate-900 uppercase tracking-wide font-outfit">{t("application-settings", "Application settings")}</h2>
+    <p data-i18n-key="settings-description" class="text-xs text-slate-500 mt-1 font-inter">{t("settings-description", "Configure the collection code and export format for your herbarium.")}</p>
   </div>
 
   {#if workspaceStore.settingsMessage}
-    <div class="p-3 text-xs bg-emerald-50 border border-emerald-300 text-emerald-800 font-medium">
+    <div class="p-3 text-xs bg-emerald-50 border border-emerald-300 text-emerald-800 font-medium font-inter">
       {workspaceStore.settingsMessage}
     </div>
   {/if}
+
+  <!-- Reference Dataset Setting -->
+  <div class="p-4 border border-slate-350 bg-white space-y-4 rounded-none">
+    <div>
+      <h3 data-i18n-key="reference-dataset" class="text-xs font-bold text-slate-900 uppercase tracking-wider font-outfit">
+        {t("reference-dataset", "Reference Dataset")}
+      </h3>
+      <p data-i18n-key="reference-dataset-desc" class="text-xs text-slate-500 mt-1 font-inter">
+        {t("reference-dataset-desc", "View current reference data stats or load a custom dataset from a CSV file.")}
+      </p>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-3 border border-slate-200">
+      <div>
+        <div data-i18n-key="record-count-label" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-inter">
+          {t("record-count-label", "Total Records")}
+        </div>
+        <div class="text-lg font-bold text-slate-900 mt-0.5 font-outfit">
+          {loadingMetadata ? "..." : recordCount.toLocaleString()}
+        </div>
+      </div>
+      <div>
+        <div data-i18n-key="countries-label" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-inter">
+          {t("countries-label", "Countries")}
+        </div>
+        <div class="text-xs font-medium text-slate-800 mt-1 max-h-24 overflow-y-auto font-inter">
+          {#if loadingMetadata}
+            ...
+          {:else if countries.length === 0}
+            <span data-i18n-key="no-countries">{t("no-countries", "None")}</span>
+          {:else}
+            <div class="flex flex-wrap gap-1 mt-0.5">
+              {#each countries as country}
+                <span class="bg-slate-200 text-slate-700 px-1.5 py-0.5 text-[10px] font-semibold">{country}</span>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      </div>
+      <div>
+        <div data-i18n-key="collections-label" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-inter">
+          {t("collections-label", "Reference Collections")}
+        </div>
+        <div class="text-xs font-medium text-slate-800 mt-1 max-h-24 overflow-y-auto font-inter">
+          {#if loadingMetadata}
+            ...
+          {:else if collectionCodes.length === 0}
+            <span data-i18n-key="no-collections">{t("no-collections", "None")}</span>
+          {:else}
+            <div class="flex flex-wrap gap-1 mt-0.5">
+              {#each collectionCodes as code}
+                <span class="bg-slate-200 text-slate-700 px-1.5 py-0.5 text-[10px] font-semibold">{code}</span>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Button -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
+      <button
+        type="button"
+        data-i18n-key="load-new-dataset"
+        onclick={handleImportReferenceCsv}
+        disabled={isImporting}
+        class="bg-slate-800 hover:bg-slate-900 disabled:bg-slate-400 text-white px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors cursor-pointer font-inter"
+      >
+        {isImporting ? t("importing-dataset", "Importing...") : t("load-new-dataset", "Load New Dataset")}
+      </button>
+      {#if isImporting}
+        <span data-i18n-key="import-in-progress" class="text-xs text-slate-500 animate-pulse font-inter">{t("import-in-progress", "Processing CSV, normalizing data, and rebuilding indexes. Please wait...")}</span>
+      {/if}
+    </div>
+
+    {#if importStatus}
+      <p class="text-xs text-emerald-700 font-medium leading-relaxed mt-2 font-inter">{importStatus}</p>
+    {/if}
+    {#if importError}
+      <p class="text-xs text-red-700 font-medium leading-relaxed mt-2 font-inter">{importError}</p>
+    {/if}
+  </div>
 
   <!-- Collection Code Setting -->
   <div class="space-y-2">

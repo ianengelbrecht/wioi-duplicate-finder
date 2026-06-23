@@ -55,7 +55,10 @@ pub fn run() {
             commands::select_backup_directory,
             commands::perform_manual_backup,
             commands::select_backup_file,
-            commands::restore_database_from_backup
+            commands::restore_database_from_backup,
+            commands::select_csv_file,
+            commands::get_reference_metadata,
+            commands::import_reference_dataset
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

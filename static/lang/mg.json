@@ -220,5 +220,15 @@
   "manual-backup-failed": "Tsy nahomby ny backup: ",
   "db-recovery-title": "Mila Averina ny Tahirin-kevitra",
   "db-recovery-desc": "Tsy afaka nanokatra na nanamarina ny tahirin-kevitra ny fampiharana. Midika izany fa simba na tsy hita ny tahirin-kevitra. Safidio ny fisie backup iray haverina na andramo indray ny fifandraisana.",
-  "retry-connection-btn": "Andramo Indray ny Fifandraisana"
+  "retry-connection-btn": "Andramo Indray ny Fifandraisana",
+  "reference-dataset": "Tahirinkevitra fototra",
+  "reference-dataset-desc": "Hijery ny mombamomba ny tahirinkevitra fototra na hampiditra tahirinkevitra vaovao avy amin'ny rakitra CSV.",
+  "record-count-label": "Fisiana manontolo",
+  "countries-label": "Firenena",
+  "collections-label": "Tahirin-tsoratra fototra",
+  "load-new-dataset": "Hampiditra Tahirinkevitra Vaovao",
+  "importing-dataset": "Mampiditra...",
+  "import-in-progress": "Mandamina ny rakitra CSV, manavao ny angona ary mamerina ny index. Andraso kely...",
+  "no-countries": "Tsy misy",
+  "no-collections": "Tsy misy"
 }

@@ -875,3 +875,281 @@ impl GeographyRepository {
         Ok(list)
     }
 }
+
+pub struct ReferenceRepository;
+
+impl ReferenceRepository {
+    pub fn get_metadata(conn: &Connection) -> Result<serde_json::Value, String> {
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM gbif", [], |r| r.get(0))
+            .unwrap_or(0);
+
+        let mut stmt = conn.prepare("SELECT DISTINCT country FROM gbif WHERE country IS NOT NULL AND country != '' ORDER BY country")
+            .map_err(|e| e.to_string())?;
+        let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
+        let mut countries = Vec::new();
+        while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            let country: String = row.get(0).map_err(|e| e.to_string())?;
+            countries.push(country);
+        }
+
+        let mut stmt = conn.prepare("SELECT DISTINCT collectionCode FROM gbif WHERE collectionCode IS NOT NULL AND collectionCode != '' ORDER BY collectionCode")
+            .map_err(|e| e.to_string())?;
+        let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
+        let mut collection_codes = Vec::new();
+        while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            let code: String = row.get(0).map_err(|e| e.to_string())?;
+            collection_codes.push(code);
+        }
+
+        Ok(json!({
+            "recordCount": count,
+            "countries": countries,
+            "collectionCodes": collection_codes
+        }))
+    }
+
+    pub fn import_csv(conn: &mut Connection, filepath: &str) -> Result<(), String> {
+        let mut rdr = csv::ReaderBuilder::new()
+            .has_headers(true)
+            .from_path(filepath)
+            .map_err(|e| format!("Failed to open CSV file: {}", e))?;
+
+        let headers = rdr
+            .headers()
+            .map_err(|e| format!("Failed to read CSV headers: {}", e))?;
+        let mut header_map = std::collections::HashMap::new();
+        for (i, h) in headers.iter().enumerate() {
+            header_map.insert(h.to_lowercase(), i);
+        }
+
+        let get_idx =
+            |name: &str| -> Option<usize> { header_map.get(&name.to_lowercase()).copied() };
+
+        // Fallbacks mapping
+        let mut col_indices = std::collections::HashMap::new();
+        let target_fields = vec![
+            "gbifID",
+            "collectionCode",
+            "catalogNumber",
+            "recordNumber",
+            "recordedBy",
+            "year",
+            "month",
+            "day",
+            "verbatimEventDate",
+            "country",
+            "stateProvince",
+            "county",
+            "municipality",
+            "locality",
+            "verbatimLocality",
+            "locationRemarks",
+            "verbatimCoordinates",
+            "decimalLatitude",
+            "decimalLongitude",
+            "habitat",
+            "verbatimElevation",
+            "elevation",
+            "occurrenceRemarks",
+            "fieldNotes",
+            "typeStatus",
+            "identificationQualifier",
+            "family",
+            "scientificName",
+            "identifiedBy",
+            "yearIdentified",
+            "monthIdentified",
+            "dayIdentified",
+            "identificationRemarks",
+            "fieldNumber",
+        ];
+
+        for field in &target_fields {
+            let mut idx = get_idx(field);
+            if idx.is_none() {
+                if *field == "gbifID" {
+                    idx = get_idx("id");
+                } else if *field == "locationRemarks" {
+                    idx = get_idx("locationnotes");
+                }
+            }
+            if let Some(i) = idx {
+                col_indices.insert(*field, i);
+            }
+        }
+
+        let get_val = |record: &csv::StringRecord, name: &str| -> Option<String> {
+            col_indices
+                .get(name)
+                .and_then(|&i| record.get(i))
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+        };
+
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+        // 1. Delete all existing records
+        tx.execute("DELETE FROM gbif", [])
+            .map_err(|e| e.to_string())?;
+        tx.execute("DELETE FROM agents", [])
+            .map_err(|e| e.to_string())?;
+
+        // 2. Drop triggers temporarily for import performance
+        let _ = tx.execute("DROP TRIGGER IF EXISTS gbif_ai", []);
+        let _ = tx.execute("DROP TRIGGER IF EXISTS gbif_ad", []);
+        let _ = tx.execute("DROP TRIGGER IF EXISTS gbif_au", []);
+        let _ = tx.execute("DROP TRIGGER IF EXISTS gbif_cfn_insert", []);
+        let _ = tx.execute("DROP TRIGGER IF EXISTS gbif_cfn_update", []);
+
+        // 3. Perform inserts
+        {
+            let mut stmt = tx.prepare_cached(
+                "INSERT INTO gbif (
+                    gbifID, collectionCode, catalogNumber, recordNumber, recordedBy,
+                    year, month, day, verbatimEventDate, country,
+                    stateProvince, county, municipality, locality, verbatimLocality,
+                    locationRemarks, verbatimCoordinates, decimalLatitude, decimalLongitude, habitat,
+                    verbatimElevation, elevation, occurrenceRemarks, fieldNotes, typeStatus,
+                    identificationQualifier, family, scientificName, identifiedBy, yearIdentified,
+                    monthIdentified, dayIdentified, identificationRemarks, fieldNumber,
+                    searchRecordedBy, normalizedRecordedBy, normalized_scientific_name, normalized_locality, cleanedFieldNumber
+                ) VALUES (
+                    ?1, ?2, ?3, ?4, ?5,
+                    ?6, ?7, ?8, ?9, ?10,
+                    ?11, ?12, ?13, ?14, ?15,
+                    ?16, ?17, ?18, ?19, ?20,
+                    ?21, ?22, ?23, ?24, ?25,
+                    ?26, ?27, ?28, ?29, ?30,
+                    ?31, ?32, ?33, ?34, ?35,
+                    ?36, ?37, ?38, ?39
+                )"
+            ).map_err(|e| e.to_string())?;
+
+            for result in rdr.records() {
+                let record = result.map_err(|e| format!("CSV parse error: {}", e))?;
+
+                let gbif_id: Option<i64> = get_val(&record, "gbifID").and_then(|s| s.parse().ok());
+                let collection_code = get_val(&record, "collectionCode");
+                let catalog_number = get_val(&record, "catalogNumber");
+                let record_number = get_val(&record, "recordNumber");
+                let recorded_by = get_val(&record, "recordedBy");
+
+                let year: Option<i32> = get_val(&record, "year").and_then(|s| s.parse().ok());
+                let month: Option<i32> = get_val(&record, "month").and_then(|s| s.parse().ok());
+                let day: Option<i32> = get_val(&record, "day").and_then(|s| s.parse().ok());
+
+                let verbatim_event_date = get_val(&record, "verbatimEventDate");
+                let country = get_val(&record, "country");
+                let state_province = get_val(&record, "stateProvince");
+                let county = get_val(&record, "county");
+                let municipality = get_val(&record, "municipality");
+                let locality = get_val(&record, "locality");
+                let verbatim_locality = get_val(&record, "verbatimLocality");
+                let location_remarks = get_val(&record, "locationRemarks");
+                let verbatim_coordinates = get_val(&record, "verbatimCoordinates");
+
+                let decimal_latitude: Option<f64> =
+                    get_val(&record, "decimalLatitude").and_then(|s| s.parse().ok());
+                let decimal_longitude: Option<f64> =
+                    get_val(&record, "decimalLongitude").and_then(|s| s.parse().ok());
+
+                let habitat = get_val(&record, "habitat");
+                let verbatim_elevation = get_val(&record, "verbatimElevation");
+                let elevation = get_val(&record, "elevation");
+                let occurrence_remarks = get_val(&record, "occurrenceRemarks");
+                let field_notes = get_val(&record, "fieldNotes");
+                let type_status = get_val(&record, "typeStatus");
+                let identification_qualifier = get_val(&record, "identificationQualifier");
+                let family = get_val(&record, "family");
+                let scientific_name = get_val(&record, "scientificName");
+                let identified_by = get_val(&record, "identifiedBy");
+
+                let year_identified: Option<i32> =
+                    get_val(&record, "yearIdentified").and_then(|s| s.parse().ok());
+                let month_identified: Option<i32> =
+                    get_val(&record, "monthIdentified").and_then(|s| s.parse().ok());
+                let day_identified: Option<i32> =
+                    get_val(&record, "dayIdentified").and_then(|s| s.parse().ok());
+
+                let identification_remarks = get_val(&record, "identificationRemarks");
+                let field_number = get_val(&record, "fieldNumber");
+
+                // Normalizations
+                let search_recorded_by = recorded_by
+                    .as_ref()
+                    .map(|s| normalize_search_recorded_by(s));
+                let normalized_recorded_by = search_recorded_by.clone();
+
+                let normalized_scientific_name =
+                    scientific_name.as_ref().map(|s| normalize_taxon_name(s));
+
+                let combined_locality = format!(
+                    "{} {} {}",
+                    locality.as_deref().unwrap_or(""),
+                    location_remarks.as_deref().unwrap_or(""),
+                    verbatim_locality.as_deref().unwrap_or("")
+                );
+                let normalized_locality = if combined_locality.trim().is_empty() {
+                    None
+                } else {
+                    let norm = normalize_locality(&combined_locality);
+                    if norm.trim().is_empty() {
+                        Some("-".to_string())
+                    } else {
+                        Some(norm)
+                    }
+                };
+
+                let cleaned_field_number = field_number.as_ref().map(|s| extract_digits(s));
+
+                stmt.execute(params![
+                    gbif_id,
+                    collection_code,
+                    catalog_number,
+                    record_number,
+                    recorded_by,
+                    year,
+                    month,
+                    day,
+                    verbatim_event_date,
+                    country,
+                    state_province,
+                    county,
+                    municipality,
+                    locality,
+                    verbatim_locality,
+                    location_remarks,
+                    verbatim_coordinates,
+                    decimal_latitude,
+                    decimal_longitude,
+                    habitat,
+                    verbatim_elevation,
+                    elevation,
+                    occurrence_remarks,
+                    field_notes,
+                    type_status,
+                    identification_qualifier,
+                    family,
+                    scientific_name,
+                    identified_by,
+                    year_identified,
+                    month_identified,
+                    day_identified,
+                    identification_remarks,
+                    field_number,
+                    search_recorded_by,
+                    normalized_recorded_by,
+                    normalized_scientific_name,
+                    normalized_locality,
+                    cleaned_field_number
+                ])
+                .map_err(|e| format!("Failed to insert record: {}", e))?;
+            }
+        }
+
+        tx.commit()
+            .map_err(|e| format!("Failed to commit transaction: {}", e))?;
+        Ok(())
+    }
+}

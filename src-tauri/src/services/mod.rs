@@ -5,8 +5,8 @@ use crate::models::{
 };
 use crate::parsers::split_names;
 use crate::repositories::{
-    AgentRepository, ExportRepository, GeographyRepository, SessionRepository, SpecimenRepository,
-    TaxonomyRepository, UserRepository,
+    AgentRepository, ExportRepository, GeographyRepository, ReferenceRepository, SessionRepository,
+    SpecimenRepository, TaxonomyRepository, UserRepository,
 };
 use rusqlite::params;
 use serde_json::json;
@@ -471,5 +471,21 @@ impl ExportService {
         SessionRepository::update_last_exported(&conn, session_id).map_err(|e| e.to_string())?;
 
         Ok(format!("Successfully exported records to {}", filepath))
+    }
+}
+
+pub struct ReferenceService;
+
+impl ReferenceService {
+    pub fn get_metadata(app: &AppHandle) -> Result<serde_json::Value, String> {
+        let conn = get_connection(app)?;
+        ReferenceRepository::get_metadata(&conn)
+    }
+
+    pub fn import_reference_dataset(app: &AppHandle, filepath: &str) -> Result<(), String> {
+        let mut conn = get_connection(app)?;
+        ReferenceRepository::import_csv(&mut conn, filepath)?;
+        crate::db::finalize_reference_import(&mut conn)?;
+        Ok(())
     }
 }

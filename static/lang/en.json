@@ -220,5 +220,15 @@
   "manual-backup-failed": "Backup failed: ",
   "db-recovery-title": "Database Recovery Needed",
   "db-recovery-desc": "The application failed to open or verify the integrity of the specimen database. This usually means the database is corrupted or missing. Please select a backup file to restore or retry the connection.",
-  "retry-connection-btn": "Retry Connection"
+  "retry-connection-btn": "Retry Connection",
+  "reference-dataset": "Reference Dataset",
+  "reference-dataset-desc": "View current reference data stats or load a custom dataset from a CSV file.",
+  "record-count-label": "Total Records",
+  "countries-label": "Countries",
+  "collections-label": "Reference Collections",
+  "load-new-dataset": "Load New Dataset",
+  "importing-dataset": "Importing...",
+  "import-in-progress": "Processing CSV, normalizing data, and rebuilding indexes. Please wait...",
+  "no-countries": "None",
+  "no-collections": "None"
 }

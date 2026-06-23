@@ -220,5 +220,15 @@
   "manual-backup-failed": "Falha no backup: ",
   "db-recovery-title": "Recuperação do Banco de Dados Necessária",
   "db-recovery-desc": "O aplicativo não conseguiu abrir ou verificar a integridade do banco de dados de espécimes. Isso geralmente significa que o banco de dados está corrompido ou ausente. Por favor, selecione um arquivo de backup para restaurar ou tente conectar novamente.",
-  "retry-connection-btn": "Tentar Novamente Conexão"
+  "retry-connection-btn": "Tentar Novamente Conexão",
+  "reference-dataset": "Banco de dados de referência",
+  "reference-dataset-desc": "Visualize as estatísticas dos dados de referência ou carregue um conjunto de dados personalizado a partir de um arquivo CSV.",
+  "record-count-label": "Total de registros",
+  "countries-label": "Países",
+  "collections-label": "Coleções de referência",
+  "load-new-dataset": "Carregar Novo Conjunto de Dados",
+  "importing-dataset": "Importando...",
+  "import-in-progress": "Processando CSV, normalizando dados e reconstruindo índices. Por favor, aguarde...",
+  "no-countries": "Nenhum",
+  "no-collections": "Nenhuma"
 }

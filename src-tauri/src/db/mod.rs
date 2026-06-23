@@ -641,6 +641,10 @@ fn run_migrations(conn: &Connection) -> Result<()> {
         [],
     )?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_normalized_sci_name ON gbif(normalized_scientific_name);", [])?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_gbif_collectionCode ON gbif(collectionCode);",
+        [],
+    )?;
 
     conn.execute("CREATE INDEX IF NOT EXISTS idx_wcvp_taxonomy_plant_name_id ON wcvp_taxonomy(plant_name_id);", [])?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_wcvp_taxonomy_accepted_plant_name_id ON wcvp_taxonomy(accepted_plant_name_id);", [])?;
@@ -1183,6 +1187,18 @@ pub fn populate_agents_table(conn: &mut Connection) -> std::result::Result<(), S
     tx.commit().map_err(|e| e.to_string())?;
 
     info!("Agents table populated successfully!");
+    Ok(())
+}
+
+pub fn finalize_reference_import(conn: &mut Connection) -> std::result::Result<(), String> {
+    recreate_gbif_triggers(conn).map_err(|e| e.to_string())?;
+
+    info!("Rebuilding FTS5 index for gbif...");
+    conn.execute("INSERT INTO gbif_fts(gbif_fts) VALUES('rebuild');", [])
+        .map_err(|e| e.to_string())?;
+
+    populate_agents_table(conn).map_err(|e| e.to_string())?;
+
     Ok(())
 }
 

@@ -6,8 +6,8 @@ use crate::models::{
     UserDto,
 };
 use crate::services::{
-    AgentService, AuthService, ExportService, GeographyService, SessionService, SpecimenService,
-    TaxonomyService,
+    AgentService, AuthService, ExportService, GeographyService, ReferenceService, SessionService,
+    SpecimenService, TaxonomyService,
 };
 
 #[tauri::command]
@@ -273,4 +273,23 @@ pub fn restore_database_from_backup(app: AppHandle, backup_path: String) -> Resu
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub fn select_csv_file() -> Option<String> {
+    let file = rfd::FileDialog::new()
+        .add_filter("CSV File", &["csv"])
+        .pick_file();
+
+    file.map(|p| p.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub async fn get_reference_metadata(app: AppHandle) -> Result<serde_json::Value, String> {
+    ReferenceService::get_metadata(&app)
+}
+
+#[tauri::command]
+pub async fn import_reference_dataset(app: AppHandle, filepath: String) -> Result<(), String> {
+    ReferenceService::import_reference_dataset(&app, &filepath)
 }
