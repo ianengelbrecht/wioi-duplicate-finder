@@ -1,3 +1,4 @@
+import { getVersion } from "@tauri-apps/api/app";
 import { updaterService } from "../services/updaterService.js";
 
 /**
@@ -10,6 +11,9 @@ export class UpdaterStore {
   /** @type {string} */
   version = $state("");
 
+  /** @type {string} */
+  currentVersion = $state("");
+
   /** @type {number | null} */
   downloadProgress = $state(null);
 
@@ -19,6 +23,9 @@ export class UpdaterStore {
   /** @type {string} */
   errorMessage = $state("");
 
+  /** @type {boolean} */
+  hasChecked = $state(false);
+
   /**
    * Initializes the updater and checks for updates.
    * @returns {Promise<void>}
@@ -27,6 +34,9 @@ export class UpdaterStore {
     this.status = "checking";
     this.errorMessage = "";
     try {
+      if (!this.currentVersion) {
+        this.currentVersion = await getVersion();
+      }
       const res = await updaterService.checkForUpdates();
       if (res && res.available) {
         this.isAvailable = true;
@@ -47,6 +57,8 @@ export class UpdaterStore {
       console.error("Failed to check for updates:", err);
       this.status = "error";
       this.errorMessage = (/** @type {any} */ (err)).toString();
+    } finally {
+      this.hasChecked = true;
     }
   }
 

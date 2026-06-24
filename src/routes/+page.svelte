@@ -261,7 +261,14 @@
     <div class="flex items-center gap-8 text-xs font-semibold">
       <!-- Language Selector and Github -->
       <div class="flex items-center gap-2">
-        {#if updaterStore.isAvailable}
+        {#if updaterStore.status === 'checking' || !updaterStore.hasChecked}
+          <div
+            class="px-3 py-1.5 text-[10px] font-bold tracking-wider rounded-none border border-dashed border-slate-300 text-slate-400 bg-transparent select-none flex items-center gap-1.5"
+          >
+            <span class="w-2 h-2 border border-slate-400 border-t-transparent rounded-full animate-spin"></span>
+            {t("update-status-checking", "Checking for updates...")}
+          </div>
+        {:else if updaterStore.isAvailable}
           <button
             type="button"
             onclick={handleUpdateClick}
@@ -279,6 +286,15 @@
             {:else}
               {t("update-btn-download", "Update")}
             {/if}
+          </button>
+        {:else}
+          <button
+            type="button"
+            onclick={() => updaterStore.check()}
+            title={t("update-status-check-now", "Click to check for updates")}
+            class="px-3 py-1.5 text-[10px] font-bold tracking-wider rounded-none border border-slate-300 text-slate-500 hover:text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition-all cursor-pointer"
+          >
+            V{updaterStore.currentVersion}: {t("update-status-uptodate", "up to date")}
           </button>
         {/if}
 

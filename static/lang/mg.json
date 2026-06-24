@@ -260,5 +260,8 @@
   "db-validation-error": "Fahadisoana amin'ny fisavana:",
   "error-prefix": "Fahadisoana:",
   "db-setup-processing": "Manamarina...",
-  "select-db-btn": "Safidio ny rakitra Database"
+  "select-db-btn": "Safidio ny rakitra Database",
+  "update-status-checking": "Mitady fanavaozana...",
+  "update-status-uptodate": "efa vaovao",
+  "update-status-check-now": "Tsindrio raha hitady fanavaozana"
 }

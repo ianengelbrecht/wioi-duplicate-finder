@@ -259,5 +259,8 @@
   "db-validation-error": "Erreur de validation :",
   "error-prefix": "Erreur :",
   "db-setup-processing": "Vérification...",
-  "select-db-btn": "Sélectionner le fichier de base de données"
+  "select-db-btn": "Sélectionner le fichier de base de données",
+  "update-status-checking": "Recherche de mises à jour...",
+  "update-status-uptodate": "à jour",
+  "update-status-check-now": "Cliquez pour rechercher des mises à jour"
 }

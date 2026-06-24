@@ -260,5 +260,8 @@
   "update-btn-download": "Update",
   "update-btn-downloading": "Downloading",
   "update-btn-install": "Install Update",
-  "update-btn-installing": "Installing"
+  "update-btn-installing": "Installing",
+  "update-status-checking": "Checking for updates...",
+  "update-status-uptodate": "up to date",
+  "update-status-check-now": "Click to check for updates"
 }
