@@ -24,22 +24,105 @@ pub fn hash_password(password: &str) -> String {
     to_hex(&password_bytes)
 }
 
-/// Resolves the writeable SQLite database path.
-pub fn get_db_path(app: &AppHandle) -> PathBuf {
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Default)]
+struct AppConfig {
+    database_path: Option<String>,
+}
+
+fn get_config_path(app: &AppHandle) -> PathBuf {
     let app_dir = app.path().app_data_dir().unwrap_or_else(|_| {
         let mut path = std::env::current_dir().unwrap_or_default();
         path.push("duplicate-finder-data");
         path
     });
-
-    // Ensure the app directory exists
     let _ = fs::create_dir_all(&app_dir);
-    app_dir.join("reference.db")
+    app_dir.join("config.json")
+}
+
+fn load_config(app: &AppHandle) -> AppConfig {
+    let path = get_config_path(app);
+    if path.exists() {
+        if let Ok(content) = fs::read_to_string(&path) {
+            if let Ok(config) = serde_json::from_str(&content) {
+                return config;
+            }
+        }
+    }
+    AppConfig::default()
+}
+
+fn save_config(app: &AppHandle, config: &AppConfig) -> std::result::Result<(), String> {
+    let path = get_config_path(app);
+    let content = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
+    fs::write(&path, content).map_err(|e| e.to_string())
+}
+
+/// Validates if the selected file is a valid SQLite database containing the required tables.
+pub fn validate_database_file(path: &Path) -> std::result::Result<(), String> {
+    if !path.exists() {
+        return Err("Database file does not exist.".to_string());
+    }
+    if path.is_dir() {
+        return Err("Selected path is a directory, not a database file.".to_string());
+    }
+
+    let conn =
+        Connection::open(path).map_err(|e| format!("Failed to open SQLite database: {}", e))?;
+
+    // Check if key tables exist: gbif, wcvp, captured_records
+    let mut stmt = conn
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('gbif', 'wcvp', 'captured_records');")
+        .map_err(|e| format!("Failed to query table metadata: {}", e))?;
+
+    let found_tables: Vec<String> = stmt
+        .query_map([], |row| row.get(0))
+        .map_err(|e| format!("Failed to read table names: {}", e))?
+        .filter_map(Result::ok)
+        .collect();
+
+    let required = ["gbif", "wcvp", "captured_records"];
+    let missing: Vec<&str> = required
+        .iter()
+        .filter(|&&t| !found_tables.iter().any(|f| f == t))
+        .copied()
+        .collect();
+
+    if !missing.is_empty() {
+        return Err(format!(
+            "Database is missing key tables: {}. Is this the correct reference database?",
+            missing.join(", ")
+        ));
+    }
+
+    Ok(())
+}
+
+/// Configures the application to use the specified database path.
+pub fn set_database_path(app: &AppHandle, path: &str) -> std::result::Result<(), String> {
+    let p = Path::new(path);
+    validate_database_file(p)?;
+
+    let mut config = load_config(app);
+    config.database_path = Some(path.to_string());
+    save_config(app, &config)?;
+
+    Ok(())
+}
+
+/// Resolves the writeable SQLite database path.
+pub fn get_db_path(app: &AppHandle) -> Option<PathBuf> {
+    let config = load_config(app);
+    config.database_path.map(PathBuf::from)
 }
 
 /// Factory function to open a SQLite database connection with custom pragmas.
 pub fn get_connection(app: &AppHandle) -> std::result::Result<Connection, String> {
-    let db_path = get_db_path(app);
+    let db_path = get_db_path(app).ok_or_else(|| "Database path is not configured.".to_string())?;
+    if !db_path.exists() {
+        return Err("Database file does not exist at the configured path.".to_string());
+    }
     let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
 
     // Always enable WAL, normal synchronous mode, and foreign keys
@@ -72,32 +155,15 @@ fn set_last_quick_check_datetime(conn: &Connection) {
 }
 
 /// Initializes the database on startup.
-/// Copies the bundled reference database if not present, runs migrations, and seeds fallback test data.
+/// Checks database existence, structure validity, runs integrity check, and runs migrations.
 pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
-    let db_path = get_db_path(app);
+    let db_path = get_db_path(app).ok_or_else(|| "DATABASE_UNCONFIGURED".to_string())?;
 
     if !db_path.exists() {
-        if let Ok(resource_path) = app
-            .path()
-            .resource_dir()
-            .map(|p| p.join("resources/reference.db"))
-        {
-            if resource_path.exists() {
-                if let Err(err) = fs::copy(&resource_path, &db_path) {
-                    error!("Failed to copy reference.db resource: {}", err);
-                } else {
-                    info!("Successfully copied pre-bundled reference.db resource!");
-                }
-            } else {
-                warn!(
-                    "Reference DB resource not found at {:?}, initializing empty DB.",
-                    resource_path
-                );
-            }
-        } else {
-            error!("Could not resolve resource path for reference.db, initializing empty DB.");
-        }
+        return Err(format!("DATABASE_MISSING:{}", db_path.to_string_lossy()));
     }
+
+    validate_database_file(&db_path).map_err(|e| format!("DATABASE_INVALID:{}", e))?;
 
     info!("Opened database at absolute path: {:?}", db_path);
     let mut conn = get_connection(app)?;
@@ -125,7 +191,10 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
             Ok(res) => {
                 if res != "ok" {
                     error!("Database quick_check failed on startup: {}", res);
-                    return Err(format!("Database integrity check failed: {}", res));
+                    return Err(format!(
+                        "DATABASE_INVALID:Database integrity check failed: {}",
+                        res
+                    ));
                 } else {
                     info!("Database quick_check passed on startup.");
                     set_last_quick_check_datetime(&conn);
@@ -133,7 +202,10 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
             }
             Err(e) => {
                 error!("Failed to run database quick_check on startup: {}", e);
-                return Err(format!("Database integrity check failed: {}", e));
+                return Err(format!(
+                    "DATABASE_INVALID:Database integrity check failed: {}",
+                    e
+                ));
             }
         }
     } else {
@@ -154,7 +226,10 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
 
 /// Runs database backup, optimizations, and integrity checks on shutdown.
 pub fn shutdown_database(app: &AppHandle) {
-    let db_path = get_db_path(app);
+    let db_path = match get_db_path(app) {
+        Some(p) => p,
+        None => return,
+    };
     if !db_path.exists() {
         return;
     }
@@ -201,26 +276,20 @@ fn prune_database_backups(backups_dir: &Path, today: NaiveDate) {
 
     let mut backups = Vec::new();
 
-    for entry in entries {
-        if let Ok(entry) = entry {
-            let path = entry.path();
-            if path.is_file() {
-                if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
-                    if filename.starts_with("backup_") && filename.ends_with(".db") {
-                        if filename.len() >= 29 {
-                            let ts_str = &filename[7..filename.len() - 3];
-                            if let Ok(dt) =
-                                NaiveDateTime::parse_from_str(ts_str, "%Y-%m-%d_%H-%M-%S")
-                            {
-                                let date = dt.date();
-                                let age_days = (today - date).num_days();
-                                backups.push(BackupFile {
-                                    path,
-                                    datetime: dt,
-                                    age_days,
-                                });
-                            }
-                        }
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() {
+            if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
+                if filename.starts_with("backup_") && filename.ends_with(".db") && filename.len() >= 29 {
+                    let ts_str = &filename[7..filename.len() - 3];
+                    if let Ok(dt) = NaiveDateTime::parse_from_str(ts_str, "%Y-%m-%d_%H-%M-%S") {
+                        let date = dt.date();
+                        let age_days = (today - date).num_days();
+                        backups.push(BackupFile {
+                            path,
+                            datetime: dt,
+                            age_days,
+                        });
                     }
                 }
             }
@@ -228,7 +297,7 @@ fn prune_database_backups(backups_dir: &Path, today: NaiveDate) {
     }
 
     // Sort backups by datetime descending (latest first)
-    backups.sort_by(|a, b| b.datetime.cmp(&a.datetime));
+    backups.sort_by_key(|b| std::cmp::Reverse(b.datetime));
 
     // Pre-calculate target daily dates, ISO weeks, and calendar months to keep
     let mut allowed_daily_dates = HashSet::new();
@@ -277,39 +346,33 @@ fn prune_database_backups(backups_dir: &Path, today: NaiveDate) {
         }
 
         // Rule 2: Keep only the latest backup for each day of the last seven days (1 <= age_days <= 7)
-        if !keep && allowed_daily_dates.contains(&date) {
-            if !kept_days.contains(&date) {
-                keep = true;
-                kept_days.insert(date);
-                // Also mark the week and month of this backup as kept/satisfied
-                let iso = date.iso_week();
-                kept_weeks.insert((iso.year(), iso.week()));
-                kept_months.insert((date.year(), date.month()));
-            }
+        if !keep && allowed_daily_dates.contains(&date) && !kept_days.contains(&date) {
+            keep = true;
+            kept_days.insert(date);
+            // Also mark the week and month of this backup as kept/satisfied
+            let iso = date.iso_week();
+            kept_weeks.insert((iso.year(), iso.week()));
+            kept_months.insert((date.year(), date.month()));
         }
 
         // Rule 3: Keep only the latest backup for each week of the last four weeks
         if !keep {
             let iso = date.iso_week();
             let week_key = (iso.year(), iso.week());
-            if allowed_weekly_weeks.contains(&week_key) {
-                if !kept_weeks.contains(&week_key) {
-                    keep = true;
-                    kept_weeks.insert(week_key);
-                    // Also mark the month of this backup as kept/satisfied
-                    kept_months.insert((date.year(), date.month()));
-                }
+            if allowed_weekly_weeks.contains(&week_key) && !kept_weeks.contains(&week_key) {
+                keep = true;
+                kept_weeks.insert(week_key);
+                // Also mark the month of this backup as kept/satisfied
+                kept_months.insert((date.year(), date.month()));
             }
         }
 
         // Rule 4: Keep only the latest backup for each month of the last six months
         if !keep {
             let month_key = (date.year(), date.month());
-            if allowed_monthly_months.contains(&month_key) {
-                if !kept_months.contains(&month_key) {
-                    keep = true;
-                    kept_months.insert(month_key);
-                }
+            if allowed_monthly_months.contains(&month_key) && !kept_months.contains(&month_key) {
+                keep = true;
+                kept_months.insert(month_key);
             }
         }
 
@@ -327,7 +390,10 @@ fn prune_database_backups(backups_dir: &Path, today: NaiveDate) {
 }
 
 pub fn perform_database_backup(app: &AppHandle) {
-    let db_path = get_db_path(app);
+    let db_path = match get_db_path(app) {
+        Some(p) => p,
+        None => return,
+    };
     if !db_path.exists() {
         return;
     }

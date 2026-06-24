@@ -71,4 +71,8 @@ git push origin main
 git push origin app-v0.2.0
 ```
 
-[!CAUTION] Remeber to update the version number in the tauri config file!!!
+[!CAUTION] Remember to update the version number in the tauri config file!!!
+
+## Deployment database
+
+As the database is too large to bundle with the app installer via Github, we host it separately and the user needs to download and unzip the database file at a suitable location on their computer before using the app.

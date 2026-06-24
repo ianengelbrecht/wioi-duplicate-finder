@@ -244,5 +244,9 @@
   "wcvp-dialog-no-file": "Tsy misy rakitra voafidy",
   "choose-file-btn": "Safidio ny rakitra",
   "start-import-btn": "Hampiditra",
-  "wcvp-version-must-be-greater": "Ny laharana dikan-teny vaovao dia tsy maintsy lehibe noho ny dikan-teny ankehitriny."
+  "wcvp-version-must-be-greater": "Ny laharana dikan-teny vaovao dia tsy maintsy lehibe noho ny dikan-teny ankehitriny.",
+  "update-btn-download": "Havaozina",
+  "update-btn-downloading": "Raha alaina",
+  "update-btn-install": "Hametraka fanavaozana",
+  "update-btn-installing": "Mametraka"
 }

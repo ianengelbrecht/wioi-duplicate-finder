@@ -13,15 +13,15 @@ package/
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
+# Databases
+*.db
+src-tauri/resources/*.db
+*.zip
+
 # Rust & Cargo build outputs
 src-tauri/target/
 src-tauri/gen/schemas/
 Cargo.lock
-
-# Tauri Resource Bundler & Local SQLite databases
-src-tauri/resources/*.db
-src-tauri/resources/*.db-journal
-duplicate-finder-data/
 
 # IDE and Editor configs
 .vscode/

@@ -182,7 +182,7 @@ pub fn select_export_path(default_name: String) -> Option<String> {
 
 #[tauri::command]
 pub fn get_default_backup_dir(app: AppHandle) -> Result<String, String> {
-    let db_path = db::get_db_path(&app);
+    let db_path = db::get_db_path(&app).ok_or_else(|| "Database is not configured.".to_string())?;
     let app_dir = db_path
         .parent()
         .ok_or("Failed to get app directory parent")?;
@@ -199,7 +199,7 @@ pub fn select_backup_directory() -> Option<String> {
 
 #[tauri::command]
 pub fn perform_manual_backup(app: AppHandle) -> Result<String, String> {
-    let db_path = db::get_db_path(&app);
+    let db_path = db::get_db_path(&app).ok_or_else(|| "Database is not configured.".to_string())?;
     if !db_path.exists() {
         return Err("Database file does not exist.".to_string());
     }
@@ -251,8 +251,24 @@ pub fn select_backup_file() -> Option<String> {
 }
 
 #[tauri::command]
+pub fn select_database_file() -> Option<String> {
+    let file = rfd::FileDialog::new()
+        .set_title("Select Herbarium Database File")
+        .add_filter("SQLite Database", &["db", "sqlite", "sqlite3"])
+        .pick_file();
+
+    file.map(|p| p.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn configure_database(app: AppHandle, path: String) -> Result<(), String> {
+    db::set_database_path(&app, &path)?;
+    db::init_database(&app)
+}
+
+#[tauri::command]
 pub fn restore_database_from_backup(app: AppHandle, backup_path: String) -> Result<(), String> {
-    let db_path = db::get_db_path(&app);
+    let db_path = db::get_db_path(&app).ok_or_else(|| "Database is not configured.".to_string())?;
     let backup_file = std::path::Path::new(&backup_path);
     if !backup_file.exists() {
         return Err("Selected backup file does not exist.".to_string());

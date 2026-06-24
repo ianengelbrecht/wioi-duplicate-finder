@@ -316,19 +316,16 @@ impl TaxonomyRepository {
                 }
                 let fts_query = fts_clauses.join(" AND ");
 
-                let mut fn_clauses = Vec::new();
-                for _ in &terms {
-                    fn_clauses.push("fieldNotes LIKE ?");
-                }
+                let fn_clauses = vec!["fieldNotes LIKE ?"; terms.len()];
                 let fn_clause_str = fn_clauses.join(" AND ");
 
                 sql.push_str(" AND (recordNumber = ? OR gbifID IN (SELECT rowid FROM gbif_fts WHERE gbif_fts MATCH ?)");
                 if !fn_clause_str.is_empty() {
                     sql.push_str(" OR (");
                     sql.push_str(&fn_clause_str);
-                    sql.push_str(")");
+                    sql.push(')');
                 }
-                sql.push_str(")");
+                sql.push(')');
 
                 params_vec.push(json!(record_number));
                 params_vec.push(json!(fts_query));
@@ -746,7 +743,7 @@ impl GeographyRepository {
                 sql.push_str(&format!(" AND locality LIKE ?{}", i + 2));
                 params_vec.push(format!("%{}%", term));
             }
-            sql.push_str("\n");
+            sql.push('\n');
         } else {
             sql.push_str("    SELECT locality FROM gbif WHERE locality LIKE ?1\n");
             sql.push_str("    UNION ALL\n");

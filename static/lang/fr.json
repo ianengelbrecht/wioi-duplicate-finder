@@ -243,5 +243,9 @@
   "wcvp-dialog-no-file": "Aucun fichier sélectionné",
   "choose-file-btn": "Choisir un fichier",
   "start-import-btn": "Démarrer l'importation",
-  "wcvp-version-must-be-greater": "Le nouveau numéro de version doit être supérieur au numéro de version actuel."
+  "wcvp-version-must-be-greater": "Le nouveau numéro de version doit être supérieur au numéro de version actuel.",
+  "update-btn-download": "Mettre à jour",
+  "update-btn-downloading": "Téléchargement",
+  "update-btn-install": "Installer la mise à jour",
+  "update-btn-installing": "Installation"
 }

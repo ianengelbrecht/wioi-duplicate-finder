@@ -60,7 +60,9 @@ pub fn run() {
             commands::get_reference_metadata,
             commands::import_reference_dataset,
             commands::get_wcvp_metadata,
-            commands::import_wcvp_dataset
+            commands::import_wcvp_dataset,
+            commands::select_database_file,
+            commands::configure_database
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

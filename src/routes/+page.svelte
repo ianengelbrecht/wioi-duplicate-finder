@@ -6,6 +6,7 @@
   // Components
   import Auth from "$lib/components/Auth.svelte";
   import DbRecovery from "$lib/components/DbRecovery.svelte";
+  import DbSetup from "$lib/components/DbSetup.svelte";
   import RestoreConfirmModal from "$lib/components/RestoreConfirmModal.svelte";
   import SessionsTab from "$lib/components/SessionsTab.svelte";
   import SettingsTab from "$lib/components/SettingsTab.svelte";
@@ -14,7 +15,9 @@
   // Stores and Services
   import { authStore } from "$lib/stores/authStore.svelte.js";
   import { workspaceStore } from "$lib/stores/workspaceStore.svelte.js";
+  import { updaterStore } from "$lib/stores/updaterStore.svelte.js";
   import { authService } from "$lib/services/authService.js";
+  import { databaseService } from "$lib/services/databaseService.js";
   import { sessionService } from "$lib/services/sessionService.js";
   import { specimenService } from "$lib/services/specimenService.js";
   import { taxonomyService } from "$lib/services/taxonomyService.js";
@@ -76,13 +79,31 @@
       }
     } catch (e) {
       console.error(e);
-      authStore.dbErrorMessage = (/** @type {any} */ (e)).toString();
-      authStore.setView("db_restore");
+      const errStr = (/** @type {any} */ (e)).toString();
+      authStore.dbErrorMessage = errStr;
+      
+      if (errStr.includes("DATABASE_UNCONFIGURED")) {
+        authStore.dbSetupState = { type: "unconfigured", path: "", error: "" };
+        authStore.setView("db_setup");
+      } else if (errStr.includes("DATABASE_MISSING:")) {
+        const parts = errStr.split("DATABASE_MISSING:");
+        const path = parts[parts.length - 1];
+        authStore.dbSetupState = { type: "missing", path, error: "" };
+        authStore.setView("db_setup");
+      } else if (errStr.includes("DATABASE_INVALID:")) {
+        const parts = errStr.split("DATABASE_INVALID:");
+        const error = parts[parts.length - 1];
+        authStore.dbSetupState = { type: "invalid", path: "", error };
+        authStore.setView("db_setup");
+      } else {
+        authStore.setView("db_restore");
+      }
     }
   }
 
   $effect(() => {
     checkDb();
+    updaterStore.check();
   });
 
   async function loadSessions() {
@@ -213,6 +234,14 @@
     authStore.authError = "";
     authStore.authSuccess = "";
   }
+
+  async function handleUpdateClick() {
+    if (updaterStore.status === "downloaded") {
+      await updaterStore.install();
+    } else {
+      await updaterStore.download();
+    }
+  }
 </script>
 
 <div class="{authStore.view === "dashboard" ? "h-screen" : "min-h-screen"} bg-slate-50 text-slate-800 flex flex-col font-sans">
@@ -232,6 +261,26 @@
     <div class="flex items-center gap-8 text-xs font-semibold">
       <!-- Language Selector and Github -->
       <div class="flex items-center gap-2">
+        {#if updaterStore.isAvailable}
+          <button
+            type="button"
+            onclick={handleUpdateClick}
+            disabled={updaterStore.status === 'downloading' || updaterStore.status === 'installing'}
+            class="px-3 py-1.5 text-[10px] font-bold tracking-wider rounded-none bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-75 disabled:cursor-not-allowed"
+          >
+            {#if updaterStore.status === 'downloading'}
+              <span class="w-2 h-2 border border-white border-t-transparent rounded-full animate-spin"></span>
+              {t("update-btn-downloading", "Downloading")}{updaterStore.downloadProgress !== null ? ` ${updaterStore.downloadProgress}%` : '...'}
+            {:else if updaterStore.status === 'installing'}
+              <span class="w-2 h-2 border border-white border-t-transparent rounded-full animate-spin"></span>
+              {t("update-btn-installing", "Installing")}{updaterStore.downloadProgress !== null ? ` ${updaterStore.downloadProgress}%` : '...'}
+            {:else if updaterStore.status === 'downloaded'}
+              {t("update-btn-install", "Install Update")}
+            {:else}
+              {t("update-btn-download", "Update")}
+            {/if}
+          </button>
+        {/if}
 
         <div class="flex items-center border border-slate-300 divide-x divide-slate-300 select-none">
           <button
@@ -309,6 +358,8 @@
       </div>
     {:else if authStore.view === "db_restore"}
       <DbRecovery onRestoreRequest={handleRestoreBackup} onRetry={checkDb} />
+    {:else if authStore.view === "db_setup"}
+      <DbSetup onRetry={checkDb} />
     {:else if authStore.view === "auth"}
       <Auth onLoginSuccess={async () => { await loadSessions(); await loadExportSettings(); }} />
 

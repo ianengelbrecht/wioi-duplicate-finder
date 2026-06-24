@@ -1,8 +1,9 @@
 export class AuthStore {
   currentUser = $state(/** @type {any} */ (null)); // { id, username }
-  view = $state("loading"); // "loading", "auth", "dashboard", "workspace", "db_restore"
+  view = $state("loading"); // "loading", "auth", "dashboard", "workspace", "db_restore", "db_setup"
   dbLoadingMessage = $state("Checking database and indexing reference records...");
   dbErrorMessage = $state("");
+  dbSetupState = $state({ type: "", path: "", error: "" });
   authError = $state("");
   authSuccess = $state("");
 
