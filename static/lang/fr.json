@@ -247,5 +247,17 @@
   "update-btn-download": "Mettre à jour",
   "update-btn-downloading": "Téléchargement",
   "update-btn-install": "Installer la mise à jour",
-  "update-btn-installing": "Installation"
+  "update-btn-installing": "Installation",
+  "db-setup-title": "Configuration de la base de données",
+  "db-setup-unconfigured-desc": "Bienvenue dans l'outil de recherche de doublons de spécimens d'herbier. Pour commencer à capturer des enregistrements, veuillez sélectionner le fichier .db que vous avez téléchargé et décompressé",
+  "db-status-missing": "Fichier de base de données manquant",
+  "db-setup-missing-desc": "Le fichier de base de données n'a pas pu être trouvé à l'emplacement précédemment configuré. Il a peut-être été déplacé, renommé ou supprimé.",
+  "db-validation-note": "La vérification peut prendre quelques minutes...",
+  "db-configured-path": "Chemin configuré :",
+  "db-status-invalid": "Structure de base de données invalide",
+  "db-setup-invalid-desc": "Le fichier sélectionné n'est pas une base de données valide ou il manque des tables requises. Veuillez sélectionner un fichier de base de données de référence valide.",
+  "db-validation-error": "Erreur de validation :",
+  "error-prefix": "Erreur :",
+  "db-setup-processing": "Vérification...",
+  "select-db-btn": "Sélectionner le fichier de base de données"
 }

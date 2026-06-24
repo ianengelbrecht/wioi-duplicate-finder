@@ -18,11 +18,11 @@
   let errorMsg = $state("");
 
   async function handleSelectDatabase() {
-    isProcessing = true;
     errorMsg = "";
     try {
       const path = await databaseService.selectDatabaseFile();
       if (path) {
+        isProcessing = true;
         await databaseService.configureDatabase(path);
         // Successful configuration, trigger retry/recheck to progress
         await onRetry();
@@ -52,7 +52,7 @@
     <div class="space-y-4">
       {#if authStore.dbSetupState.type === "unconfigured"}
         <p data-i18n-key="db-setup-unconfigured-desc" class="text-xs text-slate-600 leading-relaxed">
-          {t("db-setup-unconfigured-desc", "Welcome to the Herbarium Specimen Duplicate Finder. To start capturing records, you must configure the location of your reference database file. This database contains taxonomic catalog datasets (GBIF, WCVP) required for autocomplete and verification.")}
+          {t("db-setup-unconfigured-desc", "Welcome to the Herbarium Specimen Duplicate Finder. To start capturing records, please select the .db file you downloaded and unzipped")}
         </p>
       {:else if authStore.dbSetupState.type === "missing"}
         <div class="bg-amber-50 border border-amber-200 p-4 flex flex-col space-y-2">
@@ -78,7 +78,7 @@
             <span>{t("db-status-invalid", "Invalid Database Structure")}</span>
           </div>
           <p data-i18n-key="db-setup-invalid-desc" class="text-xs text-red-900 leading-relaxed">
-            {t("db-setup-invalid-desc", "The selected file is not a valid database or is missing required tables (gbif, wcvp, captured_records). Please select a valid reference database file.")}
+            {t("db-setup-invalid-desc", "The selected file is not a valid database or is missing required tables. Please select a valid reference database file.")}
           </p>
           {#if authStore.dbSetupState.error}
             <div class="bg-white/60 border border-red-200/50 p-2 text-[10px] font-mono break-all text-red-955">
@@ -93,19 +93,15 @@
           <strong>{t("error-prefix", "Error:")}</strong> {errorMsg}
         </div>
       {/if}
-
-      <div class="text-[11px] text-slate-550 leading-relaxed bg-slate-100 p-3 border border-slate-200/55">
-        <span class="font-bold text-slate-700 block mb-1">{t("db-requirements", "Database Requirements:")}</span>
-        <ul class="list-disc list-inside space-y-1">
-          <li>{t("db-req-sqlite", "Must be a SQLite database file.")}</li>
-          <li>{t("db-req-tables", "Must contain tables: gbif, wcvp, captured_records.")}</li>
-          <li>{t("db-req-size", "Reference datasets can exceed 500MB (downloaded separately).")}</li>
-        </ul>
-      </div>
     </div>
 
     <!-- Actions -->
-    <div class="flex pt-2 justify-end">
+    <div class="flex pt-2 {isProcessing ? 'justify-between' : 'justify-end'} items-center">
+      {#if isProcessing}
+        <p data-i18n-key="db-validation-note" class="text-xs text-slate-600 italic">
+          {t("db-validation-note", "Verifying can take a few minutes...")}
+        </p>
+      {/if}
       <button
         type="button"
         disabled={isProcessing}
@@ -116,9 +112,6 @@
           <div class="w-3.5 h-3.5 border-2 border-slate-400 border-t-white rounded-full animate-spin"></div>
           <span>{t("db-setup-processing", "Verifying...")}</span>
         {:else}
-          <svg xmlns="http://www.w3.org/2005/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
           <span>{t("select-db-btn", "Select Database File")}</span>
         {/if}
       </button>

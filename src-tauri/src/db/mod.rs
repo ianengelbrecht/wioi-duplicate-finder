@@ -73,7 +73,7 @@ pub fn validate_database_file(path: &Path) -> std::result::Result<(), String> {
 
     // Check if key tables exist: gbif, wcvp, captured_records
     let mut stmt = conn
-        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('gbif', 'wcvp', 'captured_records');")
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('gbif', 'wcvp_taxonomy', 'captured_records', 'sessions', 'users', 'export_settings');")
         .map_err(|e| format!("Failed to query table metadata: {}", e))?;
 
     let found_tables: Vec<String> = stmt
@@ -82,7 +82,7 @@ pub fn validate_database_file(path: &Path) -> std::result::Result<(), String> {
         .filter_map(Result::ok)
         .collect();
 
-    let required = ["gbif", "wcvp", "captured_records"];
+    let required = ["gbif", "wcvp_taxonomy", "captured_records", "sessions", "users", "export_settings"];
     let missing: Vec<&str> = required
         .iter()
         .filter(|&&t| !found_tables.iter().any(|f| f == t))

@@ -248,5 +248,17 @@
   "update-btn-download": "Havaozina",
   "update-btn-downloading": "Raha alaina",
   "update-btn-install": "Hametraka fanavaozana",
-  "update-btn-installing": "Mametraka"
+  "update-btn-installing": "Mametraka",
+  "db-setup-title": "Fikirakirana ny Database",
+  "db-setup-unconfigured-desc": "Tonga soa eto amin'ny Herbarium Specimen Duplicate Finder. Raha hanomboka hampiditra angona, safidio azafady ny rakitra .db izay nalainao sy novahanao",
+  "db-status-missing": "Tsy hita ny rakitra Database",
+  "db-validation-note": "Ny fanamarinana dia mety haharitra minitra vitsivitsy...",
+  "db-setup-missing-desc": "Tsy hita tamin'ilay toerana efa namboarina teo aloha ny rakitra database. Mety ho nafindra, novana anarana, na voafafa izany.",
+  "db-configured-path": "Toerana voafidy:",
+  "db-status-invalid": "Tsy manankery ny firafitry ny Database",
+  "db-setup-invalid-desc": "Tsy manankery ny rakitra voafidy na misy tabila ilaina tsy ampy. Safidio azafady ny rakitra database manankery.",
+  "db-validation-error": "Fahadisoana amin'ny fisavana:",
+  "error-prefix": "Fahadisoana:",
+  "db-setup-processing": "Manamarina...",
+  "select-db-btn": "Safidio ny rakitra Database"
 }

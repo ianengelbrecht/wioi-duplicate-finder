@@ -248,5 +248,17 @@
   "update-btn-download": "Atualizar",
   "update-btn-downloading": "Baixando",
   "update-btn-install": "Instalar Atualização",
-  "update-btn-installing": "Instalando"
+  "update-btn-installing": "Instalando",
+  "db-setup-title": "Configuração do Banco de Dados",
+  "db-setup-unconfigured-desc": "Bem-vindo ao Localizador de Duplicatas de Espécimes de Herbário. Para começar a capturar registros, selecione o arquivo .db que você baixou e descompactou",
+  "db-status-missing": "Arquivo do Banco de Dados Ausente",
+  "db-validation-note": "A validação pode levar alguns minutos...",
+  "db-setup-missing-desc": "O arquivo do banco de dados não pôde ser encontrado no local configurado anteriormente. Ele pode ter sido movido, renomeado ou excluído.",
+  "db-configured-path": "Caminho configurado:",
+  "db-status-invalid": "Estrutura do Banco de Dados Inválida",
+  "db-setup-invalid-desc": "O arquivo selecionado não é um banco de dados válido ou está faltando tabelas necessárias. Por favor, selecione um arquivo de banco de dados de referência válido.",
+  "db-validation-error": "Erro de validação:",
+  "error-prefix": "Erro:",
+  "db-setup-processing": "Verificando...",
+  "select-db-btn": "Selecionar Arquivo de Banco de Dados"
 }
