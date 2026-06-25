@@ -291,7 +291,9 @@
       day: form.day !== "" ? parseInt(form.day) : null,
       yearIdentified: form.yearIdentified !== "" ? parseInt(form.yearIdentified) : null,
       monthIdentified: form.monthIdentified !== "" ? parseInt(form.monthIdentified) : null,
-      dayIdentified: form.dayIdentified !== "" ? parseInt(form.dayIdentified) : null
+      dayIdentified: form.dayIdentified !== "" ? parseInt(form.dayIdentified) : null,
+      decimalLatitude: (form.decimalLatitude !== "" && form.decimalLatitude !== null && form.decimalLatitude !== undefined && !isNaN(parseFloat(form.decimalLatitude))) ? parseFloat(form.decimalLatitude) : null,
+      decimalLongitude: (form.decimalLongitude !== "" && form.decimalLongitude !== null && form.decimalLongitude !== undefined && !isNaN(parseFloat(form.decimalLongitude))) ? parseFloat(form.decimalLongitude) : null
     };
 
     // Prevent saving blank record

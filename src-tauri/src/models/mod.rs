@@ -53,6 +53,7 @@ pub struct CapturedRecord {
     pub month_identified: Option<i32>,
     pub day_identified: Option<i32>,
     pub identification_remarks: Option<String>,
+    #[serde(rename = "taxonID")]
     pub taxon_id: Option<String>,
     pub cultivated: bool,
 }
@@ -67,6 +68,7 @@ pub struct ExportSettingsDto {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TaxonAutocompleteResult {
+    #[serde(rename = "taxonID")]
     pub taxon_id: String,
     pub scientific_name: String,
     pub family: String,
