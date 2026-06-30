@@ -148,7 +148,7 @@
       workspaceStore.exportFormat = settings.format || "DwC";
       if (settings.mappings) {
         let maps = JSON.parse(settings.mappings);
-        workspaceStore.workingCollectionCode = maps.collectionCode || "WIOI";
+        workspaceStore.workingCollectionCode = maps.collectionCode || "RHOIO";
         workspaceStore.includeGridReference = maps.includeGridReference || false;
         workspaceStore.databaseBackupLocation = maps.backupLocation || workspaceStore.defaultBackupLocation;
       } else {
@@ -249,7 +249,7 @@
   <header class="bg-white border-b border-slate-300 px-6 py-4 flex justify-between items-center z-10">
     <div class="flex items-center gap-3">
       <div class="bg-slate-800 text-white p-1.5 font-extrabold text-sm uppercase tracking-widest">
-        WIOI
+        RHOIO
       </div>
       <div>
         <h1 data-i18n-key="app-title" class="text-md font-bold tracking-tight text-slate-800">{t("app-title", "Herbarium Specimen Duplicate Finder")}</h1>

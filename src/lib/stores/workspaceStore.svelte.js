@@ -1,11 +1,11 @@
 export class WorkspaceStore {
-  activeSession = $state(/** @type {any} */ (null)); // { id, name, recordCount }
-  sessionList = $state(/** @type {any[]} */ ([]));
-  activeRecord = $state(/** @type {any} */ (null)); // Specimen being captured or edited
-  capturedRecords = $state(/** @type {any[]} */ ([])); // Captured specimens in active session
-  
+  activeSession = $state(/** @type {any} */(null)); // { id, name, recordCount }
+  sessionList = $state(/** @type {any[]} */([]));
+  activeRecord = $state(/** @type {any} */(null)); // Specimen being captured or edited
+  capturedRecords = $state(/** @type {any[]} */([])); // Captured specimens in active session
+
   exportFormat = $state("DwC"); // "DwC" or "BRAHMS"
-  workingCollectionCode = $state("WIOI");
+  workingCollectionCode = $state("RHOIO");
   includeGridReference = $state(false);
   databaseBackupLocation = $state("");
   defaultBackupLocation = $state("");
