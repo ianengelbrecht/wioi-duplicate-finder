@@ -621,7 +621,7 @@
               type="checkbox"
               disabled={isReferenceImporting}
               bind:checked={appendReferenceData}
-              class="w-4 h-4 text-slate-800 border-slate-300 rounded focus:ring-slate-500 focus:ring-1 cursor-pointer"
+              class="w-4 h-4 text-slate-800 accent-slate-800 border-slate-300 rounded focus:ring-slate-500 focus:ring-1 cursor-pointer"
             />
             <label for="reference-dialog-append" class="text-xs font-bold text-slate-700 uppercase tracking-wider cursor-pointer">
               {t("reference-append-label", "Append to existing dataset")}

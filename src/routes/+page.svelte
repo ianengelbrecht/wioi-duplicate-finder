@@ -403,6 +403,20 @@
             <a href="https://varuna-biodiversite.org" target="_blank" rel="noopener noreferrer">
               <img src="funders_desat.png" alt="Funders Logos" class="w-full" />
             </a>
+            <p class="w-full text-right text-xs text-slate-600 mt-2">Built with 
+              <a href="https://svelte.dev" target="_blank" rel="noopener noreferrer" title="Svelte" class="underline hover:text-slate-800 transition-colors">
+                <img src="svelte.svg" alt="Svelte Logo" class="inline-block w-4 h-4 ml-1" /> 
+              </a> |
+              <a href="https://tailwindcss.com" target="_blank" rel="noopener noreferrer" title="Tailwind CSS" class="underline hover:text-slate-800 transition-colors">
+                <img src="tailwindcss.svg" alt="Tailwind CSS Logo" class="inline-block w-4 h-4 ml-1" />
+              </a> |
+              <a href="https://www.sqlite.org" target="_blank" rel="noopener noreferrer" title="SQLite" class="underline hover:text-slate-800 transition-colors">
+                <img src="sqlite.svg" alt="SQLite Logo" class="inline-block w-4 h-4 ml-1" />
+              </a> |
+              <a href="https://tauri.app" target="_blank" rel="noopener noreferrer" title="Tauri" class="underline hover:text-slate-800 transition-colors">
+                <img src="tauri.svg" alt="Tauri Logo" class="inline-block w-4 h-4 ml-1" />
+              </a>
+            </p>
           </div>
         </div>
 
