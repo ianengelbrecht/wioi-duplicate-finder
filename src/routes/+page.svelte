@@ -334,7 +334,7 @@
           href="https://github.com/ianengelbrecht/wioi-duplicate-finder"
           target="_blank"
           rel="noopener noreferrer"
-          class=""
+          class="shrink-0"
           title="View on GitHub"
         >
           <img src="github.png" alt="GitHub" class="w-5 h-5 inline-block mr-1" />
@@ -345,7 +345,7 @@
           target="_blank"
           rel="noopener noreferrer"
           title="Documentation"
-          class="w-6 h-6 text-slate-600"
+          class="w-6 h-6 shrink-0 text-slate-600"
         >
           <QuestionIcon  />
         </a>
