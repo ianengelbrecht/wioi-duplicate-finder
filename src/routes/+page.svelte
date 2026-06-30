@@ -381,7 +381,7 @@
 
     <!-- VIEW 2: SESSION MANAGEMENT & EXPORT SETTINGS DASHBOARD -->
     {:else if authStore.view === "dashboard"}
-      <div class="flex-1 max-w-5xl mx-auto w-full p-6 grid grid-cols-1 md:grid-cols-3 gap-6 min-h-0">
+      <div class="relative flex-1 max-w-5xl mx-auto w-full p-6 grid grid-cols-1 md:grid-cols-3 gap-6 min-h-0">
         <!-- Sidebar Navigation Tabs -->
         <div class="md:col-span-1 flex flex-col justify-between ">
           <div class="flex flex-col gap-2">
@@ -403,20 +403,7 @@
             <a href="https://varuna-biodiversite.org" target="_blank" rel="noopener noreferrer">
               <img src="funders_desat.png" alt="Funders Logos" class="w-full" />
             </a>
-            <p class="w-full text-right text-xs text-slate-600 mt-2">Built with 
-              <a href="https://svelte.dev" target="_blank" rel="noopener noreferrer" title="Svelte" class="underline hover:text-slate-800 transition-colors">
-                <img src="svelte.svg" alt="Svelte Logo" class="inline-block w-4 h-4 ml-1" /> 
-              </a> |
-              <a href="https://tailwindcss.com" target="_blank" rel="noopener noreferrer" title="Tailwind CSS" class="underline hover:text-slate-800 transition-colors">
-                <img src="tailwindcss.svg" alt="Tailwind CSS Logo" class="inline-block w-4 h-4 ml-1" />
-              </a> |
-              <a href="https://www.sqlite.org" target="_blank" rel="noopener noreferrer" title="SQLite" class="underline hover:text-slate-800 transition-colors">
-                <img src="sqlite.svg" alt="SQLite Logo" class="inline-block w-4 h-4 ml-1" />
-              </a> |
-              <a href="https://tauri.app" target="_blank" rel="noopener noreferrer" title="Tauri" class="underline hover:text-slate-800 transition-colors">
-                <img src="tauri.svg" alt="Tauri Logo" class="inline-block w-4 h-4 ml-1" />
-              </a>
-            </p>
+            
           </div>
         </div>
 
@@ -428,6 +415,20 @@
             <SettingsTab onRestoreRequest={handleRestoreBackup} />
           {/if}
         </div>
+        <p class="absolute bottom-6 -right-40 text-xs text-slate-600">Built with 
+          <a href="https://svelte.dev" target="_blank" rel="noopener noreferrer" title="Svelte" class="underline hover:text-slate-800 transition-colors">
+            <img src="svelte.svg" alt="Svelte Logo" class="inline-block w-4 h-4 ml-1" /> 
+          </a> |
+          <a href="https://tailwindcss.com" target="_blank" rel="noopener noreferrer" title="Tailwind CSS" class="underline hover:text-slate-800 transition-colors">
+            <img src="tailwindcss.svg" alt="Tailwind CSS Logo" class="inline-block w-4 h-4 ml-1" />
+          </a> |
+          <a href="https://www.sqlite.org" target="_blank" rel="noopener noreferrer" title="SQLite" class="underline hover:text-slate-800 transition-colors">
+            <img src="sqlite.svg" alt="SQLite Logo" class="inline-block w-4 h-4 ml-1" />
+          </a> |
+          <a href="https://tauri.app" target="_blank" rel="noopener noreferrer" title="Tauri" class="underline hover:text-slate-800 transition-colors">
+            <img src="tauri.svg" alt="Tauri Logo" class="inline-block w-4 h-4 ml-1" />
+          </a>
+        </p>
       </div>
 
     <!-- VIEW 3: MAIN DUAL-PANE WORKSPACE -->
