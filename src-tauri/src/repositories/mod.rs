@@ -909,7 +909,7 @@ impl ReferenceRepository {
         }))
     }
 
-    pub fn import_csv(conn: &mut Connection, filepath: &str) -> Result<(), String> {
+    pub fn import_csv(conn: &mut Connection, filepath: &str, append: bool) -> Result<(), String> {
         let mut rdr = csv::ReaderBuilder::new()
             .has_headers(true)
             .from_path(filepath)
@@ -990,10 +990,12 @@ impl ReferenceRepository {
         let tx = conn.transaction().map_err(|e| e.to_string())?;
 
         // 1. Delete all existing records
-        tx.execute("DELETE FROM gbif", [])
-            .map_err(|e| e.to_string())?;
-        tx.execute("DELETE FROM agents", [])
-            .map_err(|e| e.to_string())?;
+        if !append {
+            tx.execute("DELETE FROM gbif", [])
+                .map_err(|e| e.to_string())?;
+            tx.execute("DELETE FROM agents", [])
+                .map_err(|e| e.to_string())?;
+        }
 
         // 2. Drop triggers temporarily for import performance
         let _ = tx.execute("DROP TRIGGER IF EXISTS gbif_ai", []);
@@ -1005,7 +1007,7 @@ impl ReferenceRepository {
         // 3. Perform inserts
         {
             let mut stmt = tx.prepare_cached(
-                "INSERT INTO gbif (
+                "INSERT OR IGNORE INTO gbif (
                     gbifID, collectionCode, catalogNumber, recordNumber, recordedBy,
                     year, month, day, verbatimEventDate, country,
                     stateProvince, county, municipality, locality, verbatimLocality,

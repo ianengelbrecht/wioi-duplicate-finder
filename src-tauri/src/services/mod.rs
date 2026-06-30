@@ -482,9 +482,13 @@ impl ReferenceService {
         ReferenceRepository::get_metadata(&conn)
     }
 
-    pub fn import_reference_dataset(app: &AppHandle, filepath: &str) -> Result<(), String> {
+    pub fn import_reference_dataset(
+        app: &AppHandle,
+        filepath: &str,
+        append: bool,
+    ) -> Result<(), String> {
         let mut conn = get_connection(app)?;
-        ReferenceRepository::import_csv(&mut conn, filepath)?;
+        ReferenceRepository::import_csv(&mut conn, filepath, append)?;
         crate::db::finalize_reference_import(&mut conn)?;
         Ok(())
     }

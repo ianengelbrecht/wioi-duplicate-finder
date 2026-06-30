@@ -151,10 +151,7 @@ pub fn normalize_search_recorded_by(s: &str) -> String {
 
 /// Helper function to check if a string consists entirely of initials
 pub fn is_initials(s: &str) -> bool {
-    let tokens: Vec<&str> = s
-        .split([' ', '.'])
-        .filter(|t| !t.is_empty())
-        .collect();
+    let tokens: Vec<&str> = s.split([' ', '.']).filter(|t| !t.is_empty()).collect();
     if tokens.is_empty() {
         return false;
     }

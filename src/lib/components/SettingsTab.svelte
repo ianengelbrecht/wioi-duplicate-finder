@@ -19,9 +19,19 @@
   let countries = $state(/** @type {string[]} */ ([]));
   let collectionCodes = $state(/** @type {string[]} */ ([]));
   let loadingMetadata = $state(false);
-  let importStatus = $state("");
-  let importError = $state("");
-  let isImporting = $state(false);
+
+  /** @type {boolean} */
+  let showReferenceImportDialog = $state(false);
+  /** @type {string} */
+  let selectedReferenceCsvPath = $state("");
+  /** @type {string} */
+  let referenceImportStatus = $state("");
+  /** @type {string} */
+  let referenceImportError = $state("");
+  /** @type {boolean} */
+  let appendReferenceData = $state(false);
+  /** @type {boolean} */
+  let isReferenceImporting = $state(false);
 
   /** @type {number} */
   let wcvpRecordCount = $state(0);
@@ -134,26 +144,52 @@
     }
   }
 
-  async function handleImportReferenceCsv() {
-    importStatus = "";
-    importError = "";
+  function handleOpenReferenceImportDialog() {
+    showReferenceImportDialog = true;
+    selectedReferenceCsvPath = "";
+    referenceImportStatus = "";
+    referenceImportError = "";
+    appendReferenceData = false;
+  }
+
+  async function handleSelectReferenceCsvFile() {
     try {
       const filepath = await referenceService.selectCsvFile();
-      if (!filepath) {
-        return;
+      if (filepath) {
+        selectedReferenceCsvPath = filepath;
       }
-      isImporting = true;
-      importStatus = "Opening file and starting import process...";
+    } catch (err) {
+      console.error("Failed to select reference CSV file:", err);
+    }
+  }
+
+  async function handleExecuteReferenceImport() {
+    referenceImportStatus = "";
+    referenceImportError = "";
+
+    if (!selectedReferenceCsvPath) {
+      referenceImportError = "Please select a reference CSV file.";
+      return;
+    }
+
+    try {
+      isReferenceImporting = true;
+      referenceImportStatus = "Opening file and starting import process...";
       
-      await referenceService.importReferenceDataset(filepath);
+      await referenceService.importReferenceDataset(selectedReferenceCsvPath, appendReferenceData);
       
-      importStatus = "Reference dataset imported successfully!";
+      referenceImportStatus = "Reference dataset imported successfully!";
       await loadMetadata();
+      setTimeout(() => {
+        showReferenceImportDialog = false;
+        selectedReferenceCsvPath = "";
+        referenceImportStatus = "";
+      }, 1500);
     } catch (e) {
-      importError = "Failed to import reference dataset: " + (/** @type {any} */ (e)).toString();
-      importStatus = "";
+      referenceImportError = "Failed to import reference dataset: " + (/** @type {any} */ (e)).toString();
+      referenceImportStatus = "";
     } finally {
-      isImporting = false;
+      isReferenceImporting = false;
     }
   }
 
@@ -276,23 +312,12 @@
       <button
         type="button"
         data-i18n-key="load-new-dataset"
-        onclick={handleImportReferenceCsv}
-        disabled={isImporting}
-        class="bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:text-slate-400 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors cursor-pointer font-inter"
+        onclick={handleOpenReferenceImportDialog}
+        class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors cursor-pointer font-inter"
       >
-        {isImporting ? t("importing-dataset", "Importing...") : t("load-new-dataset", "Load New Dataset")}
+        {t("load-new-dataset", "Load New Dataset")}
       </button>
-      {#if isImporting}
-        <span data-i18n-key="import-in-progress" class="text-xs text-slate-500 animate-pulse font-inter">{t("import-in-progress", "Processing CSV, normalizing data, and rebuilding indexes. Please wait...")}</span>
-      {/if}
     </div>
-
-    {#if importStatus}
-      <p class="text-xs text-emerald-700 font-medium leading-relaxed mt-2 font-inter">{importStatus}</p>
-    {/if}
-    {#if importError}
-      <p class="text-xs text-red-700 font-medium leading-relaxed mt-2 font-inter">{importError}</p>
-    {/if}
   </div>
 
   <!-- WCVP Dataset Setting -->
@@ -534,6 +559,101 @@
             class="px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white bg-slate-800 hover:bg-slate-900 transition-colors cursor-pointer rounded-none font-inter"
           >
             {isWcvpImporting ? t("importing-dataset", "Importing...") : t("start-import-btn", "Start Import")}
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  {#if showReferenceImportDialog}
+    <div 
+      class="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      onclick={(e) => { if (e.target === e.currentTarget && !isReferenceImporting) showReferenceImportDialog = false; }}
+      onkeydown={(e) => { 
+        if (e.key === "Escape" && !isReferenceImporting) {
+          e.preventDefault();
+          showReferenceImportDialog = false; 
+        }
+      }}
+    >
+      <div class="bg-white border border-slate-200 shadow-2xl max-w-md w-full p-5 flex flex-col gap-4 rounded-none font-inter">
+        <div>
+          <h3 data-i18n-key="reference-import-dialog-title" class="font-bold text-slate-900 uppercase text-xs tracking-wider">{t("reference-import-dialog-title", "Import/Update Reference Dataset")}</h3>
+        </div>
+
+        <div class="space-y-3">
+          <!-- Short note -->
+          <div class="p-3 bg-slate-50 border border-slate-200 text-xs text-slate-600 leading-relaxed font-inter">
+            {t("reference-import-note", "Existing reference data will be overwritten unless appended. Appending is a way to manage the reference data that are most appropriate for your herbarium.")}
+          </div>
+
+          <!-- Select File -->
+          <div class="flex flex-col gap-1">
+            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+              {t("reference-dialog-file-label", "Select Reference CSV File")}
+            </span>
+            <div class="flex gap-2">
+              <input
+                type="text"
+                readonly
+                placeholder={t("reference-dialog-no-file", "No file selected")}
+                bind:value={selectedReferenceCsvPath}
+                class="flex-1 bg-slate-50 border border-slate-300 text-slate-600 text-xs px-3 py-2 outline-none rounded-none font-inter"
+              />
+              <button
+                type="button"
+                disabled={isReferenceImporting}
+                onclick={handleSelectReferenceCsvFile}
+                class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 px-3 py-1.5 text-xs font-semibold rounded-none transition-colors cursor-pointer font-inter"
+              >
+                {t("choose-file-btn", "Choose File")}
+              </button>
+            </div>
+          </div>
+
+          <!-- Append Option -->
+          <div class="flex items-center gap-2 pt-1">
+            <input
+              id="reference-dialog-append"
+              type="checkbox"
+              disabled={isReferenceImporting}
+              bind:checked={appendReferenceData}
+              class="w-4 h-4 text-slate-800 border-slate-300 rounded focus:ring-slate-500 focus:ring-1 cursor-pointer"
+            />
+            <label for="reference-dialog-append" class="text-xs font-bold text-slate-700 uppercase tracking-wider cursor-pointer">
+              {t("reference-append-label", "Append to existing dataset")}
+            </label>
+          </div>
+        </div>
+
+        {#if referenceImportStatus}
+          <p class="text-xs text-emerald-700 font-semibold leading-relaxed mt-1 font-inter">{referenceImportStatus}</p>
+        {/if}
+        {#if referenceImportError}
+          <p class="text-xs text-red-700 font-semibold leading-relaxed mt-1 font-inter">{referenceImportError}</p>
+        {/if}
+
+        <div class="flex justify-end gap-2 mt-2 pt-2 border-t border-slate-100">
+          <button
+            type="button"
+            data-i18n-key="cancel-btn"
+            disabled={isReferenceImporting}
+            onclick={() => { showReferenceImportDialog = false; }}
+            class="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 border border-slate-200 transition-colors cursor-pointer rounded-none font-inter"
+          >
+            {t("cancel-btn", "Cancel")}
+          </button>
+          <button
+            type="button"
+            data-i18n-key="start-import-btn"
+            disabled={isReferenceImporting || !selectedReferenceCsvPath}
+            onclick={handleExecuteReferenceImport}
+            class="px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white bg-slate-800 hover:bg-slate-900 transition-colors cursor-pointer rounded-none font-inter"
+          >
+            {isReferenceImporting ? t("importing-dataset", "Importing...") : t("start-import-btn", "Start Import")}
           </button>
         </div>
       </div>

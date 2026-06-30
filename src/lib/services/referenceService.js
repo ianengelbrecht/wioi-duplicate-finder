@@ -20,10 +20,11 @@ export const referenceService = {
   /**
    * Imports the reference dataset from a CSV file path.
    * @param {string} filepath The path to the CSV file.
+   * @param {boolean} append Whether to append the data to the existing dataset.
    * @returns {Promise<void>}
    */
-  async importReferenceDataset(filepath) {
-    return await invoke("import_reference_dataset", { filepath });
+  async importReferenceDataset(filepath, append) {
+    return await invoke("import_reference_dataset", { filepath, append });
   },
 
   /**

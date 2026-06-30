@@ -82,7 +82,14 @@ pub fn validate_database_file(path: &Path) -> std::result::Result<(), String> {
         .filter_map(Result::ok)
         .collect();
 
-    let required = ["gbif", "wcvp_taxonomy", "captured_records", "sessions", "users", "export_settings"];
+    let required = [
+        "gbif",
+        "wcvp_taxonomy",
+        "captured_records",
+        "sessions",
+        "users",
+        "export_settings",
+    ];
     let missing: Vec<&str> = required
         .iter()
         .filter(|&&t| !found_tables.iter().any(|f| f == t))
@@ -219,7 +226,7 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
     auto_normalize_reference_data(&mut conn).map_err(|e| e.to_string())?;
 
     // Startup population of the agents table
-    populate_agents_table(&mut conn).map_err(|e| e.to_string())?;
+    populate_agents_table(&mut conn, false).map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -280,7 +287,10 @@ fn prune_database_backups(backups_dir: &Path, today: NaiveDate) {
         let path = entry.path();
         if path.is_file() {
             if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
-                if filename.starts_with("backup_") && filename.ends_with(".db") && filename.len() >= 29 {
+                if filename.starts_with("backup_")
+                    && filename.ends_with(".db")
+                    && filename.len() >= 29
+                {
                     let ts_str = &filename[7..filename.len() - 3];
                     if let Ok(dt) = NaiveDateTime::parse_from_str(ts_str, "%Y-%m-%d_%H-%M-%S") {
                         let date = dt.date();
@@ -1237,12 +1247,17 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
     Ok(())
 }
 
-pub fn populate_agents_table(conn: &mut Connection) -> std::result::Result<(), String> {
-    let count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM agents", [], |r| r.get(0))
-        .map_err(|e| e.to_string())?;
-    if count > 0 {
-        return Ok(());
+pub fn populate_agents_table(
+    conn: &mut Connection,
+    force: bool,
+) -> std::result::Result<(), String> {
+    if !force {
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM agents", [], |r| r.get(0))
+            .map_err(|e| e.to_string())?;
+        if count > 0 {
+            return Ok(());
+        }
     }
 
     info!("Agents table is empty. Populating from gbif...");
@@ -1299,7 +1314,7 @@ pub fn finalize_reference_import(conn: &mut Connection) -> std::result::Result<(
     conn.execute("INSERT INTO gbif_fts(gbif_fts) VALUES('rebuild');", [])
         .map_err(|e| e.to_string())?;
 
-    populate_agents_table(conn).map_err(|e| e.to_string())?;
+    populate_agents_table(conn, true).map_err(|e| e.to_string())?;
 
     Ok(())
 }

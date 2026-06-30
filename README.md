@@ -4,7 +4,7 @@ This application is designed to help speed up herbarium specimen digitization by
 
 ## How the Tool Works
 
-See the full documentation at ...
+See the [full documentation at this site](https://ianengelbrecht.github.io/wioi-duplicate-finder-docs/).
 
 The application uses data downloaded from GBIF as a reference database for finding duplicates. The interface is split into two parts:
 
@@ -13,22 +13,24 @@ The application uses data downloaded from GBIF as a reference database for findi
 
 Once you have finished capturing specimens for a session, you can export your captured records to a standard CSV file. This CSV file can then be imported into your main herbarium database system.
 
-## Reference data [coming soon]
+## Reference data
 
-The data in the reference database need to be prepared from a GBIF download. Go to GBIF, select the collections and geographic area you would like to work with, and download the data. Then you need to prepare the data using the scripts in .... This includes standardizing collector names and cleaning up collection codes. Then import the dataset into the tool and you're ready to get started.
+The data in the reference database need to be prepared from a GBIF download. Go to GBIF, select the collections and geographic area you would like to work with, and download the data. Then you need to prepare the data using the scripts in the `data-prep`folder here. This includes standardizing collector names and cleaning up collection codes. That folder has instructions for data preparation.
+
+Once your dataset is ready you can import it into the application from the Settings page (see the documentation). 
 
 ## How to Install and Run the Tool
 
 ### Running from the Installer
 
-An installer package will be linked here once the production file is uploaded. Installing this version handles all setup steps automatically.
+The latest installer and available databases are available from the Installation page of the documentionat site. Follow those instructions to install and set up the application.
 
 ### Running from Source Code
 
 If you want to run the application from source code instead of using the installer, follow these steps:
 
 1. Clone the repository:
-   git clone <repository-url>
+   git clone https://github.com/ianengelbrecht/wioi-duplicate-finder.git
 
 2. Install Node.js dependencies:
    From the project root directory, run:

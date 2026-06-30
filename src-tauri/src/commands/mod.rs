@@ -306,8 +306,12 @@ pub async fn get_reference_metadata(app: AppHandle) -> Result<serde_json::Value,
 }
 
 #[tauri::command]
-pub async fn import_reference_dataset(app: AppHandle, filepath: String) -> Result<(), String> {
-    ReferenceService::import_reference_dataset(&app, &filepath)
+pub async fn import_reference_dataset(
+    app: AppHandle,
+    filepath: String,
+    append: bool,
+) -> Result<(), String> {
+    ReferenceService::import_reference_dataset(&app, &filepath, append)
 }
 
 #[tauri::command]
