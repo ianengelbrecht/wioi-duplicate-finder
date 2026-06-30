@@ -13,17 +13,21 @@ The application uses data downloaded from GBIF as a reference database for findi
 
 Once you have finished capturing specimens for a session, you can export your captured records to a standard CSV file. This CSV file can then be imported into your main herbarium database system.
 
+## Full documentation
+
+Full documentation for the tool is [available at this link](https://ianengelbrecht.github.io/wioi-duplicate-finder-docs).
+
 ## Reference data
 
 The data in the reference database need to be prepared from a GBIF download. Go to GBIF, select the collections and geographic area you would like to work with, and download the data. Then you need to prepare the data using the scripts in the `data-prep`folder here. This includes standardizing collector names and cleaning up collection codes. That folder has instructions for data preparation.
 
-Once your dataset is ready you can import it into the application from the Settings page (see the documentation). 
+Once your dataset is ready you can import it into the application from the Settings page (see the documentation).
 
 ## How to Install and Run the Tool
 
 ### Running from the Installer
 
-The latest installer and available databases are available from the Installation page of the documentionat site. Follow those instructions to install and set up the application.
+The latest installer and available databases are available from the Installation page of the documentation site. Follow those instructions to install and set up the application.
 
 ### Running from Source Code
 

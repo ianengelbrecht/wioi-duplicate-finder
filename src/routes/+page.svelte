@@ -11,6 +11,7 @@
   import SessionsTab from "$lib/components/SessionsTab.svelte";
   import SettingsTab from "$lib/components/SettingsTab.svelte";
   import CapturedRecordsTable from "$lib/components/CapturedRecordsTable.svelte";
+  import QuestionIcon from "$lib/components/icons/QuestionIcon.svelte";
 
   // Stores and Services
   import { authStore } from "$lib/stores/authStore.svelte.js";
@@ -330,16 +331,26 @@
         </div>
         <!-- Github button -->
         <a
-          href="https://github.com/your-repo"
+          href="https://github.com/ianengelbrecht/wioi-duplicate-finder"
           target="_blank"
           rel="noopener noreferrer"
           class=""
+          title="View on GitHub"
         >
           <img src="github.png" alt="GitHub" class="w-5 h-5 inline-block mr-1" />
         </a>
+        <!-- Documentation -->
+        <a
+          href="https://ianengelbrecht.github.io/wioi-duplicate-finder-docs/"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Documentation"
+          class="w-6 h-6 text-slate-600"
+        >
+          <QuestionIcon  />
+        </a>
       </div>
       
-
       {#if authStore.currentUser}
         <div class="text-right">
           <span data-i18n-key="logged-in-as" class="text-slate-400 block text-[9px] uppercase tracking-wider">{t("logged-in-as", "Logged In As")}</span>
