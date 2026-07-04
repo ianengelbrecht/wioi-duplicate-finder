@@ -77,7 +77,7 @@ git push origin main
 git push origin app-v0.2.0
 ```
 
-[!CAUTION] Remember to update the version number in the tauri config file!!!
+REMEMBER TO BUMP THE VERSION NUMBER FIRST!!!
 
 ## Deployment database
 
