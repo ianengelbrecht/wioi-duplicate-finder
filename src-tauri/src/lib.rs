@@ -34,6 +34,7 @@ pub fn run() {
             commands::get_sessions,
             commands::search_reference,
             commands::autocomplete_scientific_name,
+            commands::lookup_taxon_by_name,
             commands::autocomplete_recorded_by,
             commands::autocomplete_agent,
             commands::check_agent_exists,

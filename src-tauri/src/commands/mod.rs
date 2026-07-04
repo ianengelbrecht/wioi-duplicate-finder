@@ -89,6 +89,11 @@ pub fn autocomplete_scientific_name(
 }
 
 #[tauri::command]
+pub fn lookup_taxon_by_name(app: AppHandle, name: String) -> Result<Option<String>, String> {
+    TaxonomyService::lookup_taxon_by_name(&app, &name)
+}
+
+#[tauri::command]
 pub fn resolve_wcvp_families(
     app: AppHandle,
     queries: Vec<serde_json::Value>,

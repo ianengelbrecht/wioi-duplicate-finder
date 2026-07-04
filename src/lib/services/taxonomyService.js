@@ -26,5 +26,14 @@ export const taxonomyService = {
    */
   async resolveWcvpFamilies(queries) {
     return await invoke("resolve_wcvp_families", { queries });
+  },
+
+  /**
+   * Looks up a taxon ID in wcvp_taxonomy by scientific name (full string match).
+   * @param {string} name 
+   * @returns {Promise<string|null>}
+   */
+  async lookupTaxonByName(name) {
+    return await invoke("lookup_taxon_by_name", { name });
   }
 };

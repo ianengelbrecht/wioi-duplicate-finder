@@ -175,6 +175,25 @@
       form.identificationQualifier = activeRecord.identificationQualifier || "";
       form.scientificName = activeRecord.scientificName || "";
       form.taxonID = activeRecord.taxonID || "";
+      const activeSciName = activeRecord.scientificName || "";
+      if (activeSciName.trim()) {
+        const trimmedName = activeSciName.trim();
+        taxonomyService.lookupTaxonByName(trimmedName).then((plantNameId) => {
+          if (plantNameId) {
+            form.taxonID = plantNameId;
+            nameValidationStatus = "valid";
+          } else {
+            form.taxonID = "";
+            nameValidationStatus = "invalid";
+          }
+        }).catch((err) => {
+          console.error("Error looking up taxon for activeRecord:", err);
+          form.taxonID = "";
+          nameValidationStatus = "invalid";
+        });
+      } else {
+        nameValidationStatus = "unchecked";
+      }
       form.typeStatus = activeRecord.typeStatus || "";
       
       if (activeRecord.identifiedBy) {
@@ -392,6 +411,7 @@
     duplicateSuggestions = [];
     titleCasedStates = getInitialTrackingState();
     eventDateLanguage = "EN";
+    nameValidationStatus = "unchecked";
   }
 
   function handleShowPreviousRecord() {
@@ -433,6 +453,11 @@
     form.identificationQualifier = lastSavedRecord.identificationQualifier;
     form.scientificName = lastSavedRecord.scientificName;
     form.taxonID = lastSavedRecord.taxonID;
+    if (form.scientificName) {
+      nameValidationStatus = form.taxonID ? "valid" : "invalid";
+    } else {
+      nameValidationStatus = "unchecked";
+    }
     form.typeStatus = lastSavedRecord.typeStatus;
     
     if (lastSavedRecord.identifiedBy) {
@@ -915,6 +940,8 @@
   // --- Taxonomy Section ---
   /** @type {any[]} */
   let taxonSuggestions = $state([]);
+  /** @type {string} */
+  let nameValidationStatus = $state("unchecked"); // "unchecked", "valid", "invalid"
   /** @type {string[]} */
   let typeStatusSuggestions = $state([]);
 
@@ -926,6 +953,9 @@
    * @param {string} val
    */
   async function handleTaxonInput(val) {
+    form.taxonID = "";
+    nameValidationStatus = "unchecked";
+
     if (val.trim().length < 2) {
       taxonSuggestions = [];
       return;
@@ -943,6 +973,30 @@
   function handleTaxonSelect(sug) {
     form.scientificName = sug.scientificName || "";
     form.taxonID = sug.taxonID || "";
+    nameValidationStatus = sug.taxonID ? "valid" : "invalid";
+  }
+
+  async function handleTaxonBlur() {
+    const trimmed = form.scientificName.trim();
+    if (!trimmed) {
+      form.taxonID = "";
+      nameValidationStatus = "unchecked";
+      return;
+    }
+    try {
+      const plantNameId = await taxonomyService.lookupTaxonByName(trimmed);
+      if (plantNameId) {
+        form.taxonID = plantNameId;
+        nameValidationStatus = "valid";
+      } else {
+        form.taxonID = "";
+        nameValidationStatus = "invalid";
+      }
+    } catch (err) {
+      console.error("Error looking up taxon by name:", err);
+      form.taxonID = "";
+      nameValidationStatus = "invalid";
+    }
   }
 
   /**
@@ -1868,7 +1922,7 @@
         </div>
 
         <!-- Scientific Name -->
-        <div class="col-span-7">
+        <div class="relative col-span-7">
           <Autocomplete
             id="capture-scientificName"
             label="Scientific Name"
@@ -1879,8 +1933,12 @@
             suggestions={taxonSuggestions}
             oninput={handleTaxonInput}
             onselect={handleTaxonSelect}
+            onblur={handleTaxonBlur}
             delay={300}
           />
+          {#if nameValidationStatus === "invalid" && form.scientificName}
+            <div class="absolute text-xs font-semibold uppercase text-amber-400 top-0 right-0">Name not in WCVP</div>
+          {/if}
         </div>
 
         <!-- Type Status -->

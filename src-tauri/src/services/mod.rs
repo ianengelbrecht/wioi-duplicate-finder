@@ -290,6 +290,14 @@ impl TaxonomyService {
         TaxonomyRepository::autocomplete_scientific_name(&conn, query).map_err(|e| e.to_string())
     }
 
+    pub fn lookup_taxon_by_name(
+        app: &AppHandle,
+        name: &str,
+    ) -> Result<Option<String>, String> {
+        let conn = get_connection(app)?;
+        TaxonomyRepository::lookup_taxon_by_name(&conn, name).map_err(|e| e.to_string())
+    }
+
     pub fn resolve_wcvp_families(
         app: &AppHandle,
         queries: Vec<serde_json::Value>,

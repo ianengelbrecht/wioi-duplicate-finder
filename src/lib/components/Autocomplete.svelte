@@ -13,6 +13,7 @@
     oninput = () => {},
     onselect = () => {},
     onfocus = () => {},
+    onblur = () => {},
     delay = 0,
     customSelect = false,
     promptNewAgent = false,
@@ -113,6 +114,7 @@
       if (val) {
         await checkAndSaveAgent(val);
       }
+      onblur();
     }, 200);
   }
 

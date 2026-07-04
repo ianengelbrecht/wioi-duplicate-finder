@@ -270,7 +270,7 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
     }
 
     // Setup tables
-    run_migrations(&conn).map_err(|e| e.to_string())?;
+    run_migrations(&mut conn).map_err(|e| e.to_string())?;
 
     // Validate structure after running migrations if it was a new empty database
     if is_new {
@@ -504,7 +504,7 @@ pub fn perform_database_backup(app: &AppHandle) {
     prune_database_backups(&backups_dir, now.naive_local().date());
 }
 
-fn run_migrations(conn: &Connection) -> Result<()> {
+fn run_migrations(conn: &mut Connection) -> Result<()> {
     // 0. Drop old tables, triggers, and virtual tables if they exist
     let _ = conn.execute("DROP TRIGGER IF EXISTS parsed_gbif_ai", []);
     let _ = conn.execute("DROP TRIGGER IF EXISTS parsed_gbif_ad", []);
@@ -654,10 +654,29 @@ fn run_migrations(conn: &Connection) -> Result<()> {
             parent_plant_name_id TEXT,
             powo_id TEXT,
             hybrid_formula TEXT,
-            reviewed TEXT
+            reviewed TEXT,
+            fullname TEXT
         );",
         [],
     )?;
+
+    let wcvp_fn_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('wcvp_taxonomy') WHERE name='fullname'",
+            [],
+            |r| r.get::<_, i32>(0).map(|c| c > 0),
+        )
+        .unwrap_or(false);
+
+    if !wcvp_fn_exists {
+        info!("Adding fullname column to wcvp_taxonomy...");
+        conn.execute("ALTER TABLE wcvp_taxonomy ADD COLUMN fullname TEXT", [])?;
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_wcvp_taxonomy_fullname ON wcvp_taxonomy(fullname COLLATE NOCASE);",
+            [],
+        )?;
+        crate::repositories::ReferenceRepository::populate_wcvp_fullname(conn)?;
+    }
 
     // 2. Local capturing schema tables
     conn.execute(
@@ -850,6 +869,10 @@ fn run_migrations(conn: &Connection) -> Result<()> {
     conn.execute("CREATE INDEX IF NOT EXISTS idx_wcvp_taxonomy_parent_plant_name_id ON wcvp_taxonomy(parent_plant_name_id);", [])?;
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_wcvp_taxonomy_taxon_name ON wcvp_taxonomy(taxon_name);",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_wcvp_taxonomy_fullname ON wcvp_taxonomy(fullname COLLATE NOCASE);",
         [],
     )?;
 
@@ -1573,7 +1596,8 @@ mod tests {
                 parent_plant_name_id TEXT,
                 powo_id TEXT,
                 hybrid_formula TEXT,
-                reviewed TEXT
+                reviewed TEXT,
+                fullname TEXT
             );",
             [],
         )

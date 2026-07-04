@@ -511,7 +511,7 @@ impl TaxonomyRepository {
         }
 
         let mut stmt = conn.prepare(
-            "SELECT plant_name_id, taxon_name, family, genus, species, taxon_authors, taxon_rank 
+            "SELECT plant_name_id, taxon_name, family, genus, species, taxon_authors, taxon_rank, fullname 
              FROM wcvp_taxonomy 
              WHERE rowid IN (SELECT rowid FROM wcvp_taxonomy_fts WHERE wcvp_taxonomy_fts MATCH ?1) 
              LIMIT 15",
@@ -525,11 +525,14 @@ impl TaxonomyRepository {
             let species: Option<String> = row.get(4)?;
             let authors: Option<String> = row.get(5)?;
             let rank: Option<String> = row.get(6)?;
+            let fullname: Option<String> = row.get(7)?;
 
-            let full_name = match &authors {
-                Some(a) if !a.trim().is_empty() => format!("{} {}", name, a.trim()),
-                _ => name,
-            };
+            let full_name = fullname.unwrap_or_else(|| {
+                match &authors {
+                    Some(a) if !a.trim().is_empty() => format!("{} {}", name, a.trim()),
+                    _ => name,
+                }
+            });
 
             Ok(TaxonAutocompleteResult {
                 taxon_id: id,
@@ -547,6 +550,34 @@ impl TaxonomyRepository {
             list.push(r?);
         }
         Ok(list)
+    }
+
+    pub fn lookup_taxon_by_name(
+        conn: &Connection,
+        name: &str,
+    ) -> Result<Option<String>, Error> {
+        let trimmed = name.trim();
+        if trimmed.is_empty() {
+            return Ok(None);
+        }
+
+        let mut stmt = conn.prepare(
+            "SELECT plant_name_id 
+             FROM wcvp_taxonomy 
+             WHERE fullname = ?1 COLLATE NOCASE 
+             LIMIT 1",
+        )?;
+
+        let mut rows = stmt.query_map(params![trimmed], |row| {
+            row.get::<_, String>(0)
+        })?;
+
+        if let Some(r) = rows.next() {
+            let id = r?;
+            Ok(Some(id))
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn find_family_recursive(
@@ -916,6 +947,85 @@ impl GeographyRepository {
 pub struct ReferenceRepository;
 
 impl ReferenceRepository {
+    pub fn populate_wcvp_fullname(conn: &mut Connection) -> Result<(), Error> {
+        log::info!("Populating fullname column in wcvp_taxonomy...");
+
+        // 1. Set the standard names (taxon_name + authors) for all records first
+        conn.execute(
+            "UPDATE wcvp_taxonomy 
+             SET fullname = TRIM(taxon_name || ' ' || COALESCE(taxon_authors, ''))",
+            [],
+        )?;
+
+        let mut updates = Vec::new();
+
+        // 2. Select autonyms that need the special botanical formulation
+        {
+            let mut stmt = conn.prepare(
+                "SELECT plant_name_id, taxon_name, species, infraspecific_rank, taxon_authors, parent_plant_name_id 
+                 FROM wcvp_taxonomy 
+                 WHERE infraspecies IS NOT NULL AND infraspecies != '' AND infraspecies = species",
+            )?;
+
+            let mut parent_stmt = conn.prepare(
+                "SELECT taxon_authors FROM wcvp_taxonomy WHERE plant_name_id = ?1",
+            )?;
+
+            let mut rows = stmt.query([])?;
+            while let Some(row) = rows.next()? {
+                let plant_name_id: String = row.get(0)?;
+                let taxon_name: String = row.get(1)?;
+                let _species: String = row.get(2)?;
+                let infraspecific_rank: String = row.get(3)?;
+                let mut taxon_authors: Option<String> = row.get(4)?;
+                let parent_plant_name_id: Option<String> = row.get(5)?;
+
+                // If child authors is empty/None, fetch from parent
+                if taxon_authors.as_deref().unwrap_or("").trim().is_empty() {
+                    if let Some(parent_id) = parent_plant_name_id {
+                        if let Ok(parent_authors) = parent_stmt.query_row(params![parent_id], |r| r.get::<_, Option<String>>(0)) {
+                            taxon_authors = parent_authors;
+                        }
+                    }
+                }
+
+                // Formulate fullname
+                let fullname = if let Some(authors) = taxon_authors {
+                    let authors_trimmed = authors.trim();
+                    if !authors_trimmed.is_empty() {
+                        let rank_search = format!(" {} ", infraspecific_rank);
+                        if let Some(pos) = taxon_name.find(&rank_search) {
+                            let part1 = &taxon_name[..pos];
+                            let part2 = &taxon_name[pos..];
+                            format!("{} {}{}", part1, authors_trimmed, part2)
+                        } else {
+                            format!("{} {}", taxon_name.trim(), authors_trimmed)
+                        }
+                    } else {
+                        taxon_name
+                    }
+                } else {
+                    taxon_name
+                };
+
+                updates.push((plant_name_id, fullname));
+            }
+        }
+
+        // 3. Apply updates inside a transaction
+        let tx = conn.transaction()?;
+        {
+            let mut update_stmt = tx.prepare("UPDATE wcvp_taxonomy SET fullname = ?1 WHERE plant_name_id = ?2")?;
+            for (id, fullname) in updates {
+                update_stmt.execute(params![fullname, id])?;
+            }
+        }
+        tx.commit()?;
+
+        log::info!("Finished populating fullname column in wcvp_taxonomy!");
+        Ok(())
+    }
+
     pub fn get_metadata(conn: &Connection) -> Result<serde_json::Value, String> {
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM gbif", [], |r| r.get(0))
@@ -1529,6 +1639,8 @@ impl ReferenceRepository {
 
         tx.commit()
             .map_err(|e| format!("Failed to commit transaction: {}", e))?;
+
+        Self::populate_wcvp_fullname(conn).map_err(|e| e.to_string())?;
 
         crate::db::set_wcvp_version(conn, version)?;
         crate::db::recreate_wcvp_triggers_and_rebuild_fts(conn)?;
