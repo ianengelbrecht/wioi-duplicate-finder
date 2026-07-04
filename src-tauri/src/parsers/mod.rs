@@ -111,8 +111,22 @@ pub fn normalize_locality(s: &str) -> String {
 }
 
 /// Normalizes a collector name for searchRecordedBy (uppercase, alphanumeric + spaces only).
+/// It also strips common honorifics/titles (like Dr, Prof, Mr, Mrs, Ms, Sir, Lady) so that
+/// names with titles (e.g. "I.B. Walters (Dr)" or "Dr. I.B. Walters") match their plain versions.
 pub fn normalize_search_recorded_by(s: &str) -> String {
-    let mapped: String = s
+    let title_prefixes = ["dr", "prof", "mr", "mrs", "ms", "sir", "lady"];
+    let words: Vec<&str> = s.split_whitespace().collect();
+    let cleaned_words: Vec<&str> = words
+        .into_iter()
+        .filter(|&word| {
+            let clean =
+                word.trim_matches(|c: char| c.is_ascii_punctuation() || c == '(' || c == ')');
+            !title_prefixes.contains(&clean.to_lowercase().as_str())
+        })
+        .collect();
+    let s_cleaned = cleaned_words.join(" ");
+
+    let mapped: String = s_cleaned
         .chars()
         .map(|c| match c {
             'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'Å' => {
@@ -155,38 +169,134 @@ pub fn is_initials(s: &str) -> bool {
     if tokens.is_empty() {
         return false;
     }
-    tokens.iter().all(|t| t.chars().count() == 1)
+    tokens.iter().all(|t| {
+        let char_count = t.chars().count();
+        if char_count == 1 {
+            true
+        } else if char_count <= 3 {
+            t.chars().all(|c| c.is_ascii_uppercase())
+        } else {
+            false
+        }
+    })
 }
 
-/// Splits a raw collector string containing multiple names separated by |, ;, or ,
+fn split_by_other_delimiters(s: &str) -> Vec<String> {
+    let s = s.trim();
+    if s.is_empty() {
+        return Vec::new();
+    }
+
+    if s.contains('|') {
+        let mut result = Vec::new();
+        for part in s.split('|') {
+            result.extend(split_by_other_delimiters(part));
+        }
+        result
+    } else if s.contains(';') {
+        let mut result = Vec::new();
+        for part in s.split(';') {
+            result.extend(split_by_other_delimiters(part));
+        }
+        result
+    } else if s.contains(',') {
+        let comma_count = s.matches(',').count();
+        if comma_count == 1 {
+            let temp_parts: Vec<&str> = s.split(',').collect();
+            let part_after = temp_parts[1].trim();
+            if is_initials(part_after) {
+                vec![s.to_string()]
+            } else {
+                let mut result = Vec::new();
+                for part in temp_parts {
+                    result.extend(split_by_other_delimiters(part));
+                }
+                result
+            }
+        } else {
+            let mut result = Vec::new();
+            for part in s.split(',') {
+                result.extend(split_by_other_delimiters(part));
+            }
+            result
+        }
+    } else {
+        vec![s.to_string()]
+    }
+}
+
+/// Splits a raw collector string containing multiple names separated by |, ;, &, and (word boundaries), or ,
 pub fn split_names(raw_str: &str) -> Vec<String> {
     let raw_str = raw_str.trim();
     if raw_str.is_empty() {
         return Vec::new();
     }
 
-    let parts = if raw_str.contains('|') {
-        raw_str.split('|').map(|s| s.to_string()).collect()
-    } else if raw_str.contains(';') {
-        raw_str.split(';').map(|s| s.to_string()).collect()
-    } else if raw_str.contains(',') {
-        let comma_count = raw_str.matches(',').count();
-        if comma_count == 1 {
-            let temp_parts: Vec<&str> = raw_str.split(',').collect();
-            let part_after = temp_parts[1].trim();
-            if is_initials(part_after) {
-                vec![raw_str.to_string()]
-            } else {
-                temp_parts.iter().map(|s| s.to_string()).collect()
+    // Find case-insensitive "and" with word boundaries
+    let mut and_positions = Vec::new();
+    let bytes = raw_str.as_bytes();
+    let len = bytes.len();
+    if len >= 3 {
+        for i in 0..=(len - 3) {
+            let matches_and = (bytes[i] == b'a' || bytes[i] == b'A')
+                && (bytes[i + 1] == b'n' || bytes[i + 1] == b'N')
+                && (bytes[i + 2] == b'd' || bytes[i + 2] == b'D');
+            if matches_and {
+                let boundary_before = if i == 0 {
+                    true
+                } else {
+                    let prev_char = raw_str[..i].chars().next_back().unwrap();
+                    !prev_char.is_alphanumeric()
+                };
+                let boundary_after = if i + 3 == len {
+                    true
+                } else {
+                    let next_char = raw_str[i + 3..].chars().next().unwrap();
+                    !next_char.is_alphanumeric()
+                };
+                if boundary_before && boundary_after {
+                    and_positions.push(i);
+                }
+            }
+        }
+    }
+
+    // Split on "and" first
+    let mut and_split_parts = Vec::new();
+    if !and_positions.is_empty() {
+        let mut last_idx = 0;
+        for pos in and_positions {
+            and_split_parts.push(raw_str[last_idx..pos].to_string());
+            last_idx = pos + 3;
+        }
+        and_split_parts.push(raw_str[last_idx..].to_string());
+    } else {
+        and_split_parts.push(raw_str.to_string());
+    }
+
+    // Split on "&" for all and_split_parts
+    let mut amp_split_parts = Vec::new();
+    for part in and_split_parts {
+        if part.contains('&') {
+            for sub in part.split('&') {
+                amp_split_parts.push(sub.to_string());
             }
         } else {
-            raw_str.split(',').map(|s| s.to_string()).collect()
+            amp_split_parts.push(part);
         }
-    } else {
-        vec![raw_str.to_string()]
-    };
+    }
 
-    parts
+    // Now split each part on the other delimiters recursively
+    let mut final_parts = Vec::new();
+    for part in amp_split_parts {
+        let trimmed = part.trim();
+        if !trimmed.is_empty() {
+            let sub_parts = split_by_other_delimiters(trimmed);
+            final_parts.extend(sub_parts);
+        }
+    }
+
+    final_parts
         .into_iter()
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
@@ -247,6 +357,18 @@ mod tests {
             normalize_search_recorded_by("J. René Smith"),
             "J RENE SMITH"
         );
+        assert_eq!(
+            normalize_search_recorded_by("I.B. Walters (Dr)"),
+            "IB WALTERS"
+        );
+        assert_eq!(
+            normalize_search_recorded_by("Dr. I.B. Walters"),
+            "IB WALTERS"
+        );
+        assert_eq!(
+            normalize_search_recorded_by("Prof. O.M. Hilliard"),
+            "OM HILLIARD"
+        );
     }
 
     #[test]
@@ -262,6 +384,58 @@ mod tests {
         assert_eq!(
             normalize_locality("Along Route 3, 5 km west of town"),
             "route 3 5 km west town"
+        );
+    }
+
+    #[test]
+    fn test_is_initials() {
+        assert!(is_initials("A."));
+        assert!(is_initials("A"));
+        assert!(is_initials("AJ"));
+        assert!(is_initials("AJ."));
+        assert!(is_initials("A.J."));
+        assert!(is_initials("A. J."));
+        assert!(!is_initials("Jones"));
+        assert!(!is_initials("SMITH"));
+        assert!(!is_initials("A. Jones"));
+    }
+
+    #[test]
+    fn test_split_names() {
+        assert_eq!(split_names("Verbist, AJ"), vec!["Verbist, AJ".to_string()]);
+        assert_eq!(split_names("Verbist, A."), vec!["Verbist, A.".to_string()]);
+        assert_eq!(
+            split_names("Verbist A., Jones B."),
+            vec!["Verbist A.".to_string(), "Jones B.".to_string()]
+        );
+        assert_eq!(
+            split_names("O. M. Hilliard & B. L. Burtt"),
+            vec!["O. M. Hilliard".to_string(), "B. L. Burtt".to_string()]
+        );
+        assert_eq!(
+            split_names("O. M. Hilliard and B. L. Burtt"),
+            vec!["O. M. Hilliard".to_string(), "B. L. Burtt".to_string()]
+        );
+        assert_eq!(
+            split_names("O. M. Hilliard AND B. L. Burtt"),
+            vec!["O. M. Hilliard".to_string(), "B. L. Burtt".to_string()]
+        );
+        assert_eq!(
+            split_names("Anderson & Brand"),
+            vec!["Anderson".to_string(), "Brand".to_string()]
+        );
+        assert_eq!(
+            split_names("Anderson and Brand"),
+            vec!["Anderson".to_string(), "Brand".to_string()]
+        );
+        assert_eq!(
+            split_names("M. A. García, G. López, L. Mucina & D. Nickrent"),
+            vec![
+                "M. A. García".to_string(),
+                "G. López".to_string(),
+                "L. Mucina".to_string(),
+                "D. Nickrent".to_string()
+            ]
         );
     }
 }

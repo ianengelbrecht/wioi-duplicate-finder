@@ -22,6 +22,7 @@
   import { sessionService } from "$lib/services/sessionService.js";
   import { specimenService } from "$lib/services/specimenService.js";
   import { taxonomyService } from "$lib/services/taxonomyService.js";
+  import { referenceService } from "$lib/services/referenceService.js";
   import { backupService } from "$lib/services/backupService.js";
   import { exportService } from "$lib/services/exportService.js";
   
@@ -54,6 +55,27 @@
       });
   });
 
+  /**
+   * Helper function to check and update reference dataset counts.
+   * Forces the tab to "settings" if required datasets are missing.
+   * @returns {Promise<void>}
+   */
+  async function checkDatasetCounts() {
+    try {
+      const gbifData = await referenceService.getReferenceMetadata();
+      workspaceStore.gbifRecordCount = gbifData.recordCount;
+      
+      const wcvpData = await referenceService.getWcvpMetadata();
+      workspaceStore.wcvpRecordCount = wcvpData.recordCount;
+
+      if (!workspaceStore.hasRequiredDatasets) {
+        activeTab = "settings";
+      }
+    } catch (err) {
+      console.error("Failed to load dataset counts:", err);
+    }
+  }
+
   async function checkDb() {
     authStore.dbErrorMessage = "";
     try {
@@ -64,12 +86,13 @@
         authStore.setCurrentUser(JSON.parse(storedUser));
         await loadSessions();
         await loadExportSettings();
+        await checkDatasetCounts();
         
         const storedSession = localStorage.getItem("lastActiveSession");
         if (storedSession) {
           const parsedSession = JSON.parse(storedSession);
           const sessionExists = workspaceStore.sessionList.find(s => s.id === parsedSession.id);
-          if (sessionExists) {
+          if (sessionExists && workspaceStore.hasRequiredDatasets) {
             await selectSession(sessionExists);
             return;
           }
@@ -388,7 +411,7 @@
     {:else if authStore.view === "db_setup"}
       <DbSetup onRetry={checkDb} />
     {:else if authStore.view === "auth"}
-      <Auth onLoginSuccess={async () => { await loadSessions(); await loadExportSettings(); }} />
+      <Auth onLoginSuccess={async () => { await loadSessions(); await loadExportSettings(); await checkDatasetCounts(); }} />
 
     <!-- VIEW 2: SESSION MANAGEMENT & EXPORT SETTINGS DASHBOARD -->
     {:else if authStore.view === "dashboard"}
@@ -403,10 +426,19 @@
               {t("application-settings", "Application Settings")}
             </button>
             <button
-              onclick={() => activeTab = "sessions"}
-              class="w-full text-left px-4 py-3 text-xs font-bold uppercase tracking-wider border rounded-none transition-all {activeTab === 'sessions' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}"
+              onclick={() => {
+                if (workspaceStore.hasRequiredDatasets) {
+                  activeTab = "sessions";
+                }
+              }}
+              disabled={!workspaceStore.hasRequiredDatasets}
+              class="w-full text-left px-4 py-3 text-xs font-bold uppercase tracking-wider border rounded-none transition-all {activeTab === 'sessions' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'} disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
+              title={!workspaceStore.hasRequiredDatasets ? "Please import GBIF and WCVP datasets in settings first" : ""}
             >
-              {t("capture-sessions-heading", "Capture Sessions")}
+              <span>{t("capture-sessions-heading", "Capture Sessions")}</span>
+              {#if !workspaceStore.hasRequiredDatasets}
+                <span class="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 border border-amber-305 uppercase tracking-wide font-bold">Required</span>
+              {/if}
             </button>
           </div>
           <!-- Funders logos -->

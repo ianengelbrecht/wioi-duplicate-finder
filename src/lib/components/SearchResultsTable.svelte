@@ -97,6 +97,11 @@
                 {#if rec.stateProvince}
                   <span class="text-[10px] text-slate-400 block">{rec.stateProvince}</span>
                 {/if}
+                {#if rec.islandGroup || rec.island}
+                  <span class="text-[10px] text-slate-400 block">
+                    {rec.islandGroup || ''} {rec.island ? `(${rec.island})` : ''}
+                  </span>
+                {/if}
               </td>
               
               <!-- Date -->

@@ -21,6 +21,8 @@ export function getDwcHeaders() {
     "dwc:stateProvince",
     "dwc:county",
     "dwc:municipality",
+    "dwc:islandGroup",
+    "dwc:island",
     "dwc:locality",
     "dwc:locationRemarks",
     "dwc:verbatimCoordinates",
@@ -75,6 +77,8 @@ export function mapDwcRecord(rec, options = {}) {
     rec.stateProvince || "",
     rec.county || "",
     rec.municipality || "",
+    rec.islandGroup || "",
+    rec.island || "",
     rec.locality || "",
     dwcLocationRemarks, // locationRemarks maps to locationNotes in UI record
     rec.verbatimCoordinates || "",

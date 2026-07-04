@@ -121,7 +121,12 @@ pub fn set_database_path(app: &AppHandle, path: &str) -> std::result::Result<(),
 /// Resolves the writeable SQLite database path.
 pub fn get_db_path(app: &AppHandle) -> Option<PathBuf> {
     let config = load_config(app);
-    config.database_path.map(PathBuf::from)
+    if let Some(path) = config.database_path {
+        Some(PathBuf::from(path))
+    } else {
+        let app_dir = app.path().app_data_dir().ok()?;
+        Some(app_dir.join("duplicate-finder.db"))
+    }
 }
 
 /// Factory function to open a SQLite database connection with custom pragmas.
@@ -165,12 +170,55 @@ fn set_last_quick_check_datetime(conn: &Connection) {
 /// Checks database existence, structure validity, runs integrity check, and runs migrations.
 pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
     let db_path = get_db_path(app).ok_or_else(|| "DATABASE_UNCONFIGURED".to_string())?;
+    let config = load_config(app);
+    let is_default_path = config.database_path.is_none();
 
     if !db_path.exists() {
-        return Err(format!("DATABASE_MISSING:{}", db_path.to_string_lossy()));
+        if is_default_path {
+            let mut copied = false;
+            if let Ok(resource_path) = app.path().resolve(
+                "resources/duplicate-finder.db",
+                tauri::path::BaseDirectory::Resource,
+            ) {
+                if resource_path.exists() {
+                    if let Some(parent) = db_path.parent() {
+                        let _ = fs::create_dir_all(parent);
+                    }
+                    if fs::copy(&resource_path, &db_path).is_ok() {
+                        info!("Copied bundled database from resources to {:?}", db_path);
+                        copied = true;
+                    }
+                }
+            }
+            if !copied {
+                if let Some(parent) = db_path.parent() {
+                    let _ = fs::create_dir_all(parent);
+                }
+                // Try to create the database file
+                if let Ok(_conn) = Connection::open(&db_path) {
+                    info!("Created a new empty database file at {:?}", db_path);
+                } else {
+                    return Err(format!(
+                        "Failed to create default database at {}",
+                        db_path.to_string_lossy()
+                    ));
+                }
+            }
+        } else {
+            return Err(format!("DATABASE_MISSING:{}", db_path.to_string_lossy()));
+        }
     }
 
-    validate_database_file(&db_path).map_err(|e| format!("DATABASE_INVALID:{}", e))?;
+    let is_new = if let Ok(metadata) = fs::metadata(&db_path) {
+        metadata.len() == 0
+    } else {
+        false
+    };
+
+    // If it's not a brand new empty database, validate it first
+    if !is_new {
+        validate_database_file(&db_path).map_err(|e| format!("DATABASE_INVALID:{}", e))?;
+    }
 
     info!("Opened database at absolute path: {:?}", db_path);
     let mut conn = get_connection(app)?;
@@ -184,43 +232,50 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
         [],
     );
 
-    // Run quick integrity check on startup only if not already run today
-    let today = Local::now().date_naive();
-    let last_check = get_last_quick_check_date(&conn);
-    let should_check = match last_check {
-        Some(date) => date != today,
-        None => true,
-    };
+    // Run quick integrity check on startup only if not already run today and NOT a new database
+    if !is_new {
+        let today = Local::now().date_naive();
+        let last_check = get_last_quick_check_date(&conn);
+        let should_check = match last_check {
+            Some(date) => date != today,
+            None => true,
+        };
 
-    if should_check {
-        info!("Running startup database integrity quick_check...");
-        match conn.query_row("PRAGMA quick_check;", [], |r| r.get::<_, String>(0)) {
-            Ok(res) => {
-                if res != "ok" {
-                    error!("Database quick_check failed on startup: {}", res);
+        if should_check {
+            info!("Running startup database integrity quick_check...");
+            match conn.query_row("PRAGMA quick_check;", [], |r| r.get::<_, String>(0)) {
+                Ok(res) => {
+                    if res != "ok" {
+                        error!("Database quick_check failed on startup: {}", res);
+                        return Err(format!(
+                            "DATABASE_INVALID:Database integrity check failed: {}",
+                            res
+                        ));
+                    } else {
+                        info!("Database quick_check passed on startup.");
+                        set_last_quick_check_datetime(&conn);
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to run database quick_check on startup: {}", e);
                     return Err(format!(
                         "DATABASE_INVALID:Database integrity check failed: {}",
-                        res
+                        e
                     ));
-                } else {
-                    info!("Database quick_check passed on startup.");
-                    set_last_quick_check_datetime(&conn);
                 }
             }
-            Err(e) => {
-                error!("Failed to run database quick_check on startup: {}", e);
-                return Err(format!(
-                    "DATABASE_INVALID:Database integrity check failed: {}",
-                    e
-                ));
-            }
+        } else {
+            info!("Skipping database quick_check on startup (already run today).");
         }
-    } else {
-        info!("Skipping database quick_check on startup (already run today).");
     }
 
     // Setup tables
     run_migrations(&conn).map_err(|e| e.to_string())?;
+
+    // Validate structure after running migrations if it was a new empty database
+    if is_new {
+        validate_database_file(&db_path).map_err(|e| format!("DATABASE_INVALID:{}", e))?;
+    }
 
     // Auto-normalize imported CSV reference records if they exist and are empty
     auto_normalize_reference_data(&mut conn).map_err(|e| e.to_string())?;
@@ -475,6 +530,8 @@ fn run_migrations(conn: &Connection) -> Result<()> {
             stateProvince TEXT,
             county TEXT,
             municipality TEXT,
+            islandGroup TEXT,
+            island TEXT,
             locality TEXT,
             verbatimLocality TEXT,
             locationRemarks TEXT,
@@ -538,6 +595,30 @@ fn run_migrations(conn: &Connection) -> Result<()> {
 
     if !cfn_exists {
         let _ = conn.execute("ALTER TABLE gbif ADD COLUMN cleanedFieldNumber TEXT", []);
+    }
+
+    let gbif_ig_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('gbif') WHERE name='islandGroup'",
+            [],
+            |r| r.get::<_, i32>(0).map(|c| c > 0),
+        )
+        .unwrap_or(false);
+
+    if !gbif_ig_exists {
+        let _ = conn.execute("ALTER TABLE gbif ADD COLUMN islandGroup TEXT", []);
+    }
+
+    let gbif_island_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('gbif') WHERE name='island'",
+            [],
+            |r| r.get::<_, i32>(0).map(|c| c > 0),
+        )
+        .unwrap_or(false);
+
+    if !gbif_island_exists {
+        let _ = conn.execute("ALTER TABLE gbif ADD COLUMN island TEXT", []);
     }
 
     conn.execute(
@@ -624,6 +705,8 @@ fn run_migrations(conn: &Connection) -> Result<()> {
             stateProvince TEXT,
             county TEXT,
             municipality TEXT,
+            islandGroup TEXT,
+            island TEXT,
             locality TEXT,
             locationRemarks TEXT,
             verbatimCoordinates TEXT,
@@ -649,6 +732,33 @@ fn run_migrations(conn: &Connection) -> Result<()> {
         );",
         [],
     )?;
+
+    let cr_ig_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('captured_records') WHERE name='islandGroup'",
+            [],
+            |r| r.get::<_, i32>(0).map(|c| c > 0),
+        )
+        .unwrap_or(false);
+
+    if !cr_ig_exists {
+        let _ = conn.execute(
+            "ALTER TABLE captured_records ADD COLUMN islandGroup TEXT",
+            [],
+        );
+    }
+
+    let cr_island_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('captured_records') WHERE name='island'",
+            [],
+            |r| r.get::<_, i32>(0).map(|c| c > 0),
+        )
+        .unwrap_or(false);
+
+    if !cr_island_exists {
+        let _ = conn.execute("ALTER TABLE captured_records ADD COLUMN island TEXT", []);
+    }
 
     conn.execute(
         "CREATE TRIGGER IF NOT EXISTS captured_records_modified_at
@@ -712,6 +822,18 @@ fn run_migrations(conn: &Connection) -> Result<()> {
         [],
     )?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_gbif_geo_hierarchy ON gbif(country COLLATE NOCASE, stateProvince COLLATE NOCASE, county COLLATE NOCASE, municipality COLLATE NOCASE);", [])?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_gbif_islandGroup ON gbif(islandGroup COLLATE NOCASE);",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_gbif_island ON gbif(island COLLATE NOCASE);",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_gbif_island_hierarchy ON gbif(country COLLATE NOCASE, islandGroup COLLATE NOCASE, island COLLATE NOCASE);",
+        [],
+    )?;
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_gbif_family ON gbif(family COLLATE NOCASE);",
         [],

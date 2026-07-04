@@ -35,6 +35,8 @@ pub struct CapturedRecord {
     pub state_province: Option<String>,
     pub county: Option<String>,
     pub municipality: Option<String>,
+    pub island_group: Option<String>,
+    pub island: Option<String>,
     pub locality: Option<String>,
     #[serde(rename = "locationNotes")]
     pub location_remarks: Option<String>,
@@ -94,6 +96,8 @@ pub struct ReferenceSpecimen {
     pub infra_specific_epithet: String,
     pub country: String,
     pub state_province: String,
+    pub island_group: String,
+    pub island: String,
     pub year: Option<i32>,
     pub month: Option<i32>,
     pub day: Option<i32>,

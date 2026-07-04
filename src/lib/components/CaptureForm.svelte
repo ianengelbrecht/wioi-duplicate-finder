@@ -54,6 +54,8 @@
     stateProvince: "",
     county: "",
     municipality: "",
+    islandGroup: "",
+    island: "",
     locality: "",
     verbatimCoordinates: "",
     decimalLatitude: "",
@@ -147,6 +149,8 @@
       form.stateProvince = activeRecord.stateProvince || "";
       form.county = activeRecord.county || "";
       form.municipality = activeRecord.municipality || "";
+      form.islandGroup = activeRecord.islandGroup || "";
+      form.island = activeRecord.island || "";
       form.locality = activeRecord.locality || "";
       
       // Populate verbatimCoordinates: use verbatimCoordinates if present, otherwise combine decimalLatitude and decimalLongitude
@@ -359,6 +363,8 @@
       stateProvince: "",
       county: "",
       municipality: "",
+      islandGroup: "",
+      island: "",
       locality: "",
       verbatimCoordinates: "",
       decimalLatitude: "",
@@ -414,6 +420,8 @@
     form.stateProvince = lastSavedRecord.stateProvince;
     form.county = lastSavedRecord.county;
     form.municipality = lastSavedRecord.municipality;
+    form.islandGroup = lastSavedRecord.islandGroup || "";
+    form.island = lastSavedRecord.island || "";
     form.locality = lastSavedRecord.locality;
     form.verbatimCoordinates = lastSavedRecord.verbatimCoordinates;
     form.decimalLatitude = lastSavedRecord.decimalLatitude !== null ? lastSavedRecord.decimalLatitude.toString() : "";
@@ -564,13 +572,19 @@
   /** @type {string[]} */
   let municipalitySuggestions = $state([]);
   /** @type {string[]} */
+  let islandGroupSuggestions = $state([]);
+  /** @type {string[]} */
+  let islandSuggestions = $state([]);
+  /** @type {string[]} */
   let localitySuggestions = $state([]);
 
   let isAnyGeoPopulated = $derived(
     !!((form.country && form.country.trim().length > 0) ||
        (form.stateProvince && form.stateProvince.trim().length > 0) ||
        (form.county && form.county.trim().length > 0) ||
-       (form.municipality && form.municipality.trim().length > 0))
+       (form.municipality && form.municipality.trim().length > 0) ||
+       (form.islandGroup && form.islandGroup.trim().length > 0) ||
+       (form.island && form.island.trim().length > 0))
   );
 
   /** @type {HTMLTextAreaElement|null} */
@@ -587,6 +601,37 @@
       copyTimeoutId = setTimeout(() => {
         verbatimLocalityCopied = false;
       }, 2000);
+    }
+  }
+
+  /** @type {HTMLInputElement|null} */
+  let islandGroupInputRef = $state(null);
+  /** @type {HTMLInputElement|null} */
+  let islandInputRef = $state(null);
+
+  async function handlePasteIslandGroup() {
+    const res = await pasteAtCursor(islandGroupInputRef, form.islandGroup);
+    if (res) {
+      form.islandGroup = res.newValue;
+      setTimeout(() => {
+        if (islandGroupInputRef) {
+          islandGroupInputRef.focus();
+          islandGroupInputRef.setSelectionRange(res.newCursorPos, res.newCursorPos);
+        }
+      }, 0);
+    }
+  }
+
+  async function handlePasteIsland() {
+    const res = await pasteAtCursor(islandInputRef, form.island);
+    if (res) {
+      form.island = res.newValue;
+      setTimeout(() => {
+        if (islandInputRef) {
+          islandInputRef.focus();
+          islandInputRef.setSelectionRange(res.newCursorPos, res.newCursorPos);
+        }
+      }, 0);
     }
   }
 
@@ -673,9 +718,13 @@
     form.stateProvince = "";
     form.county = "";
     form.municipality = "";
+    form.islandGroup = "";
+    form.island = "";
     stateProvinceSuggestions = [];
     countySuggestions = [];
     municipalitySuggestions = [];
+    islandGroupSuggestions = [];
+    islandSuggestions = [];
   }
 
   function onStateProvinceChanged() {
@@ -683,6 +732,11 @@
     form.municipality = "";
     countySuggestions = [];
     municipalitySuggestions = [];
+  }
+
+  function onIslandGroupChanged() {
+    form.island = "";
+    islandSuggestions = [];
   }
 
   function onCountyChanged() {
@@ -741,6 +795,37 @@
   /**
    * @param {string} val
    */
+  async function handleIslandGroupInput(val) {
+    onIslandGroupChanged();
+    if (!val || val.trim().length === 0) {
+      islandGroupSuggestions = [];
+      return;
+    }
+    try {
+      islandGroupSuggestions = await geographyService.autocompleteGeography("islandGroup", val, form.country, "", "");
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  /**
+   * @param {string} val
+   */
+  async function handleIslandInput(val) {
+    if (!val || val.trim().length === 0) {
+      islandSuggestions = [];
+      return;
+    }
+    try {
+      islandSuggestions = await geographyService.autocompleteGeography("island", val, form.country, form.islandGroup, "");
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  /**
+   * @param {string} val
+   */
   async function handleMunicipalityInput(val) {
     if (!val || val.trim().length === 0) {
       municipalitySuggestions = [];
@@ -773,10 +858,19 @@
    */
   async function triggerGeoAutocomplete(field) {
     try {
-      const results = await geographyService.autocompleteGeography(field, "", form.country, form.stateProvince, form.county);
-      if (field === "stateProvince") stateProvinceSuggestions = results;
-      else if (field === "county") countySuggestions = results;
-      else if (field === "municipality") municipalitySuggestions = results;
+      let results;
+      if (field === "islandGroup") {
+        results = await geographyService.autocompleteGeography("islandGroup", "", form.country, "", "");
+        islandGroupSuggestions = results;
+      } else if (field === "island") {
+        results = await geographyService.autocompleteGeography("island", "", form.country, form.islandGroup, "");
+        islandSuggestions = results;
+      } else {
+        results = await geographyService.autocompleteGeography(field, "", form.country, form.stateProvince, form.county);
+        if (field === "stateProvince") stateProvinceSuggestions = results;
+        else if (field === "county") countySuggestions = results;
+        else if (field === "municipality") municipalitySuggestions = results;
+      }
     } catch (e) {
       console.error(e);
     }
@@ -797,6 +891,18 @@
   function handleMunicipalityFocus() {
     if (form.municipality.trim() === "") {
       triggerGeoAutocomplete("municipality");
+    }
+  }
+
+  function handleIslandGroupFocus() {
+    if (form.islandGroup.trim() === "") {
+      triggerGeoAutocomplete("islandGroup");
+    }
+  }
+
+  function handleIslandFocus() {
+    if (form.island.trim() === "") {
+      triggerGeoAutocomplete("island");
     }
   }
 
@@ -1363,6 +1469,117 @@
                 <AaIcon />
               </button>
             {/if}
+          </div>
+        </div>
+      </div>
+
+      <!-- Island Group and Island -->
+      <div class="grid grid-cols-3 gap-3">
+        <!-- Island Group -->
+        <div class="col-span-2">
+          <label for="capture-islandGroup" data-i18n-key="island-group-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("island-group-label", "Island Group")}</label>
+          <div class="relative flex items-center">
+            <Autocomplete
+              id="capture-islandGroup"
+              label=""
+              placeholder={isAnyGeoPopulated ? "" : "eg Mascarenes"}
+              placeholderKey={isAnyGeoPopulated ? undefined : "island-group-placeholder"}
+              bind:value={form.islandGroup}
+              suggestions={islandGroupSuggestions}
+              oninput={handleIslandGroupInput}
+              onfocus={handleIslandGroupFocus}
+              delay={300}
+              bind:inputRef={islandGroupInputRef}
+              extraInputClass="pr-20"
+            />
+            <div class="absolute right-2 flex items-center gap-1 z-100">
+              <button
+                type="button"
+                onclick={handlePasteIslandGroup}
+                title={t("paste-island-group-title", "Paste Island Group")}
+                class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                <PasteIcon />
+              </button>
+              {#if form.islandGroup === titleCasedStates.islandGroup.titleCased && titleCasedStates.islandGroup.titleCased !== ""}
+                <button
+                  type="button"
+                  onclick={() => undoTitleCaseField(form, titleCasedStates, "islandGroup")}
+                  data-i18n-key="undo-title-case"
+                  title={t("undo-title-case", "Undo Casing")}
+                  class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                  tabindex="-1"
+                >
+                  <UndoIcon />
+                </button>
+              {:else}
+                <button
+                  type="button"
+                  onclick={() => titleCaseField(form, titleCasedStates, "islandGroup")}
+                  data-i18n-key="title-case"
+                  title={t("title-case", "Proper Case")}
+                  class="w-6 h-6 p-1.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                  tabindex="-1"
+                >
+                  <AaIcon />
+                </button>
+              {/if}
+            </div>
+          </div>
+        </div>
+
+        <!-- Island -->
+        <div class="col-span-1">
+          <label for="capture-island" data-i18n-key="island-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("island-label", "Island")}</label>
+          <div class="relative flex items-center">
+            <Autocomplete
+              id="capture-island"
+              label=""
+              placeholder={isAnyGeoPopulated ? "" : "eg Mauritius"}
+              placeholderKey={isAnyGeoPopulated ? undefined : "island-placeholder"}
+              bind:value={form.island}
+              suggestions={islandSuggestions}
+              oninput={handleIslandInput}
+              onfocus={handleIslandFocus}
+              delay={300}
+              bind:inputRef={islandInputRef}
+              extraInputClass="pr-20"
+            />
+            <div class="absolute right-2 flex items-center gap-1 z-100">
+              <button
+                type="button"
+                onclick={handlePasteIsland}
+                title={t("paste-island-title", "Paste Island")}
+                class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                <PasteIcon />
+              </button>
+              {#if form.island === titleCasedStates.island.titleCased && titleCasedStates.island.titleCased !== ""}
+                <button
+                  type="button"
+                  onclick={() => undoTitleCaseField(form, titleCasedStates, "island")}
+                  data-i18n-key="undo-title-case"
+                  title={t("undo-title-case", "Undo Casing")}
+                  class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                  tabindex="-1"
+                >
+                  <UndoIcon />
+                </button>
+              {:else}
+                <button
+                  type="button"
+                  onclick={() => titleCaseField(form, titleCasedStates, "island")}
+                  data-i18n-key="title-case"
+                  title={t("title-case", "Proper Case")}
+                  class="w-6 h-6 p-1.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                  tabindex="-1"
+                >
+                  <AaIcon />
+                </button>
+              {/if}
+            </div>
           </div>
         </div>
       </div>

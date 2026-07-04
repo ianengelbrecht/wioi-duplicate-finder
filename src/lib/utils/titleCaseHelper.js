@@ -46,6 +46,8 @@ export function getInitialTrackingState() {
     stateProvince: { original: "", titleCased: "" },
     county: { original: "", titleCased: "" },
     municipality: { original: "", titleCased: "" },
+    islandGroup: { original: "", titleCased: "" },
+    island: { original: "", titleCased: "" },
     locality: { original: "", titleCased: "" },
     locationNotes: { original: "", titleCased: "" },
     habitat: { original: "", titleCased: "" },

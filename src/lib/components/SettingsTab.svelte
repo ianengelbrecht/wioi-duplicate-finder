@@ -57,6 +57,7 @@
     try {
       const data = await referenceService.getReferenceMetadata();
       recordCount = data.recordCount;
+      workspaceStore.gbifRecordCount = data.recordCount;
       countries = data.countries;
       collectionCodes = data.collectionCodes;
     } catch (err) {
@@ -71,6 +72,7 @@
     try {
       const data = await referenceService.getWcvpMetadata();
       wcvpRecordCount = data.recordCount;
+      workspaceStore.wcvpRecordCount = data.recordCount;
       wcvpVersion = data.version;
     } catch (err) {
       console.error("Failed to load WCVP metadata:", err);
@@ -244,6 +246,18 @@
     <h2 data-i18n-key="application-settings" class="text-md font-bold text-slate-900 uppercase tracking-wide font-outfit">{t("application-settings", "Application settings")}</h2>
     <p data-i18n-key="settings-description" class="text-xs text-slate-500 mt-1 font-inter">{t("settings-description", "Configure the collection code and export format for your herbarium.")}</p>
   </div>
+
+  {#if !workspaceStore.hasRequiredDatasets}
+    <div class="p-4 bg-amber-50 border border-amber-300 text-amber-900 text-xs font-inter leading-relaxed flex items-start gap-3 rounded-none">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-amber-700 shrink-0 mt-0.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+      </svg>
+      <div>
+        <strong class="uppercase font-bold tracking-wider block mb-1">Configuration Required</strong>
+        Please import both the <strong>Reference Dataset (GBIF)</strong> and the <strong>WCVP Taxonomy Dataset</strong> using the options below. You will not be able to access capture sessions or capture specimen records until both datasets are loaded.
+      </div>
+    </div>
+  {/if}
 
   {#if workspaceStore.settingsMessage}
     <div class="p-3 text-xs bg-emerald-50 border border-emerald-300 text-emerald-800 font-medium font-inter">

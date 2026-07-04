@@ -17,6 +17,19 @@ export class WorkspaceStore {
   exportMessage = $state("");
   exportError = $state("");
 
+  /** @type {number} */
+  gbifRecordCount = $state(0);
+  /** @type {number} */
+  wcvpRecordCount = $state(0);
+
+  /**
+   * Getter to determine if both required datasets have been loaded.
+   * @returns {boolean}
+   */
+  get hasRequiredDatasets() {
+    return this.gbifRecordCount > 0 && this.wcvpRecordCount > 0;
+  }
+
   customMappings = $state({
     recordedBy: "",
     recordNumber: "",

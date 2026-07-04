@@ -88,7 +88,14 @@
               <td class="p-2 text-slate-700 font-medium">{rec.recordedBy || 'N/A'} {rec.recordNumber ? `#${rec.recordNumber}` : ''}</td>
               <td class="p-2 text-slate-900 italic font-semibold">{rec.scientificName}</td>
               <td class="p-2 text-slate-500 max-w-xs truncate" title={rec.locality}>{rec.locality || 'N/A'}</td>
-              <td class="p-2 text-slate-500">{rec.country || ''} {rec.stateProvince || ''}</td>
+              <td class="p-2 text-slate-500">
+                {rec.country || ''} {rec.stateProvince || ''}
+                {#if rec.islandGroup || rec.island}
+                  <span class="text-[10px] text-slate-400 block">
+                    {rec.islandGroup || ''} {rec.island ? `(${rec.island})` : ''}
+                  </span>
+                {/if}
+              </td>
               <td class="p-2 text-slate-650">{rec.year ? `${rec.year}-${rec.month || '?'}-${rec.day || '?'}` : 'N/A'}</td>
               <td class="p-2 text-right">
                 <button

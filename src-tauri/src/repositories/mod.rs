@@ -116,6 +116,7 @@ impl SpecimenRepository {
         let mut stmt = conn.prepare(
             "SELECT id, collectionCode, catalogNumber, duplicates, recordNumber, recordedBy, 
                     verbatimEventDate, year, month, day, country, stateProvince, county, municipality, 
+                    islandGroup, island,
                     locality, locationRemarks, verbatimCoordinates, decimalLatitude, decimalLongitude, verbatimElevation, habitat, occurrenceRemarks, fieldNotes,
                     typeStatus, identificationQualifier, scientificName, identifiedBy, yearIdentified, 
                     monthIdentified, dayIdentified, identificationRemarks, taxonID, cultivated 
@@ -125,7 +126,7 @@ impl SpecimenRepository {
         )?;
 
         let rows = stmt.query_map(params![session_id], |row| {
-            let cultivated: Option<i32> = row.get(32)?;
+            let cultivated: Option<i32> = row.get(34)?;
             Ok(CapturedRecord {
                 id: Some(row.get(0)?),
                 session_id,
@@ -142,24 +143,26 @@ impl SpecimenRepository {
                 state_province: row.get(11)?,
                 county: row.get(12)?,
                 municipality: row.get(13)?,
-                locality: row.get(14)?,
-                location_remarks: row.get(15)?,
-                verbatim_coordinates: row.get(16)?,
-                decimal_latitude: row.get(17)?,
-                decimal_longitude: row.get(18)?,
-                verbatim_elevation: row.get(19)?,
-                habitat: row.get(20)?,
-                occurrence_remarks: row.get(21)?,
-                field_notes: row.get(22)?,
-                type_status: row.get(23)?,
-                identification_qualifier: row.get(24)?,
-                scientific_name: row.get(25)?,
-                identified_by: row.get(26)?,
-                year_identified: row.get(27)?,
-                month_identified: row.get(28)?,
-                day_identified: row.get(29)?,
-                identification_remarks: row.get(30)?,
-                taxon_id: row.get(31)?,
+                island_group: row.get(14)?,
+                island: row.get(15)?,
+                locality: row.get(16)?,
+                location_remarks: row.get(17)?,
+                verbatim_coordinates: row.get(18)?,
+                decimal_latitude: row.get(19)?,
+                decimal_longitude: row.get(20)?,
+                verbatim_elevation: row.get(21)?,
+                habitat: row.get(22)?,
+                occurrence_remarks: row.get(23)?,
+                field_notes: row.get(24)?,
+                type_status: row.get(25)?,
+                identification_qualifier: row.get(26)?,
+                scientific_name: row.get(27)?,
+                identified_by: row.get(28)?,
+                year_identified: row.get(29)?,
+                month_identified: row.get(30)?,
+                day_identified: row.get(31)?,
+                identification_remarks: row.get(32)?,
+                taxon_id: row.get(33)?,
                 cultivated: cultivated.unwrap_or(0) == 1,
             })
         })?;
@@ -179,16 +182,16 @@ impl SpecimenRepository {
                 "UPDATE captured_records SET 
                     collectionCode=?1, catalogNumber=?2, duplicates=?3, recordNumber=?4, recordedBy=?5,
                     verbatimEventDate=?6, year=?7, month=?8, day=?9, country=?10,
-                    stateProvince=?11, county=?12, municipality=?13, locality=?14, locationRemarks=?15,
-                    verbatimCoordinates=?16, decimalLatitude=?17, decimalLongitude=?18, verbatimElevation=?19, habitat=?20, 
-                    occurrenceRemarks=?21, fieldNotes=?22, typeStatus=?23, identificationQualifier=?24, scientificName=?25, 
-                    identifiedBy=?26, yearIdentified=?27, monthIdentified=?28, dayIdentified=?29, identificationRemarks=?30, 
-                    taxonID=?31, cultivated=?32
-                 WHERE id = ?33 AND session_id = ?34",
+                    stateProvince=?11, county=?12, municipality=?13, islandGroup=?14, island=?15, locality=?16, locationRemarks=?17,
+                    verbatimCoordinates=?18, decimalLatitude=?19, decimalLongitude=?20, verbatimElevation=?21, habitat=?22, 
+                    occurrenceRemarks=?23, fieldNotes=?24, typeStatus=?25, identificationQualifier=?26, scientificName=?27, 
+                    identifiedBy=?28, yearIdentified=?29, monthIdentified=?30, dayIdentified=?31, identificationRemarks=?32, 
+                    taxonID=?33, cultivated=?34
+                 WHERE id = ?35 AND session_id = ?36",
                 params![
                     record.collection_code, record.catalog_number, record.duplicates, record.record_number, record.recorded_by,
                     record.verbatim_event_date, record.year, record.month, record.day, record.country,
-                    record.state_province, record.county, record.municipality, record.locality, record.location_remarks,
+                    record.state_province, record.county, record.municipality, record.island_group, record.island, record.locality, record.location_remarks,
                     record.verbatim_coordinates, record.decimal_latitude, record.decimal_longitude, record.verbatim_elevation, record.habitat,
                     record.occurrence_remarks, record.field_notes, record.type_status, record.identification_qualifier, record.scientific_name,
                     record.identified_by, record.year_identified, record.month_identified, record.day_identified, record.identification_remarks,
@@ -201,13 +204,15 @@ impl SpecimenRepository {
                 "INSERT INTO captured_records (
                     session_id, collectionCode, catalogNumber, duplicates, recordNumber, recordedBy,
                     verbatimEventDate, year, month, day, country, stateProvince, county, municipality,
+                    islandGroup, island,
                     locality, locationRemarks, verbatimCoordinates, decimalLatitude, decimalLongitude, verbatimElevation, habitat, occurrenceRemarks, fieldNotes,
                     typeStatus, identificationQualifier, scientificName, identifiedBy, yearIdentified,
                     monthIdentified, dayIdentified, identificationRemarks, taxonID, cultivated
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33)",
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35)",
                 params![
                     record.session_id, record.collection_code, record.catalog_number, record.duplicates, record.record_number, record.recorded_by,
                     record.verbatim_event_date, record.year, record.month, record.day, record.country, record.state_province, record.county, record.municipality,
+                    record.island_group, record.island,
                     record.locality, record.location_remarks, record.verbatim_coordinates, record.decimal_latitude, record.decimal_longitude, record.verbatim_elevation, record.habitat, record.occurrence_remarks, record.field_notes,
                     record.type_status, record.identification_qualifier, record.scientific_name, record.identified_by, record.year_identified,
                     record.month_identified, record.day_identified, record.identification_remarks, record.taxon_id, cultivated_int
@@ -292,7 +297,7 @@ impl TaxonomyRepository {
 
         let mut sql = String::from(
             "SELECT recordedBy, recordNumber, locality, locationRemarks, verbatimLocality, 
-                    scientificName, family, country, stateProvince, year, month, day,
+                    scientificName, family, country, stateProvince, islandGroup, island, year, month, day,
                     identificationQualifier, collectionCode, decimalLatitude, decimalLongitude,
                     verbatimCoordinates, verbatimElevation, elevation, habitat, occurrenceRemarks,
                     fieldNotes, fieldNumber
@@ -427,20 +432,22 @@ impl TaxonomyRepository {
                 let family: Option<String> = row.get(6)?;
                 let country: Option<String> = row.get(7)?;
                 let state_province: Option<String> = row.get(8)?;
-                let year: Option<i32> = row.get(9)?;
-                let month: Option<i32> = row.get(10)?;
-                let day: Option<i32> = row.get(11)?;
-                let id_qualifier: Option<String> = row.get(12)?;
-                let collection_code: Option<String> = row.get(13)?;
-                let decimal_latitude: Option<f64> = row.get(14)?;
-                let decimal_longitude: Option<f64> = row.get(15)?;
-                let verbatim_coordinates: Option<String> = row.get(16)?;
-                let verbatim_elevation: Option<String> = row.get(17)?;
-                let elevation: Option<String> = row.get(18)?;
-                let habitat: Option<String> = row.get(19)?;
-                let occurrence_remarks: Option<String> = row.get(20)?;
-                let field_notes: Option<String> = row.get(21)?;
-                let field_number: Option<String> = row.get(22)?;
+                let island_group: Option<String> = row.get(9)?;
+                let island: Option<String> = row.get(10)?;
+                let year: Option<i32> = row.get(11)?;
+                let month: Option<i32> = row.get(12)?;
+                let day: Option<i32> = row.get(13)?;
+                let id_qualifier: Option<String> = row.get(14)?;
+                let collection_code: Option<String> = row.get(15)?;
+                let decimal_latitude: Option<f64> = row.get(16)?;
+                let decimal_longitude: Option<f64> = row.get(17)?;
+                let verbatim_coordinates: Option<String> = row.get(18)?;
+                let verbatim_elevation: Option<String> = row.get(19)?;
+                let elevation: Option<String> = row.get(20)?;
+                let habitat: Option<String> = row.get(21)?;
+                let occurrence_remarks: Option<String> = row.get(22)?;
+                let field_notes: Option<String> = row.get(23)?;
+                let field_number: Option<String> = row.get(24)?;
 
                 Ok(ReferenceSpecimen {
                     id: None,
@@ -456,6 +463,8 @@ impl TaxonomyRepository {
                     infra_specific_epithet: "".to_string(),
                     country: country.unwrap_or_default(),
                     state_province: state_province.unwrap_or_default(),
+                    island_group: island_group.unwrap_or_default(),
+                    island: island.unwrap_or_default(),
                     year,
                     month,
                     day,
@@ -833,19 +842,47 @@ impl GeographyRepository {
             "municipality" => {
                 sql.push_str(
                     "SELECT DISTINCT municipality \
-                     FROM gbif \
-                     WHERE municipality LIKE ?1 COLLATE NOCASE \
-                       AND municipality != '' \
-                       AND municipality IS NOT NULL \
-                       AND (?2 = '' OR country = ?2 COLLATE NOCASE) \
-                       AND (?3 = '' OR stateProvince = ?3 COLLATE NOCASE) \
-                       AND (?4 = '' OR county = ?4 COLLATE NOCASE) \
-                     ORDER BY municipality ASC \
-                     LIMIT 15",
+                      FROM gbif \
+                      WHERE municipality LIKE ?1 COLLATE NOCASE \
+                        AND municipality != '' \
+                        AND municipality IS NOT NULL \
+                        AND (?2 = '' OR country = ?2 COLLATE NOCASE) \
+                        AND (?3 = '' OR stateProvince = ?3 COLLATE NOCASE) \
+                        AND (?4 = '' OR county = ?4 COLLATE NOCASE) \
+                      ORDER BY municipality ASC \
+                      LIMIT 15",
                 );
                 params_vec.push(country.to_string());
                 params_vec.push(state_province.to_string());
                 params_vec.push(county.to_string());
+            }
+            "islandGroup" => {
+                sql.push_str(
+                    "SELECT DISTINCT islandGroup \
+                      FROM gbif \
+                      WHERE islandGroup LIKE ?1 COLLATE NOCASE \
+                        AND islandGroup != '' \
+                        AND islandGroup IS NOT NULL \
+                        AND (?2 = '' OR country = ?2 COLLATE NOCASE) \
+                      ORDER BY islandGroup ASC \
+                      LIMIT 15",
+                );
+                params_vec.push(country.to_string());
+            }
+            "island" => {
+                sql.push_str(
+                    "SELECT DISTINCT island \
+                      FROM gbif \
+                      WHERE island LIKE ?1 COLLATE NOCASE \
+                        AND island != '' \
+                        AND island IS NOT NULL \
+                        AND (?2 = '' OR country = ?2 COLLATE NOCASE) \
+                        AND (?3 = '' OR islandGroup = ?3 COLLATE NOCASE) \
+                      ORDER BY island ASC \
+                      LIMIT 15",
+                );
+                params_vec.push(country.to_string());
+                params_vec.push(state_province.to_string());
             }
             _ => return Err(Error::QueryReturnedNoRows),
         }
@@ -942,6 +979,8 @@ impl ReferenceRepository {
             "stateProvince",
             "county",
             "municipality",
+            "islandGroup",
+            "island",
             "locality",
             "verbatimLocality",
             "locationRemarks",
@@ -963,6 +1002,7 @@ impl ReferenceRepository {
             "dayIdentified",
             "identificationRemarks",
             "fieldNumber",
+            "searchRecordedBy",
         ];
 
         for field in &target_fields {
@@ -1010,7 +1050,7 @@ impl ReferenceRepository {
                 "INSERT OR IGNORE INTO gbif (
                     gbifID, collectionCode, catalogNumber, recordNumber, recordedBy,
                     year, month, day, verbatimEventDate, country,
-                    stateProvince, county, municipality, locality, verbatimLocality,
+                    stateProvince, county, municipality, islandGroup, island, locality, verbatimLocality,
                     locationRemarks, verbatimCoordinates, decimalLatitude, decimalLongitude, habitat,
                     verbatimElevation, elevation, occurrenceRemarks, fieldNotes, typeStatus,
                     identificationQualifier, family, scientificName, identifiedBy, yearIdentified,
@@ -1019,12 +1059,12 @@ impl ReferenceRepository {
                 ) VALUES (
                     ?1, ?2, ?3, ?4, ?5,
                     ?6, ?7, ?8, ?9, ?10,
-                    ?11, ?12, ?13, ?14, ?15,
-                    ?16, ?17, ?18, ?19, ?20,
-                    ?21, ?22, ?23, ?24, ?25,
-                    ?26, ?27, ?28, ?29, ?30,
-                    ?31, ?32, ?33, ?34, ?35,
-                    ?36, ?37, ?38, ?39
+                    ?11, ?12, ?13, ?14, ?15, ?16, ?17,
+                    ?18, ?19, ?20, ?21, ?22,
+                    ?23, ?24, ?25, ?26, ?27,
+                    ?28, ?29, ?30, ?31, ?32,
+                    ?33, ?34, ?35, ?36, ?37,
+                    ?38, ?39, ?40, ?41
                 )"
             ).map_err(|e| e.to_string())?;
 
@@ -1046,6 +1086,8 @@ impl ReferenceRepository {
                 let state_province = get_val(&record, "stateProvince");
                 let county = get_val(&record, "county");
                 let municipality = get_val(&record, "municipality");
+                let island_group = get_val(&record, "islandGroup");
+                let island = get_val(&record, "island");
                 let locality = get_val(&record, "locality");
                 let verbatim_locality = get_val(&record, "verbatimLocality");
                 let location_remarks = get_val(&record, "locationRemarks");
@@ -1078,10 +1120,16 @@ impl ReferenceRepository {
                 let field_number = get_val(&record, "fieldNumber");
 
                 // Normalizations
-                let search_recorded_by = recorded_by
-                    .as_ref()
-                    .map(|s| normalize_search_recorded_by(s));
-                let normalized_recorded_by = search_recorded_by.clone();
+                let (search_recorded_by, normalized_recorded_by) =
+                    match get_val(&record, "searchRecordedBy") {
+                        Some(val) => (Some(val.clone()), Some(val)),
+                        None => {
+                            let norm = recorded_by
+                                .as_ref()
+                                .map(|s| normalize_search_recorded_by(s));
+                            (norm.clone(), norm)
+                        }
+                    };
 
                 let normalized_scientific_name =
                     scientific_name.as_ref().map(|s| normalize_taxon_name(s));
@@ -1119,6 +1167,8 @@ impl ReferenceRepository {
                     state_province,
                     county,
                     municipality,
+                    island_group,
+                    island,
                     locality,
                     verbatim_locality,
                     location_remarks,
