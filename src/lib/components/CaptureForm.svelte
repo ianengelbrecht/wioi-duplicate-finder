@@ -1937,7 +1937,7 @@
             delay={300}
           />
           {#if nameValidationStatus === "invalid" && form.scientificName}
-            <div class="absolute text-xs font-semibold uppercase text-amber-400 top-0 right-0">Name not in WCVP</div>
+            <div class="absolute text-xs text-slate-600 font-semibold uppercase px-1 py-px bg-amber-300 rounded top-0 right-0">{t("name-not-in-wcvp", "Not in WCVP")}</div>
           {/if}
         </div>
 

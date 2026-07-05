@@ -97,6 +97,7 @@
   "habitat-label": "Habitat",
   "id-qualifier-label": "Qualificateur",
   "scientific-name-label": "Nom scientifique",
+  "name-not-in-wcvp": "Absent de WCVP",
   "taxon-id-label": "ID du taxon",
   "type-status-label": "Statut du type",
   "det-by-label": "Dét. par",
