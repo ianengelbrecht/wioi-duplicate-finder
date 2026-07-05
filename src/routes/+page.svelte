@@ -126,8 +126,11 @@
   }
 
   $effect(() => {
-    checkDb();
-    updaterStore.check();
+    checkDb().then(() => {
+      if (!updaterStore.hasChecked && updaterStore.status === "idle") {
+        updaterStore.check();
+      }
+    });
   });
 
   async function loadSessions() {
@@ -285,41 +288,43 @@
     <div class="flex items-center gap-8 text-xs font-semibold">
       <!-- Language Selector and Github -->
       <div class="flex items-center gap-2">
-        {#if updaterStore.status === 'checking' || !updaterStore.hasChecked}
-          <div
-            class="px-3 py-1.5 text-[10px] font-bold tracking-wider rounded-none border border-dashed border-slate-300 text-slate-400 bg-transparent select-none flex items-center gap-1.5"
-          >
-            <span class="w-2 h-2 border border-slate-400 border-t-transparent rounded-full animate-spin"></span>
-            {t("update-status-checking", "Checking for updates...")}
-          </div>
-        {:else if updaterStore.isAvailable}
-          <button
-            type="button"
-            onclick={handleUpdateClick}
-            disabled={updaterStore.status === 'downloading' || updaterStore.status === 'installing'}
-            class="px-3 py-1.5 text-[10px] font-bold tracking-wider rounded-none bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-75 disabled:cursor-not-allowed"
-          >
-            {#if updaterStore.status === 'downloading'}
-              <span class="w-2 h-2 border border-white border-t-transparent rounded-full animate-spin"></span>
-              {t("update-btn-downloading", "Downloading")}{updaterStore.downloadProgress !== null ? ` ${updaterStore.downloadProgress}%` : '...'}
-            {:else if updaterStore.status === 'installing'}
-              <span class="w-2 h-2 border border-white border-t-transparent rounded-full animate-spin"></span>
-              {t("update-btn-installing", "Installing")}{updaterStore.downloadProgress !== null ? ` ${updaterStore.downloadProgress}%` : '...'}
-            {:else if updaterStore.status === 'downloaded'}
-              {t("update-btn-install", "Install Update")}
-            {:else}
-              {t("update-btn-download", "Update")}
-            {/if}
-          </button>
-        {:else}
-          <button
-            type="button"
-            onclick={() => updaterStore.check()}
-            title={t("update-status-check-now", "Click to check for updates")}
-            class="px-3 py-1.5 text-[10px] font-bold tracking-wider rounded-none border border-slate-300 text-slate-500 hover:text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition-all cursor-pointer"
-          >
-            V{updaterStore.currentVersion}: {t("update-status-uptodate", "up to date")}
-          </button>
+        {#if updaterStore.hasChecked || updaterStore.status === 'checking'}
+          {#if updaterStore.status === 'checking'}
+            <div
+              class="px-3 py-1.5 text-[10px] font-bold tracking-wider rounded-none border border-dashed border-slate-300 text-slate-400 bg-transparent select-none flex items-center gap-1.5"
+            >
+              <span class="w-2 h-2 border border-slate-400 border-t-transparent rounded-full animate-spin"></span>
+              {t("update-status-checking", "Checking for updates...")}
+            </div>
+          {:else if updaterStore.isAvailable}
+            <button
+              type="button"
+              onclick={handleUpdateClick}
+              disabled={updaterStore.status === 'downloading' || updaterStore.status === 'installing'}
+              class="px-3 py-1.5 text-[10px] font-bold tracking-wider rounded-none bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-75 disabled:cursor-not-allowed"
+            >
+              {#if updaterStore.status === 'downloading'}
+                <span class="w-2 h-2 border border-white border-t-transparent rounded-full animate-spin"></span>
+                {t("update-btn-downloading", "Downloading")}{updaterStore.downloadProgress !== null ? ` ${updaterStore.downloadProgress}%` : '...'}
+              {:else if updaterStore.status === 'installing'}
+                <span class="w-2 h-2 border border-white border-t-transparent rounded-full animate-spin"></span>
+                {t("update-btn-installing", "Installing")}{updaterStore.downloadProgress !== null ? ` ${updaterStore.downloadProgress}%` : '...'}
+              {:else if updaterStore.status === 'downloaded'}
+                {t("update-btn-install", "Install Update")}
+              {:else}
+                {t("update-btn-download", "Update")}
+              {/if}
+            </button>
+          {:else}
+            <button
+              type="button"
+              onclick={() => updaterStore.check()}
+              title={t("update-status-check-now", "Click to check for updates")}
+              class="px-3 py-1.5 text-[10px] font-bold tracking-wider rounded-none border border-slate-300 text-slate-500 hover:text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition-all cursor-pointer"
+            >
+              V{updaterStore.currentVersion}: {t("update-status-uptodate", "up to date")}
+            </button>
+          {/if}
         {/if}
 
         <div class="flex items-center border border-slate-300 divide-x divide-slate-300 select-none">

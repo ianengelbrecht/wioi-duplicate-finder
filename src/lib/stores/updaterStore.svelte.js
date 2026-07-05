@@ -26,6 +26,16 @@ export class UpdaterStore {
   /** @type {boolean} */
   hasChecked = $state(false);
 
+  constructor() {
+    getVersion()
+      .then((v) => {
+        this.currentVersion = v;
+      })
+      .catch((err) => {
+        console.error("Failed to load app version on start:", err);
+      });
+  }
+
   /**
    * Initializes the updater and checks for updates.
    * @returns {Promise<void>}
