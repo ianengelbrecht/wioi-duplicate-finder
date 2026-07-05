@@ -43,3 +43,18 @@ jobs:
           releaseName: "${{ github.ref_name }}"
           releaseDraft: false
           prerelease: false
+
+  deploy-docs:
+    needs: publish-tauri
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger documentation deployment
+        env:
+          GH_TOKEN: ${{ secrets.DOCS_REPO_TOKEN }}
+          DOCS_REF: ${{ github.ref_name }}
+        run: |
+          gh workflow run deploy.yml \
+            --repo ianengelbrecht/wioi-duplicate-finder-docs \
+            --ref main \
+            -f ref="$DOCS_REF"
