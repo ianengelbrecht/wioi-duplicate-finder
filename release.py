@@ -465,6 +465,14 @@ def main() -> None:
         print("\nRelease cancelled. No files were changed.")
         return
 
+    confirmation = input(
+        f"\nHave you updated the release notes for this new release? [y/N]: "
+    ).strip().lower()
+
+    if confirmation not in {"y", "yes"}:
+        print("\nRelease cancelled. No files were changed.")
+        return
+
     # Application updates.
     prepare_database()
     update_tauri_config(new_version)

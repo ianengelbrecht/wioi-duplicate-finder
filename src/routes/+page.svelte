@@ -448,6 +448,7 @@
           </div>
           <!-- Funders logos -->
           <div class="">
+            <p class="text-xs font-bold uppercase text-right text-slate-600">Originally developed for the Réseau d'herbiers de l'océan Indien occidental (West Indian Ocean Herbarium Network)</p>
             <a href="https://varuna-biodiversite.org" target="_blank" rel="noopener noreferrer">
               <img src="funders_desat.png" alt="Funders Logos" class="w-full" />
             </a>
