@@ -11,7 +11,7 @@ use crate::repositories::{
 use rusqlite::params;
 use serde_json::json;
 use std::fs;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 
 pub struct AuthService;
 
@@ -290,10 +290,7 @@ impl TaxonomyService {
         TaxonomyRepository::autocomplete_scientific_name(&conn, query).map_err(|e| e.to_string())
     }
 
-    pub fn lookup_taxon_by_name(
-        app: &AppHandle,
-        name: &str,
-    ) -> Result<Option<String>, String> {
+    pub fn lookup_taxon_by_name(app: &AppHandle, name: &str) -> Result<Option<String>, String> {
         let conn = get_connection(app)?;
         TaxonomyRepository::lookup_taxon_by_name(&conn, name).map_err(|e| e.to_string())
     }
@@ -496,7 +493,11 @@ impl ReferenceService {
         append: bool,
     ) -> Result<(), String> {
         let mut conn = get_connection(app)?;
-        ReferenceRepository::import_csv(&mut conn, filepath, append)?;
+        ReferenceRepository::import_csv(Some(app), &mut conn, filepath, append)?;
+        let _ = app.emit(
+            "import-progress",
+            "Rebuilding search index and collector catalog...",
+        );
         crate::db::finalize_reference_import(&mut conn)?;
         Ok(())
     }
@@ -519,7 +520,7 @@ impl ReferenceService {
         version: i32,
     ) -> Result<(), String> {
         let mut conn = get_connection(app)?;
-        ReferenceRepository::import_wcvp_csv(&mut conn, filepath, version)?;
+        ReferenceRepository::import_wcvp_csv(Some(app), &mut conn, filepath, version)?;
         Ok(())
     }
 }

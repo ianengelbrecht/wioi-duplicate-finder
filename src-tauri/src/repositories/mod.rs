@@ -7,6 +7,7 @@ use crate::parsers::{
 };
 use rusqlite::{params, Connection, Error};
 use serde_json::json;
+use tauri::Emitter;
 
 pub struct UserRepository;
 
@@ -527,11 +528,9 @@ impl TaxonomyRepository {
             let rank: Option<String> = row.get(6)?;
             let fullname: Option<String> = row.get(7)?;
 
-            let full_name = fullname.unwrap_or_else(|| {
-                match &authors {
-                    Some(a) if !a.trim().is_empty() => format!("{} {}", name, a.trim()),
-                    _ => name,
-                }
+            let full_name = fullname.unwrap_or_else(|| match &authors {
+                Some(a) if !a.trim().is_empty() => format!("{} {}", name, a.trim()),
+                _ => name,
             });
 
             Ok(TaxonAutocompleteResult {
@@ -552,10 +551,7 @@ impl TaxonomyRepository {
         Ok(list)
     }
 
-    pub fn lookup_taxon_by_name(
-        conn: &Connection,
-        name: &str,
-    ) -> Result<Option<String>, Error> {
+    pub fn lookup_taxon_by_name(conn: &Connection, name: &str) -> Result<Option<String>, Error> {
         let trimmed = name.trim();
         if trimmed.is_empty() {
             return Ok(None);
@@ -568,9 +564,7 @@ impl TaxonomyRepository {
              LIMIT 1",
         )?;
 
-        let mut rows = stmt.query_map(params![trimmed], |row| {
-            row.get::<_, String>(0)
-        })?;
+        let mut rows = stmt.query_map(params![trimmed], |row| row.get::<_, String>(0))?;
 
         if let Some(r) = rows.next() {
             let id = r?;
@@ -967,23 +961,25 @@ impl ReferenceRepository {
                  WHERE infraspecies IS NOT NULL AND infraspecies != '' AND infraspecies = species",
             )?;
 
-            let mut parent_stmt = conn.prepare(
-                "SELECT taxon_authors FROM wcvp_taxonomy WHERE plant_name_id = ?1",
-            )?;
+            let mut parent_stmt =
+                conn.prepare("SELECT taxon_authors FROM wcvp_taxonomy WHERE plant_name_id = ?1")?;
 
             let mut rows = stmt.query([])?;
             while let Some(row) = rows.next()? {
                 let plant_name_id: String = row.get(0)?;
                 let taxon_name: String = row.get(1)?;
                 let _species: String = row.get(2)?;
-                let infraspecific_rank: String = row.get(3)?;
+                let infraspecific_rank_opt: Option<String> = row.get(3)?;
+                let infraspecific_rank = infraspecific_rank_opt.unwrap_or_default();
                 let mut taxon_authors: Option<String> = row.get(4)?;
                 let parent_plant_name_id: Option<String> = row.get(5)?;
 
                 // If child authors is empty/None, fetch from parent
                 if taxon_authors.as_deref().unwrap_or("").trim().is_empty() {
                     if let Some(parent_id) = parent_plant_name_id {
-                        if let Ok(parent_authors) = parent_stmt.query_row(params![parent_id], |r| r.get::<_, Option<String>>(0)) {
+                        if let Ok(parent_authors) = parent_stmt
+                            .query_row(params![parent_id], |r| r.get::<_, Option<String>>(0))
+                        {
                             taxon_authors = parent_authors;
                         }
                     }
@@ -1015,7 +1011,8 @@ impl ReferenceRepository {
         // 3. Apply updates inside a transaction
         let tx = conn.transaction()?;
         {
-            let mut update_stmt = tx.prepare("UPDATE wcvp_taxonomy SET fullname = ?1 WHERE plant_name_id = ?2")?;
+            let mut update_stmt =
+                tx.prepare("UPDATE wcvp_taxonomy SET fullname = ?1 WHERE plant_name_id = ?2")?;
             for (id, fullname) in updates {
                 update_stmt.execute(params![fullname, id])?;
             }
@@ -1056,7 +1053,12 @@ impl ReferenceRepository {
         }))
     }
 
-    pub fn import_csv(conn: &mut Connection, filepath: &str, append: bool) -> Result<(), String> {
+    pub fn import_csv(
+        app: Option<&tauri::AppHandle>,
+        conn: &mut Connection,
+        filepath: &str,
+        append: bool,
+    ) -> Result<(), String> {
         let mut rdr = csv::ReaderBuilder::new()
             .has_headers(true)
             .from_path(filepath)
@@ -1139,20 +1141,20 @@ impl ReferenceRepository {
 
         let tx = conn.transaction().map_err(|e| e.to_string())?;
 
-        // 1. Delete all existing records
+        // 1. Drop triggers temporarily for import performance
+        let _ = tx.execute("DROP TRIGGER IF EXISTS gbif_ai", []);
+        let _ = tx.execute("DROP TRIGGER IF EXISTS gbif_ad", []);
+        let _ = tx.execute("DROP TRIGGER IF EXISTS gbif_au", []);
+        let _ = tx.execute("DROP TRIGGER IF EXISTS gbif_cfn_insert", []);
+        let _ = tx.execute("DROP TRIGGER IF EXISTS gbif_cfn_update", []);
+
+        // 2. Delete all existing records
         if !append {
             tx.execute("DELETE FROM gbif", [])
                 .map_err(|e| e.to_string())?;
             tx.execute("DELETE FROM agents", [])
                 .map_err(|e| e.to_string())?;
         }
-
-        // 2. Drop triggers temporarily for import performance
-        let _ = tx.execute("DROP TRIGGER IF EXISTS gbif_ai", []);
-        let _ = tx.execute("DROP TRIGGER IF EXISTS gbif_ad", []);
-        let _ = tx.execute("DROP TRIGGER IF EXISTS gbif_au", []);
-        let _ = tx.execute("DROP TRIGGER IF EXISTS gbif_cfn_insert", []);
-        let _ = tx.execute("DROP TRIGGER IF EXISTS gbif_cfn_update", []);
 
         // 3. Perform inserts
         {
@@ -1178,6 +1180,7 @@ impl ReferenceRepository {
                 )"
             ).map_err(|e| e.to_string())?;
 
+            let mut count = 0;
             for result in rdr.records() {
                 let record = result.map_err(|e| format!("CSV parse error: {}", e))?;
 
@@ -1307,6 +1310,16 @@ impl ReferenceRepository {
                     cleaned_field_number
                 ])
                 .map_err(|e| format!("Failed to insert record: {}", e))?;
+
+                count += 1;
+                if count % 10000 == 0 {
+                    if let Some(app_handle) = app {
+                        let _ = app_handle.emit("import-progress", count);
+                    }
+                }
+            }
+            if let Some(app_handle) = app {
+                let _ = app_handle.emit("import-progress", count);
             }
         }
 
@@ -1316,6 +1329,7 @@ impl ReferenceRepository {
     }
 
     pub fn import_wcvp_csv(
+        app: Option<&tauri::AppHandle>,
         conn: &mut Connection,
         filepath: &str,
         version: i32,
@@ -1436,6 +1450,7 @@ impl ReferenceRepository {
                 )
                 .map_err(|e| e.to_string())?;
 
+            let mut count = 0;
             for result in rdr.records() {
                 let record = result.map_err(|e| format!("CSV parse error: {}", e))?;
 
@@ -1634,15 +1649,35 @@ impl ReferenceRepository {
                         ])
                         .map_err(|e| format!("Failed to insert record {}: {}", plant_name_id, e))?;
                 }
+
+                count += 1;
+                if count % 10000 == 0 {
+                    if let Some(app_handle) = app {
+                        let _ = app_handle.emit("wcvp-import-progress", count);
+                    }
+                }
+            }
+            if let Some(app_handle) = app {
+                let _ = app_handle.emit("wcvp-import-progress", count);
             }
         }
 
         tx.commit()
             .map_err(|e| format!("Failed to commit transaction: {}", e))?;
 
+        if let Some(app_handle) = app {
+            let _ = app_handle.emit(
+                "wcvp-import-progress",
+                "Generating full taxonomy names (this may take a moment)...",
+            );
+        }
         Self::populate_wcvp_fullname(conn).map_err(|e| e.to_string())?;
 
         crate::db::set_wcvp_version(conn, version)?;
+
+        if let Some(app_handle) = app {
+            let _ = app_handle.emit("wcvp-import-progress", "Rebuilding search index...");
+        }
         crate::db::recreate_wcvp_triggers_and_rebuild_fts(conn)?;
 
         Ok(())

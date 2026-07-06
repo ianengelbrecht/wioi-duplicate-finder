@@ -1,5 +1,6 @@
 <script>
   import { getContext, onMount } from "svelte";
+  import { listen } from "@tauri-apps/api/event";
   import { authStore } from "$lib/stores/authStore.svelte.js";
   import { workspaceStore } from "$lib/stores/workspaceStore.svelte.js";
   import { exportService } from "$lib/services/exportService.js";
@@ -80,6 +81,31 @@
       loadingWcvpMetadata = false;
     }
   }
+
+  $effect(() => {
+    const unlistenReference = listen("import-progress", (event) => {
+      const payload = event.payload;
+      if (typeof payload === "number") {
+        referenceImportStatus = `Imported ${payload.toLocaleString()} records...`;
+      } else {
+        referenceImportStatus = payload;
+      }
+    });
+
+    const unlistenWcvp = listen("wcvp-import-progress", (event) => {
+      const payload = event.payload;
+      if (typeof payload === "number") {
+        wcvpImportStatus = `Imported ${payload.toLocaleString()} records...`;
+      } else {
+        wcvpImportStatus = payload;
+      }
+    });
+
+    return () => {
+      unlistenReference.then((fn) => fn());
+      unlistenWcvp.then((fn) => fn());
+    };
+  });
 
   onMount(() => {
     loadMetadata();

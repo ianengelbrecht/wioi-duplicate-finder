@@ -5,7 +5,7 @@ use rusqlite::{params, Connection, Result};
 use sha2::Sha256;
 use std::fs;
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::parsers::{
     normalize_locality, normalize_search_recorded_by, normalize_taxon_name, split_names,
@@ -169,6 +169,7 @@ fn set_last_quick_check_datetime(conn: &Connection) {
 /// Initializes the database on startup.
 /// Checks database existence, structure validity, runs integrity check, and runs migrations.
 pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
+    let _ = app.emit("db-init-progress", "Resolving database path...");
     let db_path = get_db_path(app).ok_or_else(|| "DATABASE_UNCONFIGURED".to_string())?;
     let config = load_config(app);
     let is_default_path = config.database_path.is_none();
@@ -176,6 +177,10 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
     if !db_path.exists() {
         if is_default_path {
             let mut copied = false;
+            let _ = app.emit(
+                "db-init-progress",
+                "Copying default database from resources...",
+            );
             if let Ok(resource_path) = app.path().resolve(
                 "resources/duplicate-finder.db",
                 tauri::path::BaseDirectory::Resource,
@@ -191,6 +196,7 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
                 }
             }
             if !copied {
+                let _ = app.emit("db-init-progress", "Creating new empty database...");
                 if let Some(parent) = db_path.parent() {
                     let _ = fs::create_dir_all(parent);
                 }
@@ -217,6 +223,7 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
 
     // If it's not a brand new empty database, validate it first
     if !is_new {
+        let _ = app.emit("db-init-progress", "Validating database structure...");
         validate_database_file(&db_path).map_err(|e| format!("DATABASE_INVALID:{}", e))?;
     }
 
@@ -242,6 +249,7 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
         };
 
         if should_check {
+            let _ = app.emit("db-init-progress", "Running database integrity checks...");
             info!("Running startup database integrity quick_check...");
             match conn.query_row("PRAGMA quick_check;", [], |r| r.get::<_, String>(0)) {
                 Ok(res) => {
@@ -270,19 +278,78 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
     }
 
     // Setup tables
+    let _ = app.emit("db-init-progress", "Running database migrations...");
     run_migrations(&mut conn).map_err(|e| e.to_string())?;
 
     // Validate structure after running migrations if it was a new empty database
     if is_new {
         validate_database_file(&db_path).map_err(|e| format!("DATABASE_INVALID:{}", e))?;
+    } else {
+        // Run FTS integrity checks and auto-rebuild if corrupted (only once a day)
+        let today = Local::now().date_naive();
+        let last_check = get_last_quick_check_date(&conn);
+        let should_check = match last_check {
+            Some(date) => date != today,
+            None => true,
+        };
+
+        if should_check {
+            let _ = app.emit("db-init-progress", "Running FTS search index checks...");
+            info!("Running startup FTS index integrity checks...");
+            if let Err(e) = conn.execute(
+                "INSERT INTO gbif_fts(gbif_fts) VALUES('integrity-check');",
+                [],
+            ) {
+                let _ = app.emit(
+                    "db-init-progress",
+                    "Rebuilding and repairing FTS search index...",
+                );
+                warn!(
+                    "gbif_fts index integrity check failed: {}. Attempting rebuild...",
+                    e
+                );
+                if let Err(rebuild_err) =
+                    conn.execute("INSERT INTO gbif_fts(gbif_fts) VALUES('rebuild');", [])
+                {
+                    error!("Failed to rebuild gbif_fts index: {}", rebuild_err);
+                } else {
+                    info!("Successfully rebuilt and repaired gbif_fts index!");
+                }
+            }
+
+            if let Err(e) = conn.execute(
+                "INSERT INTO wcvp_taxonomy_fts(wcvp_taxonomy_fts) VALUES('integrity-check');",
+                [],
+            ) {
+                let _ = app.emit(
+                    "db-init-progress",
+                    "Rebuilding and repairing taxon name autocomplete index...",
+                );
+                warn!(
+                    "wcvp_taxonomy_fts index integrity check failed: {}. Attempting rebuild...",
+                    e
+                );
+                if let Err(rebuild_err) = conn.execute(
+                    "INSERT INTO wcvp_taxonomy_fts(wcvp_taxonomy_fts) VALUES('rebuild');",
+                    [],
+                ) {
+                    error!("Failed to rebuild wcvp_taxonomy_fts index: {}", rebuild_err);
+                } else {
+                    info!("Successfully rebuilt and repaired wcvp_taxonomy_fts index!");
+                }
+            }
+        }
     }
 
     // Auto-normalize imported CSV reference records if they exist and are empty
+    let _ = app.emit("db-init-progress", "Normalizing reference data...");
     auto_normalize_reference_data(&mut conn).map_err(|e| e.to_string())?;
 
     // Startup population of the agents table
+    let _ = app.emit("db-init-progress", "Populating collector catalog...");
     populate_agents_table(&mut conn, false).map_err(|e| e.to_string())?;
 
+    let _ = app.emit("db-init-progress", "Database ready!");
     Ok(())
 }
 
@@ -1627,6 +1694,7 @@ mod tests {
 
         let mut conn_mut = conn;
         crate::repositories::ReferenceRepository::import_wcvp_csv(
+            None,
             &mut conn_mut,
             temp_csv.to_str().unwrap(),
             17,
@@ -1655,6 +1723,7 @@ mod tests {
                                    1003|Rosaceae|Rosa|canina|Rosa canina|1\n";
         fs::write(&temp_csv, csv_content_updated).unwrap();
         crate::repositories::ReferenceRepository::import_wcvp_csv(
+            None,
             &mut conn_mut,
             temp_csv.to_str().unwrap(),
             18,

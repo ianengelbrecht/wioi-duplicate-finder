@@ -1,4 +1,5 @@
 <script>
+  import { listen } from "@tauri-apps/api/event";
   import { setContext } from "svelte";
   import SearchPane from "$lib/components/SearchPane.svelte";
   import CaptureForm from "$lib/components/CaptureForm.svelte";
@@ -126,11 +127,19 @@
   }
 
   $effect(() => {
+    const unlistenPromise = listen("db-init-progress", (event) => {
+      authStore.dbLoadingMessage = event.payload;
+    });
+
     checkDb().then(() => {
       if (!updaterStore.hasChecked && updaterStore.status === "idle") {
         updaterStore.check();
       }
     });
+
+    return () => {
+      unlistenPromise.then((unlistenFn) => unlistenFn());
+    };
   });
 
   async function loadSessions() {
