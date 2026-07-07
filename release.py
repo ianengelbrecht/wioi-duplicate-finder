@@ -25,7 +25,7 @@ from pathlib import Path
 APP_ROOT = Path(__file__).resolve().parent
 
 # Change this to the location of your documentation repository.
-DOCS_ROOT = APP_ROOT.parent / "wioi-duplicate-finder-docs"
+DOCS_ROOT = APP_ROOT.parent / "duplicate-finder-docs"
 
 TAURI_CONFIG = APP_ROOT / "src-tauri" / "tauri.conf.json"
 PACKAGE_JSON = APP_ROOT / "package.json"
