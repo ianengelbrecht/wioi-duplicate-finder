@@ -21,6 +21,11 @@
     errorMessage = "",
     onSelectRecord = () => {}
   } = $props();
+
+  /**
+   * @type {number | null} selectedRecord - Index of the currently selected record, or null if none is selected.
+   */
+  let selectedRecord = $state(null);
 </script>
 
 <div class="flex-1 flex flex-col min-h-0">
@@ -51,10 +56,13 @@
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-200">
-          {#each results as rec}
+          {#each results as rec, i}
             <tr 
-              onclick={() => onSelectRecord(rec)}
-              class="hover:bg-slate-50 cursor-pointer transition-colors border-b border-slate-100 group"
+              onclick={() => {
+                selectedRecord = i;
+                onSelectRecord(rec);
+              }}
+              class="{selectedRecord === i ? 'bg-slate-200' : 'hover:bg-slate-50'} cursor-pointer transition-colors border-b border-slate-100 group"
             >
               <!-- HERB -->
               <td class="p-3 text-slate-700 font-medium">
