@@ -139,6 +139,7 @@
           placeholder={t("search-collector-placeholder", "Partial eg 'Raza' (no initials)")}
           bind:value={filters.recordedBy}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          autocomplete="off"
         />
       </div>
       <div class="col-span-2">
@@ -150,6 +151,7 @@
           placeholder={t("search-record-number-placeholder", "eg 1042")}
           bind:value={filters.recordNumber}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          autocomplete="off"
         />
       </div>
       <div class="col-span-5 flex gap-2">
@@ -198,6 +200,7 @@
           placeholder={t("search-family-placeholder", "eg 'mal' for Malvaceae")}
           bind:value={filters.family}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          autocomplete="off"
         />
       </div>
       <div class="col-span-12 sm:col-span-8">
@@ -209,6 +212,7 @@
           placeholder={t("scientific-name-placeholder", "Partial search eg 'ab man'")}
           bind:value={filters.scientificName}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          autocomplete="off"
         />
       </div>
     </div>
@@ -254,6 +258,7 @@
           placeholder={t("search-locality-placeholder", "Partial search eg 'Anta ré'")}
           bind:value={filters.locality}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          autocomplete="off"
         />
       </div>
     </div>

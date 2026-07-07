@@ -18,7 +18,9 @@
     customSelect = false,
     promptNewAgent = false,
     extraInputClass = "",
-    inputRef = $bindable(null)
+    inputRef = $bindable(null),
+    useTextArea = false,
+    textAreaRows = 3
   } = $props();
 
   const t = getContext("t");
@@ -222,24 +224,45 @@
       {labelKey && t ? t(labelKey, label) : label}
     </label>
   {/if}
+
+  {#if useTextArea}
+    <textarea
+      bind:this={inputRef}
+      {id}
+      data-i18n-key={placeholderKey || null}
+      placeholder={placeholderKey && t ? t(placeholderKey, placeholder) : placeholder}
+      {value}
+      oninput={handleInput}
+      onkeydown={handleKeyDown}
+      onblur={handleBlur}
+      onfocus={() => {
+        onfocus();
+        if (suggestions.length > 0) showDropdown = true;
+      }}
+      class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all {extraInputClass}"
+      rows={textAreaRows}
+    ></textarea>
+  {:else}
   
-  <input
-    bind:this={inputRef}
-    {id}
-    data-i18n-key={placeholderKey || null}
-    type="text"
-    placeholder={placeholderKey && t ? t(placeholderKey, placeholder) : placeholder}
-    {value}
-    oninput={handleInput}
-    onkeydown={handleKeyDown}
-    onblur={handleBlur}
-    onfocus={() => {
-      onfocus();
-      if (suggestions.length > 0) showDropdown = true;
-    }}
-    class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all {extraInputClass}"
-    autocomplete="off"
-  />
+    <input
+      bind:this={inputRef}
+      {id}
+      data-i18n-key={placeholderKey || null}
+      type="text"
+      placeholder={placeholderKey && t ? t(placeholderKey, placeholder) : placeholder}
+      {value}
+      oninput={handleInput}
+      onkeydown={handleKeyDown}
+      onblur={handleBlur}
+      onfocus={() => {
+        onfocus();
+        if (suggestions.length > 0) showDropdown = true;
+      }}
+      class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all {extraInputClass}"
+      autocomplete="off"
+    />
+
+  {/if}
 
   {#if showDropdown && suggestions.length > 0}
     <ul class="absolute z-50 left-0 right-0 top-full mt-[-1px] bg-white border border-slate-300 shadow-md max-h-60 overflow-y-auto rounded-none divide-y divide-slate-100">

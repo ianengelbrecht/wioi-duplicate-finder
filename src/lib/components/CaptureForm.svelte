@@ -1636,79 +1636,103 @@
             </div>
           </div>
         </div>
+      </div>  
+
+      <!-- Locality -->
+      <div class="col-span-4">
+        <label for="capture-locality" data-i18n-key="locality-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("locality-label", "Locality")}</label>
+        <div class="relative flex items-center ">
+          <div class="w-full">
+            <Autocomplete
+              id="capture-locality"
+              label=""
+              placeholder="eg 10km north of Ambositra, on road to Antsirabe"
+              placeholderKey="locality-placeholder"
+              bind:value={form.locality}
+              suggestions={localitySuggestions}
+              oninput={handleLocalityInput}
+              delay={300}
+              bind:inputRef={localityInputRef}
+              extraInputClass="pr-20"
+              useTextArea={true}
+              textAreaRows={2}
+            />
+          </div>
+          
+          <!-- Buttons -->
+          <div class="absolute right-5 flex items-center gap-1 z-100">
+            <button
+              type="button"
+              onclick={handleCopyLocality}
+              title={t("copy-locality-title", "Copy Locality")}
+              class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+              tabindex="-1"
+            >
+              {#if localityCopied}
+                <CheckIcon />
+              {:else}
+                <CopyIcon />
+              {/if}
+            </button>
+            <button
+              type="button"
+              onclick={handlePasteLocality}
+              title={t("paste-locality-title", "Paste Locality")}
+              class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+              tabindex="-1"
+            >
+              <PasteIcon />
+            </button>
+            {#if form.locality === titleCasedStates.locality.titleCased && titleCasedStates.locality.titleCased !== ""}
+              <button
+                type="button"
+                onclick={() => undoTitleCaseField(form, titleCasedStates, "locality")}
+                data-i18n-key="undo-title-case"
+                title={t("undo-title-case", "Undo Casing")}
+                class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                <UndoIcon />
+              </button>
+            {:else}
+              <button
+                type="button"
+                onclick={() => titleCaseField(form, titleCasedStates, "locality")}
+                data-i18n-key="title-case"
+                title={t("title-case", "Proper Case")}
+                class="w-6 h-6 p-1.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                <AaIcon />
+              </button>
+            {/if}
+          </div>
+        </div>
       </div>
 
-      <!-- Locality and Cultivated -->
+      <!-- Coordinates and Cultivated -->
       <div class="grid grid-cols-12 gap-3">
-        <!-- Locality Field -->
-        <div class="col-span-9">
-          <label for="capture-locality" data-i18n-key="locality-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("locality-label", "Locality")}</label>
-          <div class="relative flex items-center ">
-            <div class="w-full">
-              <Autocomplete
-                id="capture-locality"
-                label=""
-                placeholder="eg 10km north of Ambositra, on road to Antsirabe"
-                placeholderKey="locality-placeholder"
-                bind:value={form.locality}
-                suggestions={localitySuggestions}
-                oninput={handleLocalityInput}
-                delay={300}
-                bind:inputRef={localityInputRef}
-                extraInputClass="pr-20"
-              />
+        <div class="relative col-span-9">
+          <label for="capture-verbatimCoordinates" data-i18n-key="verbatim-coordinates-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+            {t("verbatim-coordinates-label", "Coordinates")}
+            {#if coordinatesError}
+              <span data-i18n-key="coord-error-badge" class="text-[9px] text-red-500 font-bold ml-1 uppercase">{t("coord-error-badge", "(Invalid)")}</span>
+            {/if}
+          </label>
+          <input
+            id="capture-verbatimCoordinates"
+            data-i18n-key="verbatim-coordinates-placeholder"
+            type="text"
+            placeholder={t("verbatim-coordinates-placeholder", "eg 20°34'S, 47°12'E")}
+            bind:value={form.verbatimCoordinates}
+            onblur={handleCoordinatesBlur}
+            class="w-full bg-white border text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all {coordinatesError ? 'border-red-500 bg-red-50 focus:border-red-500 focus:ring-red-500' : 'border-slate-300'}"
+          />
+          {#if form.decimalLatitude && form.decimalLongitude}
+            <div class="absolute top-0 right-0 text-[10px] text-slate-400 mt-1">
+              {(Number(form.decimalLatitude)).toFixed(6)}, {(Number(form.decimalLongitude)).toFixed(6)}
             </div>
-            
-            <!-- Buttons -->
-            <div class="absolute right-5 flex items-center gap-1 z-100">
-              <button
-                type="button"
-                onclick={handleCopyLocality}
-                title={t("copy-locality-title", "Copy Locality")}
-                class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
-                tabindex="-1"
-              >
-                {#if localityCopied}
-                  <CheckIcon />
-                {:else}
-                  <CopyIcon />
-                {/if}
-              </button>
-              <button
-                type="button"
-                onclick={handlePasteLocality}
-                title={t("paste-locality-title", "Paste Locality")}
-                class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
-                tabindex="-1"
-              >
-                <PasteIcon />
-              </button>
-              {#if form.locality === titleCasedStates.locality.titleCased && titleCasedStates.locality.titleCased !== ""}
-                <button
-                  type="button"
-                  onclick={() => undoTitleCaseField(form, titleCasedStates, "locality")}
-                  data-i18n-key="undo-title-case"
-                  title={t("undo-title-case", "Undo Casing")}
-                  class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
-                  tabindex="-1"
-                >
-                  <UndoIcon />
-                </button>
-              {:else}
-                <button
-                  type="button"
-                  onclick={() => titleCaseField(form, titleCasedStates, "locality")}
-                  data-i18n-key="title-case"
-                  title={t("title-case", "Proper Case")}
-                  class="w-6 h-6 p-1.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
-                  tabindex="-1"
-                >
-                  <AaIcon />
-                </button>
-              {/if}
-            </div>
-
-          </div>
+          {/if}
         </div>
         <!-- Cultivated Specimen Flag -->
         <div class="col-span-3 flex items-center pt-5">
@@ -1723,93 +1747,67 @@
         </div>
       </div>
 
-      <!-- Coordinates -->
-      <div class="col-span-4">
-        <label for="capture-verbatimCoordinates" data-i18n-key="verbatim-coordinates-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-          {t("verbatim-coordinates-label", "Coordinates")}
-          {#if coordinatesError}
-            <span data-i18n-key="coord-error-badge" class="text-[9px] text-red-500 font-bold ml-1 uppercase">{t("coord-error-badge", "(Invalid)")}</span>
-          {/if}
-        </label>
-        <input
-          id="capture-verbatimCoordinates"
-          data-i18n-key="verbatim-coordinates-placeholder"
-          type="text"
-          placeholder={t("verbatim-coordinates-placeholder", "eg 20°34'S, 47°12'E")}
-          bind:value={form.verbatimCoordinates}
-          onblur={handleCoordinatesBlur}
-          class="w-full bg-white border text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all {coordinatesError ? 'border-red-500 bg-red-50 focus:border-red-500 focus:ring-red-500' : 'border-slate-300'}"
-        />
-        {#if form.decimalLatitude && form.decimalLongitude}
-          <div class="text-[10px] text-slate-400 mt-1">
-            {(Number(form.decimalLatitude)).toFixed(6)}, {(Number(form.decimalLongitude)).toFixed(6)}
-          </div>
-        {/if}
-      </div>
-
       <!-- Locality Notes -->
       <div class="grid grid-cols-12 gap-3">
         <div class="col-span-12">
           <label for="capture-locationNotes" data-i18n-key="location-notes-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("location-notes-label", "Locality Notes")}</label>
-          <div class="relative flex items-center">
-            <textarea
-              id="capture-locationNotes"
-              data-i18n-key="location-notes-placeholder"
-              placeholder={t("location-notes-placeholder", "eg 'Found in humid forest'")}
-              bind:value={form.locationNotes}
-              bind:this={locationNotesRef}
-              rows="2"
-              class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all pr-24"
-            ></textarea>
-            
-            <!-- Clipboard Buttons -->
-            <div class="absolute right-5 bottom-3.5 flex items-center gap-1 z-10">
-              <button
-                type="button"
-                onclick={handleCopyLocationNotes}
-                title={t("copy-location-notes-title", "Copy Notes")}
-                class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
-                tabindex="-1"
-              >
-                {#if locationNotesCopied}
-                  <CheckIcon />
-                {:else}
-                  <CopyIcon />
-                {/if}
-              </button>
-              <button
-                type="button"
-                onclick={handlePasteLocationNotes}
-                title={t("paste-location-notes-title", "Paste Notes")}
-                class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
-                tabindex="-1"
-              >
-                <PasteIcon />
-              </button>
-              {#if form.locationNotes === titleCasedStates.locationNotes.titleCased && titleCasedStates.locationNotes.titleCased !== ""}
-                <button
-                  type="button"
-                  onclick={() => undoTitleCaseField(form, titleCasedStates, "locationNotes")}
-                  data-i18n-key="undo-title-case"
-                  title={t("undo-title-case", "Undo Casing")}
-                  class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
-                  tabindex="-1"
-                >
-                  <UndoIcon />
-                </button>
+          <textarea
+            id="capture-locationNotes"
+            data-i18n-key="location-notes-placeholder"
+            placeholder={t("location-notes-placeholder", "eg 'Found in humid forest'")}
+            bind:value={form.locationNotes}
+            bind:this={locationNotesRef}
+            rows="2"
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all pr-24"
+          ></textarea>
+          
+          <!-- Clipboard Buttons -->
+          <div class="absolute right-5 bottom-3.5 flex items-center gap-1 z-10">
+            <button
+              type="button"
+              onclick={handleCopyLocationNotes}
+              title={t("copy-location-notes-title", "Copy Notes")}
+              class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+              tabindex="-1"
+            >
+              {#if locationNotesCopied}
+                <CheckIcon />
               {:else}
-                <button
-                  type="button"
-                  onclick={() => titleCaseField(form, titleCasedStates, "locationNotes")}
-                  data-i18n-key="title-case-notes"
-                  title={t("title-case-notes", "Title case Locality Notes")}
-                  class="w-6 h-6 p-1.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
-                  tabindex="-1"
-                >
-                  <AaIcon />
-                </button>
+                <CopyIcon />
               {/if}
-            </div>
+            </button>
+            <button
+              type="button"
+              onclick={handlePasteLocationNotes}
+              title={t("paste-location-notes-title", "Paste Notes")}
+              class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+              tabindex="-1"
+            >
+              <PasteIcon />
+            </button>
+            {#if form.locationNotes === titleCasedStates.locationNotes.titleCased && titleCasedStates.locationNotes.titleCased !== ""}
+              <button
+                type="button"
+                onclick={() => undoTitleCaseField(form, titleCasedStates, "locationNotes")}
+                data-i18n-key="undo-title-case"
+                title={t("undo-title-case", "Undo Casing")}
+                class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                <UndoIcon />
+              </button>
+            {:else}
+              <button
+                type="button"
+                onclick={() => titleCaseField(form, titleCasedStates, "locationNotes")}
+                data-i18n-key="title-case-notes"
+                title={t("title-case-notes", "Title case Locality Notes")}
+                class="w-6 h-6 p-1.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                <AaIcon />
+              </button>
+            {/if}
           </div>
         </div>
       </div>
