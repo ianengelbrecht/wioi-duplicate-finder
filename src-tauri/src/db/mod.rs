@@ -1746,4 +1746,99 @@ mod tests {
 
         let _ = fs::remove_file(&temp_csv);
     }
+
+    #[test]
+    fn test_autocomplete_scientific_name() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute(
+            "CREATE TABLE app_metadata (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );",
+            [],
+        )
+        .unwrap();
+
+        conn.execute(
+            "CREATE TABLE wcvp_taxonomy (
+                plant_name_id TEXT,
+                ipni_id TEXT,
+                taxon_rank TEXT,
+                taxon_status TEXT,
+                family TEXT,
+                genus_hybrid TEXT,
+                genus TEXT,
+                species_hybrid TEXT,
+                species TEXT,
+                infraspecific_rank TEXT,
+                infraspecies TEXT,
+                parenthetical_author TEXT,
+                primary_author TEXT,
+                publication_author TEXT,
+                place_of_publication TEXT,
+                volume_and_page TEXT,
+                first_published TEXT,
+                nomenclatural_remarks TEXT,
+                geographic_area TEXT,
+                lifeform_description TEXT,
+                climate_description TEXT,
+                taxon_name TEXT,
+                normalized_taxon_name TEXT,
+                taxon_authors TEXT,
+                accepted_plant_name_id TEXT,
+                basionym_plant_name_id TEXT,
+                replaced_synonym_author TEXT,
+                homotypic_synonym TEXT,
+                parent_plant_name_id TEXT,
+                powo_id TEXT,
+                hybrid_formula TEXT,
+                reviewed TEXT,
+                fullname TEXT
+            );",
+            [],
+        )
+        .unwrap();
+
+        conn.execute(
+            "CREATE VIRTUAL TABLE wcvp_taxonomy_fts USING fts5(
+                taxon_name,
+                content='wcvp_taxonomy'
+            );",
+            [],
+        )
+        .unwrap();
+
+        let temp_csv = std::env::temp_dir().join("test_wcvp_autocomplete.csv");
+        let csv_content = "plant_name_id|family|genus|species|taxon_name|reviewed\n\
+                           1001|Malvaceae|Adansonia|digitata|Adansonia digitata|1\n\
+                           1002|Plantaginaceae|Digitalis|purpurea|Digitalis purpurea|1\n\
+                           1003|Poaceae|Digitaria|adscendens|Digitaria adscendens|1\n";
+        fs::write(&temp_csv, csv_content).unwrap();
+
+        let mut conn_mut = conn;
+        crate::repositories::ReferenceRepository::import_wcvp_csv(
+            None,
+            &mut conn_mut,
+            temp_csv.to_str().unwrap(),
+            1,
+        )
+        .unwrap();
+
+        let _ = fs::remove_file(&temp_csv);
+
+        let results = crate::repositories::TaxonomyRepository::autocomplete_scientific_name(
+            &conn_mut, "ad dig",
+        )
+        .unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].scientific_name, "Adansonia digitata");
+
+        let results2 = crate::repositories::TaxonomyRepository::autocomplete_scientific_name(
+            &conn_mut, "dig ad",
+        )
+        .unwrap();
+        assert_eq!(results2.len(), 1);
+        assert_eq!(results2[0].scientific_name, "Digitaria adscendens");
+    }
 }

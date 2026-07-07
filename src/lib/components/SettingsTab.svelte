@@ -439,7 +439,7 @@
           bind:group={workspaceStore.exportFormat}
           class="text-slate-800"
         />
-        <span>BRAHMS</span>
+        <span>BRAHMS7</span>
       </label>
     </div>
   </div>

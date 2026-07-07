@@ -505,7 +505,7 @@ impl TaxonomyRepository {
             let clean = term.trim_matches(|c: char| c.is_ascii_punctuation());
             if !clean.is_empty() {
                 if i > 0 {
-                    fts_query.push_str(" AND ");
+                    fts_query.push_str(" + ");
                 }
                 fts_query.push_str(&format!("{}*", clean));
             }
