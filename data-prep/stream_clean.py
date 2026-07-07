@@ -52,10 +52,10 @@ def get_value(row, field_indexes, field_name):
 # =============================================================================
 
 
-def stream_format_csv(input_directory: Path):
+def stream_format_csv(input_directory: Path, output_file: Path):
     input_file = input_directory / "occurrence.txt"
 
-    output_file = input_directory / "occurrence_formatted.csv"
+    output_file = input_directory / output_file
     quarantine_file = input_directory / "occurrence_quarantined_rows.jsonl"
     quarantine_summary_file = (
         input_directory / "occurrence_quarantined_rows_summary.csv"
@@ -117,8 +117,9 @@ def stream_format_csv(input_directory: Path):
         reader = csv.reader(
             infile,
             delimiter="\t",
-            quotechar='"',
-            strict=False,
+            quotechar=None,
+            quoting=csv.QUOTE_NONE,
+            strict=True,
         )
 
         try:
@@ -378,6 +379,14 @@ if __name__ == "__main__":
         help="Directory containing occurrence.txt",
     )
 
+    parser.add_argument(
+        "output_file",
+        type=Path,
+        default="occurrence_formatted.csv",
+        help="The output file name, ending in .csv, default is occurrence_formatted.csv",
+    )
+
+
     args = parser.parse_args()
 
-    stream_format_csv(args.input_directory)
+    stream_format_csv(args.input_directory, args.output_file)
