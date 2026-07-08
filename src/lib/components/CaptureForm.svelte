@@ -229,24 +229,6 @@
     statusMessageDefault = "";
     statusType = "";
 
-    // Validate collector
-    if (!form.recordedBy.trim()) {
-      statusMessageKey = "recorded-by-required-error";
-      statusMessageDefault = "Error: Primary Collector is required.";
-      statusType = "error";
-      saving = false;
-      return;
-    }
-
-    // Validate collector number
-    if (!form.recordNumber.trim()) {
-      statusMessageKey = "record-number-required-error";
-      statusMessageDefault = "Error: Collector Number is required.";
-      statusType = "error";
-      saving = false;
-      return;
-    }
-
     // Validate coordinates error
     if (coordinatesError) {
       statusMessageKey = "invalid-coordinates-error";
