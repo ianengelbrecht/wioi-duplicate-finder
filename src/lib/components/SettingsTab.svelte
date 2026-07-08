@@ -21,6 +21,8 @@
   let collectionCodes = $state(/** @type {{ code: string, count: number }[]} */ ([]));
   let loadingMetadata = $state(false);
 
+  let settingsEdited =$state(false);
+
   /** @type {boolean} */
   let showReferenceImportDialog = $state(false);
   /** @type {string} */
@@ -236,6 +238,7 @@
         workspaceStore.exportFormat,
         JSON.stringify(mappingsObj)
       );
+      settingsEdited = false;
       workspaceStore.settingsMessage = "Settings saved successfully!";
       setTimeout(() => { workspaceStore.settingsMessage = ""; }, 3000);
     } catch (e) {
@@ -290,6 +293,67 @@
       {workspaceStore.settingsMessage}
     </div>
   {/if}
+
+  <!-- Collection Code Setting -->
+  <div class="space-y-2 pt-2 border-t border-slate-100">
+    <label for="settings-collectionCode" data-i18n-key="working-collection-code" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">{t("working-collection-code", "Working Collection Code")}</label>
+    <input
+      id="settings-collectionCode"
+      type="text"
+      placeholder="e.g. TAN"
+      bind:value={workspaceStore.workingCollectionCode}
+      onchange={() => settingsEdited = true}
+      onkeyup={(e) => /^[a-zA-Z]$/.test(e.key) && (settingsEdited = true)}
+      class="w-full sm:w-64 bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+    />
+  </div>
+
+  <!-- Format Choice -->
+  <div class="space-y-2">
+    <div>
+      <span data-i18n-key="export-format" class="text-xs font-bold text-slate-700 uppercase tracking-wider">{t("export-format", "Export Format ")}</span>
+      <span data-i18n-key="export-format-sub" class="text-xs text-slate-500">{t("export-format-sub", "(files are exported as comma separated values -- CSV).")}</span>
+    </div>
+    
+    <div class="flex gap-4">
+      <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+        <input
+          type="radio"
+          name="export-format"
+          value="DwC"
+          bind:group={workspaceStore.exportFormat}
+          onchange={() => settingsEdited = true}
+          class="text-slate-800"
+        />
+        <span>Darwin Core</span>
+      </label>
+      <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+        <input
+          type="radio"
+          name="export-format"
+          value="BRAHMS"
+          bind:group={workspaceStore.exportFormat}
+          onchange={() => settingsEdited = true}
+          class="text-slate-800"
+        />
+        <span>BRAHMS7</span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Grid Reference Setting -->
+  <div class="space-y-2 pt-2">
+    <label class="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wider cursor-pointer">
+      <input
+        id="settings-qds"
+        type="checkbox"
+        bind:checked={workspaceStore.includeGridReference}
+        onchange={() => settingsEdited = true}
+        class="w-4 h-4 text-slate-855 border-slate-300 rounded focus:ring-slate-500 focus:ring-1 cursor-pointer"
+      />
+      <span data-i18n-key="include-qds-label">{t("include-qds-label", "Include grid reference (QDS)")}</span>
+    </label>
+  </div>
 
   <!-- Reference Dataset Setting -->
   <div class="space-y-2 pt-2 border-t border-slate-100 bg-white rounded-none">
@@ -401,62 +465,6 @@
     </div>
   </div>
 
-  <!-- Collection Code Setting -->
-  <div class="space-y-2 pt-2 border-t border-slate-100">
-    <label for="settings-collectionCode" data-i18n-key="working-collection-code" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">{t("working-collection-code", "Working Collection Code")}</label>
-    <input
-      id="settings-collectionCode"
-      type="text"
-      placeholder="e.g. TAN"
-      bind:value={workspaceStore.workingCollectionCode}
-      class="w-full sm:w-64 bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
-    />
-  </div>
-
-  <!-- Format Choice -->
-  <div class="space-y-2">
-    <div>
-      <span data-i18n-key="export-format" class="text-xs font-bold text-slate-700 uppercase tracking-wider">{t("export-format", "Export Format ")}</span>
-      <span data-i18n-key="export-format-sub" class="text-xs text-slate-500">{t("export-format-sub", "(files are exported as comma separated values -- CSV).")}</span>
-    </div>
-    
-    <div class="flex gap-4">
-      <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
-        <input
-          type="radio"
-          name="export-format"
-          value="DwC"
-          bind:group={workspaceStore.exportFormat}
-          class="text-slate-800"
-        />
-        <span>Darwin Core</span>
-      </label>
-      <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
-        <input
-          type="radio"
-          name="export-format"
-          value="BRAHMS"
-          bind:group={workspaceStore.exportFormat}
-          class="text-slate-800"
-        />
-        <span>BRAHMS7</span>
-      </label>
-    </div>
-  </div>
-
-  <!-- Grid Reference Setting -->
-  <div class="space-y-2 pt-2">
-    <label class="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wider cursor-pointer">
-      <input
-        id="settings-qds"
-        type="checkbox"
-        bind:checked={workspaceStore.includeGridReference}
-        class="w-4 h-4 text-slate-855 border-slate-300 rounded focus:ring-slate-500 focus:ring-1 cursor-pointer"
-      />
-      <span data-i18n-key="include-qds-label">{t("include-qds-label", "Include grid reference (QDS)")}</span>
-    </label>
-  </div>
-
   <!-- Database Backup Location Setting -->
   <div class="space-y-2 pt-2 border-t border-slate-100">
     <label for="settings-backup-location" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
@@ -467,6 +475,7 @@
         id="settings-backup-location"
         type="text"
         bind:value={workspaceStore.databaseBackupLocation}
+        onchange={() => settingsEdited = true}
         class="flex-1 bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
         placeholder="Database backup folder path"
       />
@@ -508,7 +517,8 @@
       type="button"
       data-i18n-key="save-settings-btn"
       onclick={handleSaveSettings}
-      class="bg-slate-800 hover:bg-slate-900 text-white px-6 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors"
+      disabled={!settingsEdited}
+      class="disabled:bg-slate-200 disabled:text-black bg-slate-800 hover:bg-slate-900 text-white px-6 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors"
     >
       {t("save-settings-btn", "Save Settings")}
     </button>

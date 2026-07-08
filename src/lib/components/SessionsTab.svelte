@@ -127,7 +127,7 @@
   </div>
 
   <!-- Session Creator Form -->
-  <form onsubmit={handleCreateSession} class="flex gap-2">
+  <form onsubmit={handleCreateSession} class="flex gap-2 p-1">
     <input
       type="text"
       placeholder={t("session-name-placeholder", "eg Malvaceae Cupboard 2")}
@@ -137,7 +137,8 @@
     <button
       type="submit"
       data-i18n-key="create-session-btn"
-      class="bg-slate-800 hover:bg-slate-900 text-white px-6 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors"
+      disabled={sessionName.trim().length === 0}
+      class="disabled:bg-slate-100 disabled:text-black bg-slate-900 text-white  px-6 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors"
     >
       {t("create-session-btn", "Create Session")}
     </button>

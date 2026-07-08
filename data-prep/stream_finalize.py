@@ -13,7 +13,6 @@ DEFAULT_COLLECTORS_FILENAME = "occurrence_unique_recorded_by.csv"
 OUTPUT_FILENAME = "occurrence_final.csv"
 COUNTRY_CODES_FILENAME = "countryCodes.csv"
 
-MAX_FIELD_SIZE = 10_000_000
 PROGRESS_EVERY = 10_000
 
 
@@ -331,6 +330,7 @@ def enrich_occurrence_file(
     input_directory: Path,
     occurrence_filename: str,
     collectors_filename: str,
+    output_filename: str
 ):
     if not input_directory.exists():
         raise FileNotFoundError(
@@ -344,7 +344,7 @@ def enrich_occurrence_file(
 
     occurrence_file = input_directory / occurrence_filename
     collectors_file = input_directory / collectors_filename
-    output_file = input_directory / OUTPUT_FILENAME
+    output_file = input_directory / output_filename
 
     script_directory = Path(__file__).resolve().parent
     country_codes_file = script_directory / COUNTRY_CODES_FILENAME
@@ -353,8 +353,6 @@ def enrich_occurrence_file(
         raise FileNotFoundError(
             f"Occurrence file does not exist:\n{occurrence_file}"
         )
-
-    csv.field_size_limit(MAX_FIELD_SIZE)
 
     country_lookup = load_country_lookup(country_codes_file)
     collector_lookup = load_collector_lookup(collectors_file)
@@ -620,10 +618,21 @@ if __name__ == "__main__":
         ),
     )
 
+    parser.add_argument(
+        "output_filename",
+        nargs="?",
+        default=OUTPUT_FILENAME,
+        help=(
+            f"(default: {OUTPUT_FILENAME})."
+        ),
+    )
+
+
     args = parser.parse_args()
 
     enrich_occurrence_file(
         input_directory=args.input_directory,
         occurrence_filename=args.occurrence_filename,
         collectors_filename=args.collectors_filename,
+	output_filename=args.output_filename
     )

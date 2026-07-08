@@ -109,6 +109,7 @@ def filter_and_correct_occurrence_file(
     input_directory: Path,
     occurrence_filename: str,
     codes_filename: str,
+    output_filename: str,
 ):
     if not input_directory.exists():
         raise FileNotFoundError(
@@ -122,8 +123,8 @@ def filter_and_correct_occurrence_file(
 
     occurrence_file = input_directory / occurrence_filename
     codes_file = input_directory / codes_filename
-    output_file = input_directory / "occurrence_formatted_filtered.csv"
-    report_file = input_directory / "occurrence_formatted_filtering_report.json"
+    output_file = input_directory / output_filename
+    report_file = input_directory / f"{Path(output_filename).stem}_filtering_report.json"
 
     if not occurrence_file.exists():
         raise FileNotFoundError(
@@ -353,10 +354,21 @@ if __name__ == "__main__":
         ),
     )
 
+    parser.add_argument(
+        "output_filename",
+        nargs="?",
+        default="occurrence_formatted_filtered.csv",
+        help=(
+            "Name of the filtered output CSV file "
+            "(default: occurrence_formatted_filtered.csv)."
+        ),
+    )
+
     args = parser.parse_args()
 
     filter_and_correct_occurrence_file(
         args.input_directory,
         args.occurrence_filename,
         args.codes_filename,
+        args.output_filename,
     )
