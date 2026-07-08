@@ -690,7 +690,7 @@
           <button
             type="button"
             data-i18n-key="cancel-btn"
-            disabled={isReferenceImporting}
+            hidden={isReferenceImporting}
             onclick={() => { showReferenceImportDialog = false; }}
             class="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 border border-slate-200 transition-colors cursor-pointer rounded-none font-inter"
           >
@@ -701,7 +701,7 @@
             data-i18n-key="start-import-btn"
             disabled={isReferenceImporting || !selectedReferenceCsvPath}
             onclick={handleExecuteReferenceImport}
-            class="px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white bg-slate-800 hover:bg-slate-900 transition-colors cursor-pointer rounded-none font-inter"
+            class="px-4 py-1.5 text-xs font-bold uppercase tracking-wider disabled:text-slate-400 disabled:bg-slate-100 disabled:cursor-auto text-white bg-slate-800 hover:bg-slate-900 transition-colors cursor-pointer rounded-none font-inter"
           >
             {isReferenceImporting ? t("importing-dataset", "Importing...") : t("start-import-btn", "Start Import")}
           </button>

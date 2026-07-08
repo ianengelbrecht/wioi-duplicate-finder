@@ -49,6 +49,8 @@
   "collection-settings": "Paramètres de collection",
   "save-settings-btn": "Enregistrer les paramètres",
   "settings-saved-success": "Paramètres enregistrés avec succès !",
+  "originally-developed": "Initialement développé pour le",
+  "wioi-network": "",
   "include-qds-label": "Inclure la référence de grille (QDS)",
   "backup-location-label": "Emplacement de la sauvegarde de la base de données",
   "choose-folder-btn": "Choisir le dossier",

@@ -49,6 +49,8 @@
   "collection-settings": "Collection Settings",
   "save-settings-btn": "Save Settings",
   "settings-saved-success": "Settings saved successfully!",
+  "originally-developed": "Originally developed for the",
+  "wioi-network": "(West Indian Ocean Herbarium Network)",
   "include-qds-label": "Include grid reference (QDS)",
   "backup-location-label": "Database Backup Location",
   "choose-folder-btn": "Choose Folder",

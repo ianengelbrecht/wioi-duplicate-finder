@@ -39,7 +39,7 @@
   let translations = $state(/** @type {Record<string, string>} */ ({}));
 
   function t(/** @type {string} */ key, /** @type {string} */ defaultText) {
-    return translations[key] || defaultText || key;
+    return translations[key] || defaultText;
   }
 
   setContext("t", t);
@@ -457,7 +457,7 @@
           </div>
           <!-- Funders logos -->
           <div class="">
-            <p class="text-xs font-bold uppercase text-right text-slate-600">Originally developed for the Réseau d'herbiers de l'océan Indien occidental (West Indian Ocean Herbarium Network)</p>
+            <p class="text-xs font-bold uppercase text-right text-slate-600">{t("originally-developed", "Originally developed for the")} Réseau d'herbiers de l'océan Indien occidental {t("wioi-network", "")}</p>
             <a href="https://varuna-biodiversite.org" target="_blank" rel="noopener noreferrer">
               <img src="funders_desat.png" alt="Funders Logos" class="w-full" />
             </a>

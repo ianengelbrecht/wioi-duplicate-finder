@@ -49,6 +49,8 @@
   "collection-settings": "Configurações da Coleção",
   "save-settings-btn": "Salvar Configurações",
   "settings-saved-success": "Configurações salvas com sucesso!",
+  "originally-developed": "Originalmente desenvolvido para",
+  "wioi-network": "(Rede de Herbários do Oceano Índico Ocidental)",
   "include-qds-label": "Incluir referência de grade (QDS)",
   "backup-location-label": "Local de backup do banco de dados",
   "choose-folder-btn": "Escolher pasta",
