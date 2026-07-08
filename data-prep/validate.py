@@ -17,7 +17,6 @@ from pathlib import Path
 # CONFIGURATION & CONSTANTS
 # =============================================================================
 
-MAX_FIELD_SIZE = 10_000_000
 PROGRESS_EVERY = 10_000
 
 # Full list of columns required for mapping to the database (including new fields)
@@ -78,9 +77,6 @@ def clean(value):
 def validate_dataset(filepath: Path, max_rows: int = None):
     print(f"[*] Starting validation for dataset: {filepath.name}")
     print(f"[*] File Size: {filepath.stat().st_size / (1024 * 1024):.2f} MB")
-    
-    # Increase CSV field size limit
-    csv.field_size_limit(MAX_FIELD_SIZE)
 
     # 1. Delimiter warning sniff
     with open(filepath, "r", encoding="utf-8-sig", errors="replace") as f:
@@ -262,30 +258,53 @@ def main():
     parser = argparse.ArgumentParser(
         description="Validates a CSV dataset for importing into the duplicate finder application."
     )
+
     parser.add_argument(
         "directory",
         type=str,
-        help="Path to the directory containing the dataset (expects 'occurrence_final.csv' inside it)."
+        help="Path to the directory containing the dataset.",
     )
+
+    parser.add_argument(
+        "input_file_name",
+        type=str,
+        help="Input CSV file name inside the directory, e.g. occurrence_final.csv.",
+    )
+
     parser.add_argument(
         "-l", "--limit",
         type=int,
         default=None,
-        help="Limit the validation to the first N records (for quick testing on large files)."
+        help="Limit the validation to the first N records (for quick testing on large files).",
     )
-    
+
     args = parser.parse_args()
-    
+
     dir_path = Path(args.directory)
+
     if not dir_path.is_dir():
-        print(f"[-] Error: Directory does not exist or is not a directory: {dir_path}", file=sys.stderr)
+        print(
+            f"[-] Error: Directory does not exist or is not a directory: {dir_path}",
+            file=sys.stderr,
+        )
         sys.exit(1)
-        
-    filepath = dir_path / "occurrence_final.csv"
+
+    filepath = dir_path / args.input_file_name
+
     if not filepath.exists():
-        print(f"[-] Error: Input file 'occurrence_final.csv' not found in directory: {dir_path}", file=sys.stderr)
+        print(
+            f"[-] Error: Input file '{args.input_file_name}' not found in directory: {dir_path}",
+            file=sys.stderr,
+        )
         sys.exit(1)
-        
+
+    if not filepath.is_file():
+        print(
+            f"[-] Error: Input path is not a file: {filepath}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     success = validate_dataset(filepath, max_rows=args.limit)
     sys.exit(0 if success else 1)
 

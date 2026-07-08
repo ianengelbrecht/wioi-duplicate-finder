@@ -8,7 +8,6 @@ from pathlib import Path
 # CONFIGURATION
 # =============================================================================
 
-MAX_FIELD_SIZE = 10_000_000
 PROGRESS_EVERY = 10_000
 
 
@@ -22,12 +21,37 @@ def clean(value):
     return (value or "").strip()
 
 
+def resolve_output_file(input_directory: Path, input_file: Path, output_file_name: str | None):
+    """
+    Resolve output file path.
+
+    If output_file_name is omitted, use:
+    <input_stem>_unique_recorded_by.csv
+
+    If output_file_name is relative, place it in input_directory.
+    If output_file_name is absolute, use it directly.
+    """
+    if output_file_name is None:
+        return input_directory / f"{input_file.stem}_unique_recorded_by.csv"
+
+    output_path = Path(output_file_name)
+
+    if output_path.is_absolute():
+        return output_path
+
+    return input_directory / output_path
+
+
 # =============================================================================
 # MAIN
 # =============================================================================
 
 
-def extract_unique_recorded_by(input_directory: Path):
+def extract_unique_recorded_by(
+    input_directory: Path,
+    input_file_name: str,
+    output_file_name: str | None = None,
+):
     """Extract unique non-empty recordedBy values and their record counts."""
     if not input_directory.exists():
         raise FileNotFoundError(
@@ -39,26 +63,34 @@ def extract_unique_recorded_by(input_directory: Path):
             f"Path is not a directory:\n{input_directory}"
         )
 
-    input_file = input_directory / "occurrence_formatted_filtered.csv"
-    output_file = input_directory / "occurrence_unique_recorded_by.csv"
+    input_file = input_directory / input_file_name
+    output_file = resolve_output_file(
+        input_directory=input_directory,
+        input_file=input_file,
+        output_file_name=output_file_name,
+    )
 
     if not input_file.exists():
         raise FileNotFoundError(
-            f"Required occurrence file does not exist:\n{input_file}"
+            f"Input file does not exist:\n{input_file}"
         )
 
-    csv.field_size_limit(MAX_FIELD_SIZE)
+    if not input_file.is_file():
+        raise ValueError(
+            f"Input path is not a file:\n{input_file}"
+        )
 
     records_processed = 0
     recorded_by_counts = Counter()
 
-    print(f"Reading: {input_file}")
+    print(f"Reading: {input_file.resolve()}")
+    print(f"Output:  {output_file.resolve()}")
     print()
 
     with open(
         input_file,
         "r",
-        encoding="utf-8-sig",
+        encoding="utf-8",
         errors="replace",
         newline="",
     ) as infile:
@@ -100,6 +132,8 @@ def extract_unique_recorded_by(input_directory: Path):
                 "recordedBy",
                 "record_count",
             ],
+            quoting=csv.QUOTE_ALL,
+            lineterminator="\n",
         )
 
         writer.writeheader()
@@ -131,18 +165,37 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=(
             "Extract unique non-empty recordedBy values and their counts "
-            "from occurrence_formatted_filtered.csv."
+            "from a specified occurrence CSV file in a specified directory."
         )
     )
 
     parser.add_argument(
         "input_directory",
         type=Path,
+        help="Directory containing the input occurrence CSV.",
+    )
+
+    parser.add_argument(
+        "input_file_name",
         help=(
-            "Directory containing occurrence_formatted_filtered.csv."
+            "Input occurrence CSV file name"
+        ),
+    )
+
+    parser.add_argument(
+        "output_file_name",
+        nargs="?",
+        default=None,
+        help=(
+            "Optional output CSV file name. If omitted, output will be named "
+            "<input_file_stem>_unique_recorded_by.csv in the input directory."
         ),
     )
 
     args = parser.parse_args()
 
-    extract_unique_recorded_by(args.input_directory)
+    extract_unique_recorded_by(
+        input_directory=args.input_directory,
+        input_file_name=args.input_file_name,
+        output_file_name=args.output_file_name,
+    )
