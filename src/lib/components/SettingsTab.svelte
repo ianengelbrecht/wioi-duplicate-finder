@@ -17,8 +17,8 @@
   let { onRestoreRequest = () => {} } = $props();
 
   let recordCount = $state(0);
-  let countries = $state(/** @type {string[]} */ ([]));
-  let collectionCodes = $state(/** @type {string[]} */ ([]));
+  let countries = $state(/** @type {{ country: string, count: number }[]} */ ([]));
+  let collectionCodes = $state(/** @type {{ code: string, count: number }[]} */ ([]));
   let loadingMetadata = $state(false);
 
   /** @type {boolean} */
@@ -320,8 +320,8 @@
             <span data-i18n-key="no-countries">{t("no-countries", "None")}</span>
           {:else}
             <div class="flex flex-wrap gap-1 mt-0.5">
-              {#each countries as country}
-                <span class="bg-slate-200 text-slate-700 px-1.5 py-0.5 text-[10px] font-semibold">{country}</span>
+              {#each countries as item}
+                <span class="bg-slate-200 text-slate-700 px-1.5 py-0.5 text-[10px] font-semibold">{item.country} ({item.count.toLocaleString()})</span>
               {/each}
             </div>
           {/if}
@@ -338,8 +338,8 @@
             <span data-i18n-key="no-collections">{t("no-collections", "None")}</span>
           {:else}
             <div class="flex flex-wrap gap-1 mt-0.5">
-              {#each collectionCodes as code}
-                <span class="bg-slate-200 text-slate-700 px-1.5 py-0.5 text-[10px] font-semibold">{code}</span>
+              {#each collectionCodes as item}
+                <span class="bg-slate-200 text-slate-700 px-1.5 py-0.5 text-[10px] font-semibold">{item.code} ({item.count.toLocaleString()})</span>
               {/each}
             </div>
           {/if}

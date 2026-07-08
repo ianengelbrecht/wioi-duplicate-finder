@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 export const referenceService = {
   /**
    * Retrieves reference dataset metadata (count, countries, collectionCodes).
-   * @returns {Promise<{ recordCount: number, countries: string[], collectionCodes: string[] }>}
+   * @returns {Promise<{ recordCount: number, countries: { country: string, count: number }[], collectionCodes: { code: string, count: number }[] }>}
    */
   async getReferenceMetadata() {
     return await invoke("get_reference_metadata");

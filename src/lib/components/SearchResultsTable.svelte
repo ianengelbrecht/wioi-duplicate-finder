@@ -26,6 +26,12 @@
    * @type {number | null} selectedRecord - Index of the currently selected record, or null if none is selected.
    */
   let selectedRecord = $state(null);
+
+  $effect(() => {
+    if (results) {
+      selectedRecord = null;
+    }
+  });
 </script>
 
 <div class="flex-1 flex flex-col min-h-0">

@@ -1028,22 +1028,44 @@ impl ReferenceRepository {
             .query_row("SELECT COUNT(*) FROM gbif", [], |r| r.get(0))
             .unwrap_or(0);
 
-        let mut stmt = conn.prepare("SELECT DISTINCT country FROM gbif WHERE country IS NOT NULL AND country != '' ORDER BY country")
+        let mut stmt = conn
+            .prepare(
+                "SELECT country, COUNT(*) 
+             FROM gbif 
+             WHERE country IS NOT NULL AND country != '' 
+             GROUP BY country 
+             ORDER BY country",
+            )
             .map_err(|e| e.to_string())?;
         let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
         let mut countries = Vec::new();
         while let Some(row) = rows.next().map_err(|e| e.to_string())? {
             let country: String = row.get(0).map_err(|e| e.to_string())?;
-            countries.push(country);
+            let record_count: i64 = row.get(1).map_err(|e| e.to_string())?;
+            countries.push(json!({
+                "country": country,
+                "count": record_count
+            }));
         }
 
-        let mut stmt = conn.prepare("SELECT DISTINCT collectionCode FROM gbif WHERE collectionCode IS NOT NULL AND collectionCode != '' ORDER BY collectionCode")
+        let mut stmt = conn
+            .prepare(
+                "SELECT collectionCode, COUNT(*) 
+             FROM gbif 
+             WHERE collectionCode IS NOT NULL AND collectionCode != '' 
+             GROUP BY collectionCode 
+             ORDER BY collectionCode",
+            )
             .map_err(|e| e.to_string())?;
         let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
         let mut collection_codes = Vec::new();
         while let Some(row) = rows.next().map_err(|e| e.to_string())? {
             let code: String = row.get(0).map_err(|e| e.to_string())?;
-            collection_codes.push(code);
+            let record_count: i64 = row.get(1).map_err(|e| e.to_string())?;
+            collection_codes.push(json!({
+                "code": code,
+                "count": record_count
+            }));
         }
 
         Ok(json!({
