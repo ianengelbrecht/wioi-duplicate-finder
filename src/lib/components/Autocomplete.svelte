@@ -136,6 +136,7 @@
   function handleBlur() {
     clearBlurTimeout();
     blurTimeoutId = setTimeout(async () => {
+      showDropdown = false;
       if (isChecking) return;
       const val = value.trim();
       if (val) {

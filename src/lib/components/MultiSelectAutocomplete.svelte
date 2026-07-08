@@ -83,6 +83,7 @@
   function handleBlur() {
     clearBlurTimeout();
     blurTimeoutId = setTimeout(async () => {
+      showDropdown = false;
       if (isChecking) return;
       const val = inputValue.trim();
       if (val) {
@@ -91,9 +92,27 @@
     }, 200);
   }
 
+  /** @type {any} */
+  let editBlurTimeoutId = null;
+
+  function clearEditBlurTimeout() {
+    if (editBlurTimeoutId) {
+      clearTimeout(editBlurTimeoutId);
+      editBlurTimeoutId = null;
+    }
+  }
+
+  function handleEditBlur() {
+    clearEditBlurTimeout();
+    editBlurTimeoutId = setTimeout(() => {
+      showEditDropdown = false;
+    }, 200);
+  }
+
   onDestroy(() => {
     if (timeoutId) clearTimeout(timeoutId);
     clearBlurTimeout();
+    clearEditBlurTimeout();
   });
 
   async function selectSuggestion(/** @type {string} */ sug, /** @type {boolean} */ isCustom = false) {
@@ -242,6 +261,7 @@
   }
 
   function selectEditSuggestion(/** @type {string} */ sug) {
+    clearEditBlurTimeout();
     editInputValue = sug;
     showEditDropdown = false;
     editActiveIndex = -1;
@@ -423,6 +443,7 @@
             oninput={handleEditInput}
             onkeydown={handleEditKeyDown}
             onfocus={handleEditFocus}
+            onblur={handleEditBlur}
             class="w-full bg-white border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:ring-1 focus:ring-slate-500 outline-none transition-all rounded-none text-slate-850"
             autocomplete="off"
             placeholder={t("edit-name-dialog-placeholder", "Enter name...")}
