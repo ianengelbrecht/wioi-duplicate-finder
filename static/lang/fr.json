@@ -52,6 +52,7 @@
   "originally-developed": "Initialement développé pour le",
   "wioi-network": "",
   "include-qds-label": "Inclure la référence de grille (QDS)",
+  "include-islands-label": "Inclure les champs des îles",
   "backup-location-label": "Emplacement de la sauvegarde de la base de données",
   "choose-folder-btn": "Choisir le dossier",
   "backup-location-help": "Si laissé vide, l'emplacement par défaut est utilisé :",

@@ -182,14 +182,10 @@
 
       let settings = /** @type {any} */ (await exportService.getExportSettings(authStore.currentUser.id));
       workspaceStore.exportFormat = settings.format || "DwC";
-      if (settings.mappings) {
-        let maps = JSON.parse(settings.mappings);
-        workspaceStore.workingCollectionCode = maps.collectionCode || "RHOIO";
-        workspaceStore.includeGridReference = maps.includeGridReference || false;
-        workspaceStore.databaseBackupLocation = maps.backupLocation || workspaceStore.defaultBackupLocation;
-      } else {
-        workspaceStore.databaseBackupLocation = workspaceStore.defaultBackupLocation;
-      }
+      workspaceStore.workingCollectionCode = settings.collectionCode || "RHOIO";
+      workspaceStore.includeGridReference = settings.includeGridReference || false;
+      workspaceStore.includeIslands = settings.includeIslands || false;
+      workspaceStore.databaseBackupLocation = settings.backupLocation || workspaceStore.defaultBackupLocation;
     } catch (e) {
       console.error(e);
     }

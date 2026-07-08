@@ -6,8 +6,8 @@ import csv
 import re
 from pathlib import Path
 
+# DO NOT USE MAX_FIELD_SIZE, DESPITE WHAT AI SAYS. IF YOU NEED THIS, THE DATASET FORMATTING DID NOT WORK
 
-MAX_FIELD_SIZE = 10_000_000
 PROGRESS_EVERY = 10_000
 
 
@@ -72,8 +72,6 @@ def split_csv_by_column(
         raise ValueError(
             f"Input path is not a file:\n{input_file}"
         )
-
-    csv.field_size_limit(MAX_FIELD_SIZE)
 
     output_handles = {}
     output_writers = {}

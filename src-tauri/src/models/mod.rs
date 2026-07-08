@@ -64,7 +64,10 @@ pub struct CapturedRecord {
 #[serde(rename_all = "camelCase")]
 pub struct ExportSettingsDto {
     pub format: String,
-    pub mappings: String,
+    pub collection_code: String,
+    pub include_grid_reference: bool,
+    pub include_islands: bool,
+    pub backup_location: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

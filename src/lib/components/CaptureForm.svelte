@@ -18,6 +18,7 @@
   import { getDuplicateSuggestions } from "../utils/duplicates.js";
   import { titleCaseField, undoTitleCaseField, getInitialTrackingState } from "../utils/titleCaseHelper.js";
   import { copySelectedOrValue, pasteAtCursor } from "../utils/clipboard.js";
+  import { workspaceStore } from "../stores/workspaceStore.svelte.js";
 
   const t = getContext("t");
 
@@ -53,7 +54,6 @@
     country: "",
     stateProvince: "",
     county: "",
-    municipality: "",
     islandGroup: "",
     island: "",
     locality: "",
@@ -148,7 +148,6 @@
       form.country = activeRecord.country || "";
       form.stateProvince = activeRecord.stateProvince || "";
       form.county = activeRecord.county || "";
-      form.municipality = activeRecord.municipality || "";
       form.islandGroup = activeRecord.islandGroup || "";
       form.island = activeRecord.island || "";
       form.locality = activeRecord.locality || "";
@@ -381,7 +380,6 @@
       country: "",
       stateProvince: "",
       county: "",
-      municipality: "",
       islandGroup: "",
       island: "",
       locality: "",
@@ -439,7 +437,6 @@
     form.country = lastSavedRecord.country;
     form.stateProvince = lastSavedRecord.stateProvince;
     form.county = lastSavedRecord.county;
-    form.municipality = lastSavedRecord.municipality;
     form.islandGroup = lastSavedRecord.islandGroup || "";
     form.island = lastSavedRecord.island || "";
     form.locality = lastSavedRecord.locality;
@@ -607,7 +604,6 @@
     !!((form.country && form.country.trim().length > 0) ||
        (form.stateProvince && form.stateProvince.trim().length > 0) ||
        (form.county && form.county.trim().length > 0) ||
-       (form.municipality && form.municipality.trim().length > 0) ||
        (form.islandGroup && form.islandGroup.trim().length > 0) ||
        (form.island && form.island.trim().length > 0))
   );
@@ -742,7 +738,6 @@
   function onCountryChanged() {
     form.stateProvince = "";
     form.county = "";
-    form.municipality = "";
     form.islandGroup = "";
     form.island = "";
     stateProvinceSuggestions = [];
@@ -754,7 +749,6 @@
 
   function onStateProvinceChanged() {
     form.county = "";
-    form.municipality = "";
     countySuggestions = [];
     municipalitySuggestions = [];
   }
@@ -762,11 +756,6 @@
   function onIslandGroupChanged() {
     form.island = "";
     islandSuggestions = [];
-  }
-
-  function onCountyChanged() {
-    form.municipality = "";
-    municipalitySuggestions = [];
   }
 
   /**
@@ -805,7 +794,6 @@
    * @param {string} val
    */
   async function handleCountyInput(val) {
-    onCountyChanged();
     if (!val || val.trim().length === 0) {
       countySuggestions = [];
       return;
@@ -851,21 +839,6 @@
   /**
    * @param {string} val
    */
-  async function handleMunicipalityInput(val) {
-    if (!val || val.trim().length === 0) {
-      municipalitySuggestions = [];
-      return;
-    }
-    try {
-      municipalitySuggestions = await geographyService.autocompleteGeography("municipality", val, form.country, form.stateProvince, form.county);
-    } catch (e) {
-      console.error(e);
-    }
-  }
-
-  /**
-   * @param {string} val
-   */
   async function handleLocalityInput(val) {
     if (val.trim().length < 2) {
       localitySuggestions = [];
@@ -894,7 +867,6 @@
         results = await geographyService.autocompleteGeography(field, "", form.country, form.stateProvince, form.county);
         if (field === "stateProvince") stateProvinceSuggestions = results;
         else if (field === "county") countySuggestions = results;
-        else if (field === "municipality") municipalitySuggestions = results;
       }
     } catch (e) {
       console.error(e);
@@ -910,12 +882,6 @@
   function handleCountyFocus() {
     if (form.county.trim() === "") {
       triggerGeoAutocomplete("county");
-    }
-  }
-
-  function handleMunicipalityFocus() {
-    if (form.municipality.trim() === "") {
-      triggerGeoAutocomplete("municipality");
     }
   }
 
@@ -1355,7 +1321,7 @@
       <h3 data-i18n-key="geographic-locality-heading" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">{t("geographic-locality-heading", "Geographic Locality")}</h3>
       
       <!-- Country and Admins -->
-      <div class="grid grid-cols-4 gap-3">
+      <div class="grid grid-cols-3 gap-3">
         <!-- Country -->
         <div>
           <label for="capture-country" data-i18n-key="country-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("country-label", "Country")}</label>
@@ -1484,50 +1450,10 @@
             {/if}
           </div>
         </div>
-
-        <!-- Admin 4 -->
-        <div>
-          <label for="capture-municipality" data-i18n-key="municipality-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("municipality-label", "Admin 4")}</label>
-          <div class="relative flex items-center">
-            <Autocomplete
-              id="capture-municipality"
-              label=""
-              placeholder={isAnyGeoPopulated ? "" : (form.country && form.country.toLowerCase() === "madagascar" ? "eg Ambositra" : "eg Municipality")}
-              placeholderKey={isAnyGeoPopulated ? undefined : (form.country && form.country.toLowerCase() === "madagascar" ? "municipality-placeholder-mada" : "municipality-placeholder")}
-              bind:value={form.municipality}
-              suggestions={municipalitySuggestions}
-              oninput={handleMunicipalityInput}
-              onfocus={handleMunicipalityFocus}
-              delay={300}
-            />
-            {#if form.municipality === titleCasedStates.municipality.titleCased && titleCasedStates.municipality.titleCased !== ""}
-              <button
-                type="button"
-                onclick={() => undoTitleCaseField(form, titleCasedStates, "municipality")}
-                data-i18n-key="undo-title-case"
-                title={t("undo-title-case", "Undo Casing")}
-                class="absolute right-2 bottom-1.5 w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
-                tabindex="-1"
-              >
-                <UndoIcon />
-              </button>
-            {:else}
-              <button
-                type="button"
-                onclick={() => titleCaseField(form, titleCasedStates, "municipality")}
-                data-i18n-key="title-case"
-                title={t("title-case", "Proper Case")}
-                class="absolute right-2 bottom-1.5 w-6 h-6 p-1.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
-                tabindex="-1"
-              >
-                <AaIcon />
-              </button>
-            {/if}
-          </div>
-        </div>
       </div>
 
       <!-- Island Group and Island -->
+      {#if workspaceStore.includeIslands}
       <div class="grid grid-cols-3 gap-3">
         <!-- Island Group -->
         <div class="col-span-2">
@@ -1636,7 +1562,8 @@
             </div>
           </div>
         </div>
-      </div>  
+      </div>
+      {/if}  
 
       <!-- Locality -->
       <div class="col-span-4">
@@ -1749,7 +1676,7 @@
 
       <!-- Locality Notes -->
       <div class="grid grid-cols-12 gap-3">
-        <div class="col-span-12">
+        <div class="relative col-span-12">
           <label for="capture-locationNotes" data-i18n-key="location-notes-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("location-notes-label", "Locality Notes")}</label>
           <textarea
             id="capture-locationNotes"

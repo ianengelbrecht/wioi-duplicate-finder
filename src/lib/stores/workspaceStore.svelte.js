@@ -6,7 +6,13 @@ export class WorkspaceStore {
 
   exportFormat = $state("DwC"); // "DwC" or "BRAHMS"
   workingCollectionCode = $state("RHOIO");
+
+  /** @type {boolean} */
   includeGridReference = $state(false);
+
+  /** @type {boolean} */
+  includeIslands = $state(false);
+
   databaseBackupLocation = $state("");
   defaultBackupLocation = $state("");
   showRestoreConfirmModal = $state(false);
@@ -29,21 +35,6 @@ export class WorkspaceStore {
   get hasRequiredDatasets() {
     return this.gbifRecordCount > 0 && this.wcvpRecordCount > 0;
   }
-
-  customMappings = $state({
-    recordedBy: "",
-    recordNumber: "",
-    locality: "",
-    scientificName: "",
-    family: "",
-    genus: "",
-    specificEpithet: "",
-    country: "",
-    stateProvince: "",
-    year: "",
-    month: "",
-    day: ""
-  });
 
   /**
    * Sets the active session and stores it in local storage.

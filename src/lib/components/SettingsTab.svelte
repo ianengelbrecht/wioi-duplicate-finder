@@ -227,16 +227,13 @@
     if (!authStore.currentUser) return;
     workspaceStore.settingsMessage = "";
     try {
-      let mappingsObj = { 
-        ...workspaceStore.customMappings, 
-        collectionCode: workspaceStore.workingCollectionCode, 
-        includeGridReference: workspaceStore.includeGridReference,
-        backupLocation: workspaceStore.databaseBackupLocation.trim()
-      };
       await exportService.saveExportSettings(
         authStore.currentUser.id,
         workspaceStore.exportFormat,
-        JSON.stringify(mappingsObj)
+        workspaceStore.workingCollectionCode,
+        workspaceStore.includeGridReference,
+        workspaceStore.includeIslands,
+        workspaceStore.databaseBackupLocation.trim()
       );
       settingsEdited = false;
       workspaceStore.settingsMessage = "Settings saved successfully!";
@@ -341,17 +338,28 @@
     </div>
   </div>
 
-  <!-- Grid Reference Setting -->
-  <div class="space-y-2 pt-2">
+  <!-- Grid Reference & Islands Setting -->
+  <div class="flex flex-col sm:flex-row sm:items-center gap-6 pt-2">
     <label class="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wider cursor-pointer">
       <input
         id="settings-qds"
         type="checkbox"
         bind:checked={workspaceStore.includeGridReference}
         onchange={() => settingsEdited = true}
-        class="w-4 h-4 text-slate-855 border-slate-300 rounded focus:ring-slate-500 focus:ring-1 cursor-pointer"
+        class="w-4 h-4 accent-slate-900 text-slate-855 border-slate-300 rounded focus:ring-slate-500 focus:ring-1 cursor-pointer"
       />
       <span data-i18n-key="include-qds-label">{t("include-qds-label", "Include grid reference (QDS)")}</span>
+    </label>
+
+    <label class="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wider cursor-pointer">
+      <input
+        id="settings-islands"
+        type="checkbox"
+        bind:checked={workspaceStore.includeIslands}
+        onchange={() => settingsEdited = true}
+        class="w-4 h-4 accent-slate-900 text-slate-855 border-slate-300 rounded focus:ring-slate-500 focus:ring-1 cursor-pointer"
+      />
+      <span data-i18n-key="include-islands-label">{t("include-islands-label", "Include islands")}</span>
     </label>
   </div>
 

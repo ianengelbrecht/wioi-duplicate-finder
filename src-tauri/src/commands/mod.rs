@@ -155,9 +155,20 @@ pub fn save_export_settings(
     app: AppHandle,
     user_id: i32,
     format: String,
-    mappings: String,
+    collection_code: String,
+    include_grid_reference: bool,
+    include_islands: bool,
+    backup_location: String,
 ) -> Result<(), String> {
-    ExportService::save_export_settings(&app, user_id, &format, &mappings)
+    ExportService::save_export_settings(
+        &app,
+        user_id,
+        &format,
+        &collection_code,
+        include_grid_reference,
+        include_islands,
+        &backup_location,
+    )
 }
 
 #[tauri::command]

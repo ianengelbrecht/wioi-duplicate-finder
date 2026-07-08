@@ -52,6 +52,7 @@
   "originally-developed": "Originalmente desenvolvido para",
   "wioi-network": "(Rede de Herbários do Oceano Índico Ocidental)",
   "include-qds-label": "Incluir referência de grade (QDS)",
+  "include-islands-label": "Incluir campos de ilhas",
   "backup-location-label": "Local de backup do banco de dados",
   "choose-folder-btn": "Escolher pasta",
   "backup-location-help": "Se deixado em branco, o local padrão será usado:",

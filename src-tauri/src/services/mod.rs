@@ -445,11 +445,22 @@ impl ExportService {
         app: &AppHandle,
         user_id: i32,
         format: &str,
-        mappings: &str,
+        collection_code: &str,
+        include_grid_reference: bool,
+        include_islands: bool,
+        backup_location: &str,
     ) -> Result<(), String> {
         let conn = get_connection(app)?;
-        ExportRepository::save_export_settings(&conn, user_id, format, mappings)
-            .map_err(|e| e.to_string())
+        ExportRepository::save_export_settings(
+            &conn,
+            user_id,
+            format,
+            collection_code,
+            include_grid_reference,
+            include_islands,
+            backup_location,
+        )
+        .map_err(|e| e.to_string())
     }
 
     pub fn get_export_settings(app: &AppHandle, user_id: i32) -> Result<ExportSettingsDto, String> {
@@ -458,7 +469,10 @@ impl ExportService {
             Ok(Some(settings)) => Ok(settings),
             Ok(None) => Ok(ExportSettingsDto {
                 format: "DwC".to_string(),
-                mappings: "{}".to_string(),
+                collection_code: "RHOIO".to_string(),
+                include_grid_reference: false,
+                include_islands: false,
+                backup_location: "".to_string(),
             }),
             Err(e) => Err(e.to_string()),
         }

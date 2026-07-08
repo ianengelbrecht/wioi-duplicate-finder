@@ -697,13 +697,35 @@ impl ExportRepository {
         conn: &Connection,
         user_id: i32,
         format: &str,
-        mappings: &str,
+        collection_code: &str,
+        include_grid_reference: bool,
+        include_islands: bool,
+        backup_location: &str,
     ) -> Result<(), Error> {
         conn.execute(
-            "INSERT INTO export_settings (user_id, format, mappings) 
-             VALUES (?1, ?2, ?3) 
-             ON CONFLICT(user_id) DO UPDATE SET format=?2, mappings=?3",
-            params![user_id, format, mappings],
+            "INSERT INTO export_settings (
+                user_id, 
+                format, 
+                collection_code, 
+                include_grid_reference, 
+                include_islands, 
+                backup_location
+             ) 
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6) 
+             ON CONFLICT(user_id) DO UPDATE SET 
+                format=?2, 
+                collection_code=?3, 
+                include_grid_reference=?4, 
+                include_islands=?5, 
+                backup_location=?6",
+            params![
+                user_id, 
+                format, 
+                collection_code, 
+                include_grid_reference as i32, 
+                include_islands as i32, 
+                backup_location
+            ],
         )?;
         Ok(())
     }
@@ -713,11 +735,16 @@ impl ExportRepository {
         user_id: i32,
     ) -> Result<Option<ExportSettingsDto>, Error> {
         let mut stmt =
-            conn.prepare("SELECT format, mappings FROM export_settings WHERE user_id = ?1")?;
+            conn.prepare("SELECT format, collection_code, include_grid_reference, include_islands, backup_location FROM export_settings WHERE user_id = ?1")?;
         let mut rows = stmt.query_map(params![user_id], |row| {
+            let include_grid_ref_raw: i32 = row.get(2)?;
+            let include_islands_raw: i32 = row.get(3)?;
             Ok(ExportSettingsDto {
                 format: row.get(0)?,
-                mappings: row.get(1)?,
+                collection_code: row.get(1)?,
+                include_grid_reference: include_grid_ref_raw != 0,
+                include_islands: include_islands_raw != 0,
+                backup_location: row.get(4)?,
             })
         })?;
 

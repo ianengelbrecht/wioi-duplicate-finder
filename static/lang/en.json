@@ -52,6 +52,7 @@
   "originally-developed": "Originally developed for the",
   "wioi-network": "(West Indian Ocean Herbarium Network)",
   "include-qds-label": "Include grid reference (QDS)",
+  "include-islands-label": "Include islands fields",
   "backup-location-label": "Database Backup Location",
   "choose-folder-btn": "Choose Folder",
   "backup-location-help": "If left empty, the default location is used:",

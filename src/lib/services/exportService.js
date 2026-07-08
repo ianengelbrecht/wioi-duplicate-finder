@@ -11,20 +11,30 @@ export const exportService = {
   },
 
   /**
-   * Saves custom export settings (format, field mappings, backups folder).
+   * Saves custom export settings (format, collection code, grid reference, islands settings, database backup folder).
    * @param {number} userId 
    * @param {string} format DwC or BRAHMS
-   * @param {string} mappings Stringified JSON object
+   * @param {string} collectionCode Collection code
+   * @param {boolean} includeGridReference Whether to include grid reference
+   * @param {boolean} includeIslands Whether to include islands
+   * @param {string} backupLocation Backup folder path
    * @returns {Promise<void>}
    */
-  async saveExportSettings(userId, format, mappings) {
-    return await invoke("save_export_settings", { userId, format, mappings });
+  async saveExportSettings(userId, format, collectionCode, includeGridReference, includeIslands, backupLocation) {
+    return await invoke("save_export_settings", {
+      userId,
+      format,
+      collectionCode,
+      includeGridReference,
+      includeIslands,
+      backupLocation,
+    });
   },
 
   /**
    * Retrieves export settings.
    * @param {number} userId 
-   * @returns {Promise<{ format: string, mappings: string }>}
+   * @returns {Promise<{ format: string, collectionCode: string, includeGridReference: boolean, includeIslands: boolean, backupLocation: string }>}
    */
   async getExportSettings(userId) {
     return await invoke("get_export_settings", { userId });

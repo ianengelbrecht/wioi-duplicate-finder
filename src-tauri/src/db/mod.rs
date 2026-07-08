@@ -532,18 +532,16 @@ pub fn perform_database_backup(app: &AppHandle) {
 
     let mut custom_backups_dir = None;
     if let Ok(conn) = get_connection(app) {
-        if let Ok(mappings_str) =
-            conn.query_row("SELECT mappings FROM export_settings LIMIT 1", [], |row| {
-                row.get::<_, String>(0)
-            })
+        if let Ok(backup_loc) =
+            conn.query_row(
+                "SELECT backup_location FROM export_settings LIMIT 1",
+                [],
+                |row| row.get::<_, String>(0),
+            )
         {
-            if let Ok(mappings) = serde_json::from_str::<serde_json::Value>(&mappings_str) {
-                if let Some(custom_path) = mappings.get("backupLocation").and_then(|v| v.as_str()) {
-                    let trim_path = custom_path.trim();
-                    if !trim_path.is_empty() {
-                        custom_backups_dir = Some(PathBuf::from(trim_path));
-                    }
-                }
+            let trim_path = backup_loc.trim();
+            if !trim_path.is_empty() {
+                custom_backups_dir = Some(PathBuf::from(trim_path));
             }
         }
     }
@@ -862,11 +860,65 @@ fn run_migrations(conn: &mut Connection) -> Result<()> {
         "CREATE TABLE IF NOT EXISTS export_settings (
             user_id INTEGER PRIMARY KEY,
             format TEXT NOT NULL,
-            mappings TEXT NOT NULL,
+            collection_code TEXT NOT NULL DEFAULT 'RHOIO',
+            include_grid_reference INTEGER NOT NULL DEFAULT 0,
+            include_islands INTEGER NOT NULL DEFAULT 0,
+            backup_location TEXT NOT NULL DEFAULT '',
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
         );",
         [],
     )?;
+
+    // Migrations for export_settings table
+    let es_col_exists = |conn: &Connection, col: &str| -> bool {
+        conn.query_row(
+            &format!("SELECT COUNT(*) FROM pragma_table_info('export_settings') WHERE name='{}'", col),
+            [],
+            |r| r.get::<_, i32>(0).map(|c| c > 0),
+        )
+        .unwrap_or(false)
+    };
+
+    if !es_col_exists(conn, "collection_code") {
+        let _ = conn.execute("ALTER TABLE export_settings ADD COLUMN collection_code TEXT NOT NULL DEFAULT 'RHOIO'", []);
+    }
+    if !es_col_exists(conn, "include_grid_reference") {
+        let _ = conn.execute("ALTER TABLE export_settings ADD COLUMN include_grid_reference INTEGER NOT NULL DEFAULT 0", []);
+    }
+    if !es_col_exists(conn, "include_islands") {
+        let _ = conn.execute("ALTER TABLE export_settings ADD COLUMN include_islands INTEGER NOT NULL DEFAULT 0", []);
+    }
+    if !es_col_exists(conn, "backup_location") {
+        let _ = conn.execute("ALTER TABLE export_settings ADD COLUMN backup_location TEXT NOT NULL DEFAULT ''", []);
+    }
+
+    if es_col_exists(conn, "mappings") {
+        // Migrate existing settings from mappings JSON to columns
+        let mut stmt = conn.prepare("SELECT user_id, mappings FROM export_settings")?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, i32>(0)?, row.get::<_, String>(1)?))
+        })?;
+
+        let mut updates = Vec::new();
+        for (user_id, mappings_str) in rows.flatten() {
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&mappings_str) {
+                let collection_code = val.get("collectionCode").and_then(|v| v.as_str()).unwrap_or("RHOIO").to_string();
+                let include_grid_ref = val.get("includeGridReference").and_then(|v| v.as_bool()).unwrap_or(false);
+                let backup_loc = val.get("backupLocation").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                updates.push((user_id, collection_code, include_grid_ref, backup_loc));
+            }
+        }
+
+        for (user_id, col_code, inc_grid, b_loc) in updates {
+            let _ = conn.execute(
+                "UPDATE export_settings SET collection_code = ?1, include_grid_reference = ?2, backup_location = ?3 WHERE user_id = ?4",
+                params![col_code, inc_grid as i32, b_loc, user_id],
+            );
+        }
+
+        // Now drop the mappings column
+        let _ = conn.execute("ALTER TABLE export_settings DROP COLUMN mappings", []);
+    }
 
     // Create standard indexes for query optimization
     conn.execute(
