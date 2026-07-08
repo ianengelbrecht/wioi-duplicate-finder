@@ -85,6 +85,20 @@ pub struct TaxonAutocompleteResult {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct LocalitySearchResult {
+    pub locality: String,
+    pub country: Option<String>,
+    pub state_province: Option<String>,
+    pub county: Option<String>,
+    #[serde(rename = "locationNotes")]
+    pub location_remarks: Option<String>,
+    pub verbatim_coordinates: Option<String>,
+    pub decimal_latitude: Option<f64>,
+    pub decimal_longitude: Option<f64>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct ReferenceSpecimen {
     pub id: Option<i32>,
     pub recorded_by: String,

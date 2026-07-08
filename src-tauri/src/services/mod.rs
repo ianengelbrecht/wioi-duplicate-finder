@@ -1,7 +1,7 @@
 use crate::db::{get_connection, hash_password};
 use crate::models::{
-    CapturedRecord, ExportSettingsDto, ReferenceSpecimen, SessionDto, TaxonAutocompleteResult,
-    UserDto,
+    CapturedRecord, ExportSettingsDto, LocalitySearchResult, ReferenceSpecimen, SessionDto,
+    TaxonAutocompleteResult, UserDto,
 };
 use crate::parsers::split_names;
 use crate::repositories::{
@@ -412,7 +412,10 @@ impl GeographyService {
         GeographyRepository::get_table_counts(&conn).map_err(|e| e.to_string())
     }
 
-    pub fn autocomplete_locality(app: &AppHandle, query: &str) -> Result<Vec<String>, String> {
+    pub fn autocomplete_locality(
+        app: &AppHandle,
+        query: &str,
+    ) -> Result<Vec<LocalitySearchResult>, String> {
         let conn = get_connection(app)?;
         GeographyRepository::autocomplete_locality(&conn, query)
     }

@@ -532,13 +532,11 @@ pub fn perform_database_backup(app: &AppHandle) {
 
     let mut custom_backups_dir = None;
     if let Ok(conn) = get_connection(app) {
-        if let Ok(backup_loc) =
-            conn.query_row(
-                "SELECT backup_location FROM export_settings LIMIT 1",
-                [],
-                |row| row.get::<_, String>(0),
-            )
-        {
+        if let Ok(backup_loc) = conn.query_row(
+            "SELECT backup_location FROM export_settings LIMIT 1",
+            [],
+            |row| row.get::<_, String>(0),
+        ) {
             let trim_path = backup_loc.trim();
             if !trim_path.is_empty() {
                 custom_backups_dir = Some(PathBuf::from(trim_path));
@@ -872,7 +870,10 @@ fn run_migrations(conn: &mut Connection) -> Result<()> {
     // Migrations for export_settings table
     let es_col_exists = |conn: &Connection, col: &str| -> bool {
         conn.query_row(
-            &format!("SELECT COUNT(*) FROM pragma_table_info('export_settings') WHERE name='{}'", col),
+            &format!(
+                "SELECT COUNT(*) FROM pragma_table_info('export_settings') WHERE name='{}'",
+                col
+            ),
             [],
             |r| r.get::<_, i32>(0).map(|c| c > 0),
         )
@@ -880,16 +881,25 @@ fn run_migrations(conn: &mut Connection) -> Result<()> {
     };
 
     if !es_col_exists(conn, "collection_code") {
-        let _ = conn.execute("ALTER TABLE export_settings ADD COLUMN collection_code TEXT NOT NULL DEFAULT 'RHOIO'", []);
+        let _ = conn.execute(
+            "ALTER TABLE export_settings ADD COLUMN collection_code TEXT NOT NULL DEFAULT 'RHOIO'",
+            [],
+        );
     }
     if !es_col_exists(conn, "include_grid_reference") {
         let _ = conn.execute("ALTER TABLE export_settings ADD COLUMN include_grid_reference INTEGER NOT NULL DEFAULT 0", []);
     }
     if !es_col_exists(conn, "include_islands") {
-        let _ = conn.execute("ALTER TABLE export_settings ADD COLUMN include_islands INTEGER NOT NULL DEFAULT 0", []);
+        let _ = conn.execute(
+            "ALTER TABLE export_settings ADD COLUMN include_islands INTEGER NOT NULL DEFAULT 0",
+            [],
+        );
     }
     if !es_col_exists(conn, "backup_location") {
-        let _ = conn.execute("ALTER TABLE export_settings ADD COLUMN backup_location TEXT NOT NULL DEFAULT ''", []);
+        let _ = conn.execute(
+            "ALTER TABLE export_settings ADD COLUMN backup_location TEXT NOT NULL DEFAULT ''",
+            [],
+        );
     }
 
     if es_col_exists(conn, "mappings") {
@@ -902,9 +912,20 @@ fn run_migrations(conn: &mut Connection) -> Result<()> {
         let mut updates = Vec::new();
         for (user_id, mappings_str) in rows.flatten() {
             if let Ok(val) = serde_json::from_str::<serde_json::Value>(&mappings_str) {
-                let collection_code = val.get("collectionCode").and_then(|v| v.as_str()).unwrap_or("RHOIO").to_string();
-                let include_grid_ref = val.get("includeGridReference").and_then(|v| v.as_bool()).unwrap_or(false);
-                let backup_loc = val.get("backupLocation").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let collection_code = val
+                    .get("collectionCode")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("RHOIO")
+                    .to_string();
+                let include_grid_ref = val
+                    .get("includeGridReference")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                let backup_loc = val
+                    .get("backupLocation")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
                 updates.push((user_id, collection_code, include_grid_ref, backup_loc));
             }
         }

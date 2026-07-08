@@ -2,8 +2,8 @@ use tauri::AppHandle;
 
 use crate::db;
 use crate::models::{
-    CapturedRecord, ExportSettingsDto, ReferenceSpecimen, SessionDto, TaxonAutocompleteResult,
-    UserDto,
+    CapturedRecord, ExportSettingsDto, LocalitySearchResult, ReferenceSpecimen, SessionDto,
+    TaxonAutocompleteResult, UserDto,
 };
 use crate::services::{
     AgentService, AuthService, ExportService, GeographyService, ReferenceService, SessionService,
@@ -122,7 +122,10 @@ pub fn add_agent(app: AppHandle, name: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn autocomplete_locality(app: AppHandle, query: String) -> Result<Vec<String>, String> {
+pub fn autocomplete_locality(
+    app: AppHandle,
+    query: String,
+) -> Result<Vec<LocalitySearchResult>, String> {
     GeographyService::autocomplete_locality(&app, &query)
 }
 

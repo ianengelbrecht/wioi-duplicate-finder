@@ -2,6 +2,30 @@
   import { onDestroy, getContext } from "svelte";
   import { agentService } from "../services/agentService.js";
 
+  /**
+   * @typedef {Object} AutocompleteProps
+   * @property {string} [label] - Field label.
+   * @property {string} [labelKey] - Translation key for the label.
+   * @property {string} [value] - Current input value.
+   * @property {any[]} [suggestions] - Array of suggestion items (strings or objects).
+   * @property {string} [placeholder] - Placeholder text.
+   * @property {string} [placeholderKey] - Translation key for the placeholder.
+   * @property {string} [id] - Input element id.
+   * @property {(value: string) => void} [oninput] - Input handler.
+   * @property {(suggestion: any) => void} [onselect] - Selection handler.
+   * @property {() => void} [onfocus] - Focus handler.
+   * @property {() => void} [onblur] - Blur handler.
+   * @property {number} [delay] - Input debounce delay in milliseconds.
+   * @property {boolean} [customSelect] - If true, selecting suggestion does not auto-populate input value.
+   * @property {boolean} [promptNewAgent] - If true, prompts to save new agent when blurred.
+   * @property {string} [extraInputClass] - Additional classes for the input/textarea element.
+   * @property {any} [inputRef] - Reference to the input element.
+   * @property {boolean} [useTextArea] - Use textarea instead of input.
+   * @property {number} [textAreaRows] - Textarea row count.
+   * @property {string} [displayKey] - Key name to extract from suggestion object for displaying/binding.
+   */
+
+  /** @type {AutocompleteProps} */
   let {
     label = "",
     labelKey = "",
@@ -20,7 +44,8 @@
     extraInputClass = "",
     inputRef = $bindable(null),
     useTextArea = false,
-    textAreaRows = 3
+    textAreaRows = 3,
+    displayKey = "scientificName"
   } = $props();
 
   const t = getContext("t");
@@ -177,7 +202,7 @@
     if (typeof suggestion === "string") {
       selectedText = suggestion;
     } else {
-      selectedText = suggestion.scientificName || "";
+      selectedText = suggestion[displayKey] || "";
     }
     
     if (!customSelect) {
@@ -275,12 +300,38 @@
           >
             {#if typeof sug === "string"}
               {sug}
-            {:else}
-              <div class="flex justify-between items-center">
+            {:else if sug.locality}
+              <div class="flex justify-between items-start gap-3 w-full py-0.5">
+                <div class="flex flex-col text-left min-w-0 flex-1">
+                  <span class="font-medium text-slate-900 truncate block whitespace-pre-wrap">{sug.locality}</span>
+                  {#if sug.locationNotes}
+                    <span class="text-[10px] text-slate-400 italic mt-0.5 block truncate">{sug.locationNotes}</span>
+                  {/if}
+                </div>
+                <div class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider shrink-0 text-right space-y-0.5 leading-tight">
+                  {#if sug.country}
+                    <div>{sug.country}</div>
+                  {/if}
+                  {#if sug.stateProvince || sug.county}
+                    <div class="font-normal text-slate-400 text-[9px] lowercase first-letter:uppercase">
+                      {[sug.stateProvince, sug.county].filter(Boolean).join(", ")}
+                    </div>
+                  {/if}
+                  {#if sug.verbatimCoordinates}
+                    <div class="font-mono text-[9px] text-slate-400 normal-case">{sug.verbatimCoordinates}</div>
+                  {/if}
+                </div>
+              </div>
+            {:else if sug.scientificName}
+              <div class="flex justify-between items-center w-full">
                 <span class="font-medium text-slate-900">{sug.scientificName}</span>
                 {#if sug.family}
                   <span class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">{sug.family}</span>
                 {/if}
+              </div>
+            {:else}
+              <div class="flex justify-between items-center w-full">
+                <span class="font-medium text-slate-900">{sug[displayKey] || ""}</span>
               </div>
             {/if}
           </button>

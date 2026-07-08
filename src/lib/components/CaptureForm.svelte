@@ -852,6 +852,32 @@
   }
 
   /**
+   * @param {any} suggestion
+   */
+  function handleLocalitySelect(suggestion) {
+    if (!suggestion || typeof suggestion === "string") return;
+
+    if (suggestion.country) {
+      form.country = suggestion.country;
+    }
+    if (suggestion.stateProvince) {
+      form.stateProvince = suggestion.stateProvince;
+    }
+    if (suggestion.county) {
+      form.county = suggestion.county;
+    }
+    if (suggestion.locationNotes) {
+      form.locationNotes = suggestion.locationNotes;
+    }
+    if (suggestion.verbatimCoordinates) {
+      form.verbatimCoordinates = suggestion.verbatimCoordinates;
+      form.decimalLatitude = suggestion.decimalLatitude !== null && suggestion.decimalLatitude !== undefined ? String(suggestion.decimalLatitude) : "";
+      form.decimalLongitude = suggestion.decimalLongitude !== null && suggestion.decimalLongitude !== undefined ? String(suggestion.decimalLongitude) : "";
+      coordinatesError = false;
+    }
+  }
+
+  /**
    * @param {string} field
    */
   async function triggerGeoAutocomplete(field) {
@@ -1578,6 +1604,8 @@
               bind:value={form.locality}
               suggestions={localitySuggestions}
               oninput={handleLocalityInput}
+              onselect={handleLocalitySelect}
+              displayKey="locality"
               delay={300}
               bind:inputRef={localityInputRef}
               extraInputClass="pr-20"

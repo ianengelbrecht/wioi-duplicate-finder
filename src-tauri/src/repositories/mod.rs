@@ -1,6 +1,6 @@
 use crate::models::{
-    CapturedRecord, ExportSettingsDto, ReferenceSpecimen, SessionDto, TaxonAutocompleteResult,
-    UserDto,
+    CapturedRecord, ExportSettingsDto, LocalitySearchResult, ReferenceSpecimen, SessionDto,
+    TaxonAutocompleteResult, UserDto,
 };
 use crate::parsers::{
     extract_digits, normalize_locality, normalize_search_recorded_by, normalize_taxon_name,
@@ -719,11 +719,11 @@ impl ExportRepository {
                 include_islands=?5, 
                 backup_location=?6",
             params![
-                user_id, 
-                format, 
-                collection_code, 
-                include_grid_reference as i32, 
-                include_islands as i32, 
+                user_id,
+                format,
+                collection_code,
+                include_grid_reference as i32,
+                include_islands as i32,
                 backup_location
             ],
         )?;
@@ -778,11 +778,25 @@ impl GeographyRepository {
         }))
     }
 
-    pub fn autocomplete_locality(conn: &Connection, query: &str) -> Result<Vec<String>, String> {
+    pub fn autocomplete_locality(
+        conn: &Connection,
+        query: &str,
+    ) -> Result<Vec<LocalitySearchResult>, String> {
         let normalized = normalize_locality(query);
         let terms: Vec<&str> = normalized.split_whitespace().collect();
 
-        let mut sql = String::from("SELECT MIN(TRIM(locality)) AS uniq_locality FROM (\n");
+        let mut sql = String::from(
+            "SELECT \
+             MIN(locality) as locality, \
+             country, \
+             stateProvince, \
+             county, \
+             locationRemarks, \
+             verbatimCoordinates, \
+             decimalLatitude, \
+             decimalLongitude \
+             FROM (\n",
+        );
         let mut params_vec: Vec<String> = Vec::new();
 
         if !terms.is_empty() {
@@ -792,23 +806,37 @@ impl GeographyRepository {
             }
             let fts_query = match_clauses.join(" AND ");
 
-            sql.push_str("    SELECT locality FROM gbif WHERE gbifID IN (\n");
-            sql.push_str("        SELECT rowid FROM gbif_fts WHERE gbif_fts MATCH ?1\n");
-            sql.push_str("    )\n");
+            sql.push_str(
+                "    SELECT locality, country, stateProvince, county, locationRemarks, verbatimCoordinates, decimalLatitude, decimalLongitude \
+                 FROM gbif \
+                 WHERE gbifID IN (\n\
+                     SELECT rowid FROM gbif_fts WHERE gbif_fts MATCH ?1\n\
+                 )\n",
+            );
             params_vec.push(fts_query);
 
             sql.push_str("    UNION ALL\n");
 
-            sql.push_str("    SELECT locality FROM captured_records WHERE 1=1");
+            sql.push_str(
+                "    SELECT locality, country, stateProvince, county, locationRemarks, verbatimCoordinates, decimalLatitude, decimalLongitude \
+                 FROM captured_records \
+                 WHERE 1=1",
+            );
             for (i, term) in terms.iter().enumerate() {
                 sql.push_str(&format!(" AND locality LIKE ?{}", i + 2));
                 params_vec.push(format!("%{}%", term));
             }
             sql.push('\n');
         } else {
-            sql.push_str("    SELECT locality FROM gbif WHERE locality LIKE ?1\n");
-            sql.push_str("    UNION ALL\n");
-            sql.push_str("    SELECT locality FROM captured_records WHERE locality LIKE ?1\n");
+            sql.push_str(
+                "    SELECT locality, country, stateProvince, county, locationRemarks, verbatimCoordinates, decimalLatitude, decimalLongitude \
+                 FROM gbif \
+                 WHERE locality LIKE ?1\n\
+                 UNION ALL\n\
+                 SELECT locality, country, stateProvince, county, locationRemarks, verbatimCoordinates, decimalLatitude, decimalLongitude \
+                 FROM captured_records \
+                 WHERE locality LIKE ?1\n",
+            );
             params_vec.push(format!("%{}%", query));
         }
 
@@ -828,8 +856,16 @@ impl GeographyRepository {
 
         let rows = stmt
             .query_map(&ref_params[..], |row| {
-                let val: String = row.get(0)?;
-                Ok(val)
+                Ok(LocalitySearchResult {
+                    locality: row.get(0)?,
+                    country: row.get(1)?,
+                    state_province: row.get(2)?,
+                    county: row.get(3)?,
+                    location_remarks: row.get(4)?,
+                    verbatim_coordinates: row.get(5)?,
+                    decimal_latitude: row.get(6)?,
+                    decimal_longitude: row.get(7)?,
+                })
             })
             .map_err(|e| e.to_string())?;
 
