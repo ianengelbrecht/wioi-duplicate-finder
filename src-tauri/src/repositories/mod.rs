@@ -1172,6 +1172,9 @@ impl ReferenceRepository {
 
         // 2. Delete all existing records
         if !append {
+            if let Some(app_handle) = app {
+                let _ = app_handle.emit("import-progress", "Deleting existing records...");
+            }
             tx.execute("DELETE FROM gbif", [])
                 .map_err(|e| e.to_string())?;
             tx.execute("DELETE FROM agents", [])
