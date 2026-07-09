@@ -16,8 +16,22 @@ pub fn initialize_database(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn register_user(app: AppHandle, username: String, password: String) -> Result<String, String> {
-    AuthService::register_user(&app, &username, &password)
+pub fn register_user(
+    app: AppHandle,
+    username: String,
+    password: String,
+    given_name: String,
+    family_name: String,
+    initials: String,
+) -> Result<String, String> {
+    AuthService::register_user(
+        &app,
+        &username,
+        &password,
+        &given_name,
+        &family_name,
+        &initials,
+    )
 }
 
 #[tauri::command]
@@ -27,6 +41,49 @@ pub fn login_user(
     password: String,
 ) -> Result<Option<UserDto>, String> {
     AuthService::login_user(&app, &username, &password)
+}
+
+#[tauri::command]
+pub fn get_all_users(app: AppHandle, caller_id: i32) -> Result<Vec<UserDto>, String> {
+    crate::services::UserService::get_all_users(&app, caller_id)
+}
+
+#[tauri::command]
+pub fn update_user_profile(
+    app: AppHandle,
+    user_id: i32,
+    given_name: String,
+    family_name: String,
+    initials: String,
+) -> Result<(), String> {
+    crate::services::UserService::update_user_profile(
+        &app,
+        user_id,
+        &given_name,
+        &family_name,
+        &initials,
+    )
+}
+
+#[tauri::command]
+pub fn update_user_by_admin(
+    app: AppHandle,
+    caller_id: i32,
+    target_user_id: i32,
+    given_name: String,
+    family_name: String,
+    initials: String,
+    is_admin: bool,
+) -> Result<(), String> {
+    crate::services::UserService::update_user_by_admin(
+        &app,
+        caller_id,
+        target_user_id,
+        &given_name,
+        &family_name,
+        &initials,
+        is_admin,
+    )
 }
 
 #[tauri::command]

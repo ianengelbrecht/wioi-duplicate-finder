@@ -182,6 +182,15 @@
                     </span>
                   {/if}
                   <div class="flex flex-wrap items-center gap-3 mt-1 text-[10px] text-slate-500">
+                    {#if ses.createdBy}
+                      <span>
+                        {t("created-by", "created by")}:
+                        <strong class="text-slate-700 font-semibold">
+                          {ses.createdBy}
+                        </strong>
+                      </span>
+                    {/if}
+
                     {#if ses.lastRecordAt}
                       <span>
                         {t("last-record", "last record")}:

@@ -20,16 +20,34 @@ impl AuthService {
         app: &AppHandle,
         username: &str,
         password: &str,
+        given_name: &str,
+        family_name: &str,
+        initials: &str,
     ) -> Result<String, String> {
         let username_clean = username.trim();
+        let given_name_clean = given_name.trim();
+        let family_name_clean = family_name.trim();
+        let initials_clean = initials.trim();
+
         if username_clean.is_empty() || password.is_empty() {
             return Err("Username and password cannot be empty.".to_string());
+        }
+        if given_name_clean.is_empty() || family_name_clean.is_empty() || initials_clean.is_empty()
+        {
+            return Err("Given name, family name, and initials cannot be empty.".to_string());
         }
 
         let hash = hash_password(password);
         let conn = get_connection(app)?;
 
-        match UserRepository::insert_user(&conn, username_clean, &hash) {
+        match UserRepository::insert_user(
+            &conn,
+            username_clean,
+            &hash,
+            given_name_clean,
+            family_name_clean,
+            initials_clean,
+        ) {
             Ok(_) => Ok("User registered successfully!".to_string()),
             Err(rusqlite::Error::SqliteFailure(err, _))
                 if err.code == rusqlite::ErrorCode::ConstraintViolation =>
@@ -54,6 +72,80 @@ impl AuthService {
     }
 }
 
+pub struct UserService;
+
+impl UserService {
+    pub fn get_all_users(app: &AppHandle, caller_id: i32) -> Result<Vec<UserDto>, String> {
+        let conn = get_connection(app)?;
+        let caller_is_admin =
+            UserRepository::is_admin(&conn, caller_id).map_err(|e| e.to_string())?;
+        if !caller_is_admin {
+            return Err("Access denied: only admins can manage users.".to_string());
+        }
+        UserRepository::get_all_users(&conn).map_err(|e| e.to_string())
+    }
+
+    pub fn update_user_profile(
+        app: &AppHandle,
+        user_id: i32,
+        given_name: &str,
+        family_name: &str,
+        initials: &str,
+    ) -> Result<(), String> {
+        let given_name_clean = given_name.trim();
+        let family_name_clean = family_name.trim();
+        let initials_clean = initials.trim();
+        if given_name_clean.is_empty() || family_name_clean.is_empty() || initials_clean.is_empty()
+        {
+            return Err("Given name, family name, and initials cannot be empty.".to_string());
+        }
+
+        let conn = get_connection(app)?;
+        UserRepository::update_user_profile(
+            &conn,
+            user_id,
+            given_name_clean,
+            family_name_clean,
+            initials_clean,
+        )
+        .map_err(|e| e.to_string())
+    }
+
+    pub fn update_user_by_admin(
+        app: &AppHandle,
+        caller_id: i32,
+        target_user_id: i32,
+        given_name: &str,
+        family_name: &str,
+        initials: &str,
+        is_admin: bool,
+    ) -> Result<(), String> {
+        let given_name_clean = given_name.trim();
+        let family_name_clean = family_name.trim();
+        let initials_clean = initials.trim();
+        if given_name_clean.is_empty() || family_name_clean.is_empty() || initials_clean.is_empty()
+        {
+            return Err("Given name, family name, and initials cannot be empty.".to_string());
+        }
+
+        let conn = get_connection(app)?;
+        let caller_is_admin =
+            UserRepository::is_admin(&conn, caller_id).map_err(|e| e.to_string())?;
+        if !caller_is_admin {
+            return Err("Access denied: only admins can manage users.".to_string());
+        }
+        UserRepository::update_user_by_admin(
+            &conn,
+            target_user_id,
+            given_name_clean,
+            family_name_clean,
+            initials_clean,
+            is_admin,
+        )
+        .map_err(|e| e.to_string())
+    }
+}
+
 pub struct SessionService;
 
 impl SessionService {
@@ -67,12 +159,16 @@ impl SessionService {
         let id = SessionRepository::create_session(&conn, user_id, name_clean)
             .map_err(|e| e.to_string())?;
 
+        let initials =
+            UserRepository::get_user_initials(&conn, user_id).map_err(|e| e.to_string())?;
+
         Ok(SessionDto {
             id,
             name: name_clean.to_string(),
             record_count: 0,
             last_record_at: None,
             last_exported_at: None,
+            created_by: Some(initials),
         })
     }
 

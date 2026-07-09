@@ -22,6 +22,21 @@ export class AuthStore {
   }
 
   /**
+   * Updates the current user's profile details in the store.
+   * @param {string} givenName 
+   * @param {string} familyName 
+   * @param {string} initials 
+   */
+  updateCurrentUserDetails(givenName, familyName, initials) {
+    if (this.currentUser) {
+      this.currentUser.givenName = givenName;
+      this.currentUser.familyName = familyName;
+      this.currentUser.initials = initials;
+      localStorage.setItem("currentUser", JSON.stringify(this.currentUser));
+    }
+  }
+
+  /**
    * Sets the current active application view.
    * @param {string} viewName 
    */

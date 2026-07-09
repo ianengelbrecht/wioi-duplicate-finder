@@ -5,10 +5,13 @@ export const authService = {
    * Registers a new user.
    * @param {string} username 
    * @param {string} password 
+   * @param {string} givenName 
+   * @param {string} familyName 
+   * @param {string} initials 
    * @returns {Promise<string>}
    */
-  async register(username, password) {
-    return await invoke("register_user", { username, password });
+  async register(username, password, givenName, familyName, initials) {
+    return await invoke("register_user", { username, password, givenName, familyName, initials });
   },
 
   /**

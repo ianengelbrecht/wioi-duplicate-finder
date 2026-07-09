@@ -5,6 +5,10 @@ use serde::{Deserialize, Serialize};
 pub struct UserDto {
     pub id: i32,
     pub username: String,
+    pub given_name: String,
+    pub family_name: String,
+    pub initials: String,
+    pub is_admin: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -15,6 +19,7 @@ pub struct SessionDto {
     pub record_count: i64,
     pub last_record_at: Option<String>,
     pub last_exported_at: Option<String>,
+    pub created_by: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

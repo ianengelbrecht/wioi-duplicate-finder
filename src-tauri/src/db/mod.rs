@@ -747,10 +747,54 @@ fn run_migrations(conn: &mut Connection) -> Result<()> {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
+            given_name TEXT NOT NULL DEFAULT '',
+            family_name TEXT NOT NULL DEFAULT '',
+            initials TEXT NOT NULL DEFAULT '',
+            is_admin INTEGER NOT NULL DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );",
         [],
     )?;
+
+    let given_name_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('users') WHERE name='given_name'",
+            [],
+            |r| r.get::<_, i32>(0).map(|c| c > 0),
+        )
+        .unwrap_or(false);
+
+    if !given_name_exists {
+        info!("Adding profile and admin columns to users...");
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN given_name TEXT NOT NULL DEFAULT ''",
+            [],
+        )?;
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN family_name TEXT NOT NULL DEFAULT ''",
+            [],
+        )?;
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN initials TEXT NOT NULL DEFAULT ''",
+            [],
+        )?;
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
+
+        // Automatically set the first user to register as an admin using the users.created_at field
+        let res = conn.execute(
+            "UPDATE users SET is_admin = 1 WHERE id = (SELECT id FROM users ORDER BY created_at ASC LIMIT 1)",
+            [],
+        );
+        if let Err(e) = res {
+            warn!(
+                "Could not set first registered user as admin in migration: {}",
+                e
+            );
+        }
+    }
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS sessions (

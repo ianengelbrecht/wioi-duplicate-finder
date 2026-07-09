@@ -16,10 +16,17 @@ impl UserRepository {
         conn: &Connection,
         username: &str,
         password_hash: &str,
+        given_name: &str,
+        family_name: &str,
+        initials: &str,
     ) -> Result<(), Error> {
+        // Determine if this is the first user to register
+        let count: i64 = conn.query_row("SELECT COUNT(*) FROM users", [], |row| row.get(0))?;
+        let is_admin = if count == 0 { 1 } else { 0 };
+
         conn.execute(
-            "INSERT INTO users (username, password_hash) VALUES (?1, ?2)",
-            params![username, password_hash],
+            "INSERT INTO users (username, password_hash, given_name, family_name, initials, is_admin) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![username, password_hash, given_name, family_name, initials, is_admin],
         )?;
         Ok(())
     }
@@ -30,11 +37,16 @@ impl UserRepository {
         password_hash: &str,
     ) -> Result<Option<UserDto>, Error> {
         let mut stmt = conn
-            .prepare("SELECT id, username FROM users WHERE username = ?1 AND password_hash = ?2")?;
+            .prepare("SELECT id, username, given_name, family_name, initials, is_admin FROM users WHERE username = ?1 AND password_hash = ?2")?;
         let mut rows = stmt.query_map(params![username, password_hash], |row| {
+            let is_admin_int: i32 = row.get(5)?;
             Ok(UserDto {
                 id: row.get(0)?,
                 username: row.get(1)?,
+                given_name: row.get(2)?,
+                family_name: row.get(3)?,
+                initials: row.get(4)?,
+                is_admin: is_admin_int != 0,
             })
         })?;
 
@@ -44,6 +56,78 @@ impl UserRepository {
         } else {
             Ok(None)
         }
+    }
+
+    pub fn is_admin(conn: &Connection, id: i32) -> Result<bool, Error> {
+        let is_admin_int: i32 = conn
+            .query_row(
+                "SELECT is_admin FROM users WHERE id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .unwrap_or(0);
+        Ok(is_admin_int != 0)
+    }
+
+    pub fn get_all_users(conn: &Connection) -> Result<Vec<UserDto>, Error> {
+        let mut stmt = conn.prepare(
+            "SELECT id, username, given_name, family_name, initials, is_admin FROM users ORDER BY username ASC"
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let is_admin_int: i32 = row.get(5)?;
+            Ok(UserDto {
+                id: row.get(0)?,
+                username: row.get(1)?,
+                given_name: row.get(2)?,
+                family_name: row.get(3)?,
+                initials: row.get(4)?,
+                is_admin: is_admin_int != 0,
+            })
+        })?;
+
+        let mut list = Vec::new();
+        for r in rows {
+            list.push(r?);
+        }
+        Ok(list)
+    }
+
+    pub fn update_user_profile(
+        conn: &Connection,
+        id: i32,
+        given_name: &str,
+        family_name: &str,
+        initials: &str,
+    ) -> Result<(), Error> {
+        conn.execute(
+            "UPDATE users SET given_name = ?1, family_name = ?2, initials = ?3 WHERE id = ?4",
+            params![given_name, family_name, initials, id],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_user_by_admin(
+        conn: &Connection,
+        target_user_id: i32,
+        given_name: &str,
+        family_name: &str,
+        initials: &str,
+        is_admin: bool,
+    ) -> Result<(), Error> {
+        let is_admin_int = if is_admin { 1 } else { 0 };
+        conn.execute(
+            "UPDATE users SET given_name = ?1, family_name = ?2, initials = ?3, is_admin = ?4 WHERE id = ?5",
+            params![given_name, family_name, initials, is_admin_int, target_user_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_user_initials(conn: &Connection, id: i32) -> Result<String, Error> {
+        conn.query_row(
+            "SELECT initials FROM users WHERE id = ?1",
+            params![id],
+            |row| row.get(0),
+        )
     }
 }
 
@@ -60,27 +144,61 @@ impl SessionRepository {
     }
 
     pub fn get_sessions(conn: &Connection, user_id: i32) -> Result<Vec<SessionDto>, Error> {
-        let mut stmt = conn.prepare(
-            "SELECT s.id, s.name, COUNT(r.id) as count, MAX(r.modified_at) as last_record, s.last_exported_at 
-             FROM sessions s 
-             LEFT JOIN captured_records r ON s.id = r.session_id 
-             WHERE s.user_id = ?1 
-             GROUP BY s.id 
-             ORDER BY s.id DESC"
-        )?;
-        let rows = stmt.query_map(params![user_id], |row| {
-            Ok(SessionDto {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                record_count: row.get(2)?,
-                last_record_at: row.get(3)?,
-                last_exported_at: row.get(4)?,
-            })
-        })?;
+        let is_admin_int: i32 = conn
+            .query_row(
+                "SELECT is_admin FROM users WHERE id = ?1",
+                params![user_id],
+                |row| row.get(0),
+            )
+            .unwrap_or(0);
+        let is_admin = is_admin_int != 0;
 
         let mut list = Vec::new();
-        for r in rows {
-            list.push(r?);
+        if is_admin {
+            let mut stmt = conn.prepare(
+                "SELECT s.id, s.name, COUNT(r.id) as count, MAX(r.modified_at) as last_record, s.last_exported_at, u.initials 
+                 FROM sessions s 
+                 LEFT JOIN captured_records r ON s.id = r.session_id 
+                 LEFT JOIN users u ON s.user_id = u.id
+                 GROUP BY s.id 
+                 ORDER BY s.id DESC"
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok(SessionDto {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    record_count: row.get(2)?,
+                    last_record_at: row.get(3)?,
+                    last_exported_at: row.get(4)?,
+                    created_by: row.get(5)?,
+                })
+            })?;
+            for r in rows {
+                list.push(r?);
+            }
+        } else {
+            let mut stmt = conn.prepare(
+                "SELECT s.id, s.name, COUNT(r.id) as count, MAX(r.modified_at) as last_record, s.last_exported_at, u.initials 
+                 FROM sessions s 
+                 LEFT JOIN captured_records r ON s.id = r.session_id 
+                 LEFT JOIN users u ON s.user_id = u.id
+                 WHERE s.user_id = ?1 
+                 GROUP BY s.id 
+                 ORDER BY s.id DESC"
+            )?;
+            let rows = stmt.query_map(params![user_id], |row| {
+                Ok(SessionDto {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    record_count: row.get(2)?,
+                    last_record_at: row.get(3)?,
+                    last_exported_at: row.get(4)?,
+                    created_by: row.get(5)?,
+                })
+            })?;
+            for r in rows {
+                list.push(r?);
+            }
         }
         Ok(list)
     }

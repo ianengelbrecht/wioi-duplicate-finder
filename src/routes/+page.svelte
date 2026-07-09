@@ -11,6 +11,8 @@
   import RestoreConfirmModal from "$lib/components/RestoreConfirmModal.svelte";
   import SessionsTab from "$lib/components/SessionsTab.svelte";
   import SettingsTab from "$lib/components/SettingsTab.svelte";
+  import ProfileTab from "$lib/components/ProfileTab.svelte";
+  import UsersTab from "$lib/components/UsersTab.svelte";
   import CapturedRecordsTable from "$lib/components/CapturedRecordsTable.svelte";
   import QuestionIcon from "$lib/components/icons/QuestionIcon.svelte";
 
@@ -450,6 +452,20 @@
                 <span class="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 border border-amber-305 uppercase tracking-wide font-bold">Required</span>
               {/if}
             </button>
+            <button
+              onclick={() => activeTab = "profile"}
+              class="w-full text-left px-4 py-3 text-xs font-bold uppercase tracking-wider border rounded-none transition-all {activeTab === 'profile' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}"
+            >
+              {t("profile-settings-heading", "My Profile")}
+            </button>
+            {#if authStore.currentUser?.isAdmin}
+              <button
+                onclick={() => activeTab = "users"}
+                class="w-full text-left px-4 py-3 text-xs font-bold uppercase tracking-wider border rounded-none transition-all {activeTab === 'users' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}"
+              >
+                {t("manage-users-heading", "Manage Users")}
+              </button>
+            {/if}
           </div>
           <!-- Funders logos -->
           <div class="">
@@ -467,6 +483,10 @@
             <SessionsTab currentLanguage={currentLanguage} onSelectSession={selectSession} />
           {:else if activeTab === "settings"}
             <SettingsTab onRestoreRequest={handleRestoreBackup} />
+          {:else if activeTab === "profile"}
+            <ProfileTab />
+          {:else if activeTab === "users" && authStore.currentUser?.isAdmin}
+            <UsersTab />
           {/if}
         </div>
         <p class="absolute bottom-6 -right-40 text-xs text-slate-600">Built with 
