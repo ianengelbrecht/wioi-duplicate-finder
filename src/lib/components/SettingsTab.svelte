@@ -235,7 +235,8 @@
         workspaceStore.includeGridReference,
         workspaceStore.includeIslands,
         workspaceStore.databaseBackupLocation.trim(),
-        workspaceStore.homeCountry
+        workspaceStore.homeCountry,
+        workspaceStore.initialsRequirePeriods
       );
       settingsEdited = false;
       workspaceStore.settingsMessage = "Settings saved successfully!";
@@ -382,6 +383,46 @@
       />
       <span data-i18n-key="include-islands-label">{t("include-islands-label", "Include islands")}</span>
     </label>
+  </div>
+
+  <!-- Collector Names Initials Period Setting -->
+  <div class="space-y-2 pt-2 border-t border-slate-100 bg-white rounded-none">
+    <div>
+      <span class="text-xs font-bold text-slate-700 uppercase tracking-wider">Collector names:</span>
+    </div>
+    
+    <div class="flex gap-4">
+      <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+        <input
+          type="radio"
+          name="initials-require-periods"
+          value={true}
+          bind:group={workspaceStore.initialsRequirePeriods}
+          onchange={() => settingsEdited = true}
+          class="text-slate-800"
+        />
+        <span>with periods</span>
+      </label>
+      <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+        <input
+          type="radio"
+          name="initials-require-periods"
+          value={false}
+          bind:group={workspaceStore.initialsRequirePeriods}
+          onchange={() => settingsEdited = true}
+          class="text-slate-800"
+        />
+        <span>no periods</span>
+      </label>
+    </div>
+    
+    <div class="text-xs text-slate-600 font-medium">
+      Example: <span class="font-mono bg-slate-100 px-1 py-0.5 rounded">{workspaceStore.initialsRequirePeriods ? "Jones, A.W.C." : "Jones, AWC"}</span>
+    </div>
+    
+    <div class="text-[10px] text-slate-500 italic">
+      captured collector names must have format [family name], [initials], with the comma.
+    </div>
   </div>
 
   <!-- Reference Dataset Setting -->

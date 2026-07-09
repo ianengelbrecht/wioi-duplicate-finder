@@ -1,6 +1,7 @@
 <script>
   import { onDestroy, getContext } from "svelte";
   import { agentService } from "../services/agentService.js";
+  import { authStore } from "../stores/authStore.svelte.js";
 
   /**
    * @typedef {Object} AutocompleteProps
@@ -111,7 +112,7 @@
           isChecking = false;
           return;
         }
-        await agentService.addAgent(trimmed);
+        await agentService.addAgent(trimmed, authStore.currentUser?.id || null);
       }
     } catch (err) {
       console.error("Error checking or adding agent:", err);

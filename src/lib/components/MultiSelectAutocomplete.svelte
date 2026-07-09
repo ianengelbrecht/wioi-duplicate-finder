@@ -1,6 +1,7 @@
 <script>
   import { onDestroy, getContext } from "svelte";
   import { agentService } from "../services/agentService.js";
+  import { authStore } from "../stores/authStore.svelte.js";
 
   let {
     label = "",
@@ -131,7 +132,7 @@
             if (!confirmed) {
               // Do not return; still add it to selectedValues.
             } else {
-              await agentService.addAgent(sug);
+              await agentService.addAgent(sug, authStore.currentUser?.id || null);
             }
           }
         } catch (err) {
@@ -295,7 +296,7 @@
       if (!exists) {
         const confirmed = await confirmNewName(trimmed);
         if (confirmed) {
-          await agentService.addAgent(trimmed);
+          await agentService.addAgent(trimmed, authStore.currentUser?.id || null);
         }
       }
     } catch (err) {

@@ -11,7 +11,7 @@ export const exportService = {
   },
 
   /**
-   * Saves custom export settings (format, collection code, grid reference, islands settings, database backup folder, home country).
+   * Saves custom export settings (format, collection code, grid reference, islands settings, database backup folder, home country, initials require periods).
    * @param {number} userId 
    * @param {string} format DwC or BRAHMS
    * @param {string} collectionCode Collection code
@@ -19,9 +19,10 @@ export const exportService = {
    * @param {boolean} includeIslands Whether to include islands
    * @param {string} backupLocation Backup folder path
    * @param {string} homeCountry Selected home country
+   * @param {boolean} initialsRequirePeriods Whether initials require periods
    * @returns {Promise<void>}
    */
-  async saveExportSettings(userId, format, collectionCode, includeGridReference, includeIslands, backupLocation, homeCountry) {
+  async saveExportSettings(userId, format, collectionCode, includeGridReference, includeIslands, backupLocation, homeCountry, initialsRequirePeriods) {
     return await invoke("save_export_settings", {
       userId,
       format,
@@ -30,6 +31,7 @@ export const exportService = {
       includeIslands,
       backupLocation,
       homeCountry,
+      initialsRequirePeriods,
     });
   },
 

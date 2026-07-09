@@ -14,6 +14,9 @@ export class WorkspaceStore {
   /** @type {boolean} */
   includeIslands = $state(false);
 
+  /** @type {boolean} */
+  initialsRequirePeriods = $state(true);
+
   databaseBackupLocation = $state("");
   defaultBackupLocation = $state("");
   showRestoreConfirmModal = $state(false);

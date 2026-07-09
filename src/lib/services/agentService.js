@@ -31,9 +31,10 @@ export const agentService = {
   /**
    * Manually adds a new agent to the agents table.
    * @param {string} name 
+   * @param {number|null} [createdBy]
    * @returns {Promise<void>}
    */
-  async addAgent(name) {
-    return await invoke("add_agent", { name });
+  async addAgent(name, createdBy = null) {
+    return await invoke("add_agent", { name, createdBy });
   }
 };

@@ -20,6 +20,9 @@
   import { copySelectedOrValue, pasteAtCursor } from "../utils/clipboard.js";
   import { workspaceStore } from "../stores/workspaceStore.svelte.js";
   import { getPlaceholders } from "../utils/countryData.js";
+  import { makeAgentFilter } from "../utils/makeAgentFilter.js";
+
+  const agentFilter = $derived(makeAgentFilter({ initialsRequirePeriods: workspaceStore.initialsRequirePeriods }));
 
   const t = getContext("t");
 
@@ -542,7 +545,7 @@
     }
     try {
       const res = await agentService.autocompleteAgent(val);
-      collectorSuggestions = res.filter(name => !form.additionalCollectors.includes(name));
+      collectorSuggestions = res.filter(name => agentFilter(name) && !form.additionalCollectors.includes(name));
     } catch (e) {
       console.error(e);
     }
@@ -561,6 +564,7 @@
     try {
       const res = await agentService.autocompleteAgent(val);
       additionalCollectorsSuggestions = res.filter(name => 
+        agentFilter(name) &&
         name !== form.recordedBy && 
         !form.additionalCollectors.includes(name)
       );
@@ -1006,7 +1010,7 @@
     }
     try {
       const res = await agentService.autocompleteAgent(val);
-      identifiedBySuggestions = res.filter(name => !form.identifiedBy.includes(name));
+      identifiedBySuggestions = res.filter(name => agentFilter(name) && !form.identifiedBy.includes(name));
     } catch (e) {
       console.error(e);
     }

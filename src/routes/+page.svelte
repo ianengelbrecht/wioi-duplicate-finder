@@ -219,6 +219,7 @@
       workspaceStore.homeCountry = settings.homeCountry || "";
       workspaceStore.includeGridReference = settings.includeGridReference || false;
       workspaceStore.includeIslands = settings.includeIslands || false;
+      workspaceStore.initialsRequirePeriods = settings.initialsRequirePeriods !== undefined ? settings.initialsRequirePeriods : true;
       workspaceStore.databaseBackupLocation = settings.backupLocation || workspaceStore.defaultBackupLocation;
     } catch (e) {
       console.error(e);
