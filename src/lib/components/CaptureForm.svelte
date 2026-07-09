@@ -1190,16 +1190,20 @@
   
         <!-- Numeric Collection Date Fields -->
         <div class="col-span-4 flex gap-2">
+          <!-- Day -->
           <div class="flex-1">
-            <label for="capture-year" data-i18n-key="year-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("year-label", "Year")}</label>
+            <label for="capture-day" data-i18n-key="day-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("day-label", "Day")}</label>
             <input
-              id="capture-year"
+              id="capture-day"
               type="number"
-              bind:value={form.year}
+              min="1"
+              max="31"
+              bind:value={form.day}
               onblur={handleCollectionDateBlur}
               class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
             />
           </div>
+          <!-- Month -->
           <div class="flex-1">
             <label for="capture-month" data-i18n-key="month-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("month-label", "Month")}</label>
             <input
@@ -1212,14 +1216,13 @@
               class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
             />
           </div>
+          <!-- Year -->
           <div class="flex-1">
-            <label for="capture-day" data-i18n-key="day-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("day-label", "Day")}</label>
+            <label for="capture-year" data-i18n-key="year-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("year-label", "Year")}</label>
             <input
-              id="capture-day"
+              id="capture-year"
               type="number"
-              min="1"
-              max="31"
-              bind:value={form.day}
+              bind:value={form.year}
               onblur={handleCollectionDateBlur}
               class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
             />
