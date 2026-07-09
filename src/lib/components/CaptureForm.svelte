@@ -19,6 +19,7 @@
   import { titleCaseField, undoTitleCaseField, getInitialTrackingState } from "../utils/titleCaseHelper.js";
   import { copySelectedOrValue, pasteAtCursor } from "../utils/clipboard.js";
   import { workspaceStore } from "../stores/workspaceStore.svelte.js";
+  import { getPlaceholders } from "../utils/countryData.js";
 
   const t = getContext("t");
 
@@ -77,6 +78,8 @@
     fieldNotes: "",
     cultivated: false
   });
+
+  let placeholders = $derived(getPlaceholders(workspaceStore.homeCountry, currentLanguage));
 
   /** @type {boolean} */
   let coordinatesError = $state(false);
@@ -1340,8 +1343,8 @@
             <Autocomplete
               id="capture-country"
               label=""
-              placeholder={isAnyGeoPopulated ? "" : "eg Madagascar"}
-              placeholderKey={isAnyGeoPopulated ? undefined : "country-placeholder"}
+              placeholder={isAnyGeoPopulated ? "" : placeholders.country}
+              placeholderKey={isAnyGeoPopulated ? undefined : ""}
               bind:value={form.country}
               suggestions={countrySuggestions}
               oninput={handleCountryInput}
@@ -1383,8 +1386,8 @@
             <Autocomplete
               id="capture-stateProvince"
               label=""
-              placeholder={isAnyGeoPopulated ? "" : (form.country && form.country.toLowerCase() === "madagascar" ? "eg Fianarantsoa" : "eg Province/State")}
-              placeholderKey={isAnyGeoPopulated ? undefined : (form.country && form.country.toLowerCase() === "madagascar" ? "state-province-placeholder-mada" : "state-province-placeholder")}
+              placeholder={isAnyGeoPopulated ? "" : placeholders.stateProvince}
+              placeholderKey={isAnyGeoPopulated ? undefined : ""}
               bind:value={form.stateProvince}
               suggestions={stateProvinceSuggestions}
               oninput={handleStateProvinceInput}
@@ -1428,8 +1431,8 @@
             <Autocomplete
               id="capture-county"
               label=""
-              placeholder={isAnyGeoPopulated ? "" : (form.country && form.country.toLowerCase() === "madagascar" ? "eg Amoron'i Mania" : "eg Region/County")}
-              placeholderKey={isAnyGeoPopulated ? undefined : (form.country && form.country.toLowerCase() === "madagascar" ? "county-placeholder-mada" : "county-placeholder")}
+              placeholder={isAnyGeoPopulated ? "" : placeholders.county}
+              placeholderKey={isAnyGeoPopulated ? undefined : ""}
               bind:value={form.county}
               suggestions={countySuggestions}
               oninput={handleCountyInput}
@@ -1584,8 +1587,8 @@
             <Autocomplete
               id="capture-locality"
               label=""
-              placeholder="eg 10km north of Ambositra, on road to Antsirabe"
-              placeholderKey="locality-placeholder"
+              placeholder={placeholders.locality}
+              placeholderKey=""
               bind:value={form.locality}
               suggestions={localitySuggestions}
               oninput={handleLocalityInput}
@@ -1658,8 +1661,7 @@
           <label for="capture-locationNotes" data-i18n-key="location-notes-label" class="block text-xs font-semibold text-slate-655 uppercase tracking-wider mb-1">{t("location-notes-label", "Locality Notes")}</label>
           <textarea
             id="capture-locationNotes"
-            data-i18n-key="location-notes-placeholder"
-            placeholder={t("location-notes-placeholder", "eg 'Found in humid forest'")}
+            placeholder={placeholders.localityNotes}
             bind:value={form.locationNotes}
             bind:this={locationNotesRef}
             rows="2"
@@ -1728,9 +1730,8 @@
           </label>
           <input
             id="capture-verbatimCoordinates"
-            data-i18n-key="verbatim-coordinates-placeholder"
             type="text"
-            placeholder={t("verbatim-coordinates-placeholder", "eg 20°34'S, 47°12'E")}
+            placeholder={placeholders.verbatimCoordinates}
             bind:value={form.verbatimCoordinates}
             onblur={handleCoordinatesBlur}
             class="w-full bg-white border text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all {coordinatesError ? 'border-red-500 bg-red-50 focus:border-red-500 focus:ring-red-500' : 'border-slate-300'}"

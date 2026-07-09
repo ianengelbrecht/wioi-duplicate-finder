@@ -6,6 +6,7 @@
   import { exportService } from "$lib/services/exportService.js";
   import { backupService } from "$lib/services/backupService.js";
   import { referenceService } from "$lib/services/referenceService.js";
+  import { COUNTRY_DATA } from "$lib/utils/countryData.js";
 
   const t = getContext("t");
 
@@ -233,7 +234,8 @@
         workspaceStore.workingCollectionCode,
         workspaceStore.includeGridReference,
         workspaceStore.includeIslands,
-        workspaceStore.databaseBackupLocation.trim()
+        workspaceStore.databaseBackupLocation.trim(),
+        workspaceStore.homeCountry
       );
       settingsEdited = false;
       workspaceStore.settingsMessage = "Settings saved successfully!";
@@ -291,18 +293,37 @@
     </div>
   {/if}
 
-  <!-- Collection Code Setting -->
-  <div class="space-y-2 pt-2 border-t border-slate-100">
-    <label for="settings-collectionCode" data-i18n-key="working-collection-code" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">{t("working-collection-code", "Working Collection Code")}</label>
-    <input
-      id="settings-collectionCode"
-      type="text"
-      placeholder="e.g. TAN"
-      bind:value={workspaceStore.workingCollectionCode}
-      onchange={() => settingsEdited = true}
-      onkeyup={(e) => /^[a-zA-Z]$/.test(e.key) && (settingsEdited = true)}
-      class="w-full sm:w-64 bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
-    />
+  <!-- Home Country & Collection Code Setting -->
+  <div class="flex flex-col sm:flex-row gap-4 pt-2 border-t border-slate-100">
+    <!-- Home Country Selection -->
+    <div class="space-y-2 flex-1 sm:max-w-[280px]">
+      <label for="settings-homeCountry" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">{t("home-country", "Home Country")}</label>
+      <select
+        id="settings-homeCountry"
+        bind:value={workspaceStore.homeCountry}
+        onchange={() => settingsEdited = true}
+        class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all cursor-pointer"
+      >
+        <option value="">{t("select-country-default", "-- Select Home Country --")}</option>
+        {#each Object.keys(COUNTRY_DATA) as countryName}
+          <option value={countryName}>{countryName}</option>
+        {/each}
+      </select>
+    </div>
+
+    <!-- Working Collection Code -->
+    <div class="space-y-2 flex-1 sm:max-w-[280px]">
+      <label for="settings-collectionCode" data-i18n-key="working-collection-code" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">{t("working-collection-code", "Working Collection Code")}</label>
+      <input
+        id="settings-collectionCode"
+        type="text"
+        placeholder="e.g. TAN"
+        bind:value={workspaceStore.workingCollectionCode}
+        onchange={() => settingsEdited = true}
+        onkeyup={(e) => /^[a-zA-Z]$/.test(e.key) && (settingsEdited = true)}
+        class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+      />
+    </div>
   </div>
 
   <!-- Format Choice -->

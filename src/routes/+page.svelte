@@ -28,6 +28,7 @@
   import { referenceService } from "$lib/services/referenceService.js";
   import { backupService } from "$lib/services/backupService.js";
   import { exportService } from "$lib/services/exportService.js";
+  import { COUNTRY_DATA } from "$lib/utils/countryData.js";
   
   // Use-case logic
   import { generateCSVContent } from "$lib/usecases/generateCSVContent.js";
@@ -39,6 +40,15 @@
   // Localization state (UI only)
   let currentLanguage = $state(localStorage.getItem("currentLanguage") || "EN");
   let translations = $state(/** @type {Record<string, string>} */ ({}));
+
+  const allLanguages = ["EN", "FR", "PT", "MG"];
+  let allowedLanguages = $derived.by(() => {
+    const country = workspaceStore.homeCountry;
+    if (country && COUNTRY_DATA[country]) {
+      return COUNTRY_DATA[country].languages;
+    }
+    return allLanguages;
+  });
 
   function t(/** @type {string} */ key, /** @type {string} */ defaultText) {
     return translations[key] || defaultText;
@@ -56,6 +66,13 @@
       .catch(err => {
         console.error("Failed to load translations:", err);
       });
+  });
+
+  $effect(() => {
+    // If the currently selected language is not allowed under the selected country, switch to the first allowed language
+    if (!allowedLanguages.includes(currentLanguage) && allowedLanguages.length > 0) {
+      currentLanguage = allowedLanguages[0];
+    }
   });
 
   /**
@@ -185,6 +202,7 @@
       let settings = /** @type {any} */ (await exportService.getExportSettings(authStore.currentUser.id));
       workspaceStore.exportFormat = settings.format || "DwC";
       workspaceStore.workingCollectionCode = settings.collectionCode || "RHOIO";
+      workspaceStore.homeCountry = settings.homeCountry || "";
       workspaceStore.includeGridReference = settings.includeGridReference || false;
       workspaceStore.includeIslands = settings.includeIslands || false;
       workspaceStore.databaseBackupLocation = settings.backupLocation || workspaceStore.defaultBackupLocation;
@@ -335,34 +353,15 @@
         {/if}
 
         <div class="flex items-center border border-slate-300 divide-x divide-slate-300 select-none">
-          <button
-            type="button"
-            onclick={() => currentLanguage = "EN"}
-            class="px-2.5 py-1.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {currentLanguage === 'EN' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-650'}"
-          >
-            EN
-          </button>
-          <button
-            type="button"
-            onclick={() => currentLanguage = "FR"}
-            class="px-2.5 py-1.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {currentLanguage === 'FR' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-650'}"
-          >
-            FR
-          </button>
-          <button
-            type="button"
-            onclick={() => currentLanguage = "PT"}
-            class="px-2.5 py-1.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {currentLanguage === 'PT' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-650'}"
-          >
-            PT
-          </button>
-          <button
-            type="button"
-            onclick={() => currentLanguage = "MG"}
-            class="px-2.5 py-1.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {currentLanguage === 'MG' ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-650'}"
-          >
-            MG
-          </button>
+          {#each allowedLanguages as lang}
+            <button
+              type="button"
+              onclick={() => currentLanguage = lang}
+              class="px-2.5 py-1.5 text-[10px] font-bold tracking-wider hover:bg-slate-50 transition-colors cursor-pointer {currentLanguage === lang ? 'bg-slate-800 text-white hover:bg-slate-800' : 'bg-white text-slate-650'}"
+            >
+              {lang}
+            </button>
+          {/each}
         </div>
         <!-- Github button -->
         <a
@@ -561,9 +560,9 @@
 
         <!-- Workspace Dual-Pane Layout -->
         <div class="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 p-4 min-h-0 overflow-y-auto">
-          <!-- Left Pane (Search) -->
+          <!-- Left Pane (Search and Results Table) -->
           <div class="flex flex-col h-[650px] min-h-0">
-            <SearchPane bind:this={searchPaneRef} onSelectRecord={handleSelectSearchResult} />
+            <SearchPane bind:this={searchPaneRef} onSelectRecord={handleSelectSearchResult} {currentLanguage} />
           </div>
 
           <!-- Right Pane (Specimen Capture Form) -->

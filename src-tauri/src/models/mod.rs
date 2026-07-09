@@ -73,6 +73,7 @@ pub struct ExportSettingsDto {
     pub include_grid_reference: bool,
     pub include_islands: bool,
     pub backup_location: String,
+    pub home_country: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

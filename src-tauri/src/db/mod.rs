@@ -945,6 +945,12 @@ fn run_migrations(conn: &mut Connection) -> Result<()> {
             [],
         );
     }
+    if !es_col_exists(conn, "home_country") {
+        let _ = conn.execute(
+            "ALTER TABLE export_settings ADD COLUMN home_country TEXT NOT NULL DEFAULT ''",
+            [],
+        );
+    }
 
     if es_col_exists(conn, "mappings") {
         // Migrate existing settings from mappings JSON to columns

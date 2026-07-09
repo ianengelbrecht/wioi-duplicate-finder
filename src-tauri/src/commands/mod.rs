@@ -219,6 +219,7 @@ pub fn save_export_settings(
     include_grid_reference: bool,
     include_islands: bool,
     backup_location: String,
+    home_country: String,
 ) -> Result<(), String> {
     ExportService::save_export_settings(
         &app,
@@ -228,6 +229,7 @@ pub fn save_export_settings(
         include_grid_reference,
         include_islands,
         &backup_location,
+        &home_country,
     )
 }
 

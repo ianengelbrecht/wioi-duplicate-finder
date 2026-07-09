@@ -548,6 +548,7 @@ impl ExportService {
         include_grid_reference: bool,
         include_islands: bool,
         backup_location: &str,
+        home_country: &str,
     ) -> Result<(), String> {
         let conn = get_connection(app)?;
         ExportRepository::save_export_settings(
@@ -558,6 +559,7 @@ impl ExportService {
             include_grid_reference,
             include_islands,
             backup_location,
+            home_country,
         )
         .map_err(|e| e.to_string())
     }
@@ -572,6 +574,7 @@ impl ExportService {
                 include_grid_reference: false,
                 include_islands: false,
                 backup_location: "".to_string(),
+                home_country: "".to_string(),
             }),
             Err(e) => Err(e.to_string()),
         }

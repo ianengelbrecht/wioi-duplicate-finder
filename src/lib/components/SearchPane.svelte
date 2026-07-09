@@ -10,11 +10,13 @@
   /**
    * @typedef {Object} SearchPaneProps
    * @property {(record: any) => void} onSelectRecord - Callback when a record is selected.
+   * @property {string} [currentLanguage="EN"]
    */
 
   /** @type {SearchPaneProps} */
   let {
-    onSelectRecord = () => {}
+    onSelectRecord = () => {},
+    currentLanguage = "EN"
   } = $props();
 
   let filters = $state({
@@ -128,6 +130,7 @@
     searching={searching}
     onSearch={handleSearch}
     onClear={handleClear}
+    {currentLanguage}
   />
 
   <!-- Search Results Listing -->

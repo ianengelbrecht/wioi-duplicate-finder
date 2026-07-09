@@ -2,6 +2,8 @@
   import { getContext } from "svelte";
   import Autocomplete from "./Autocomplete.svelte";
   import { geographyService } from "../services/geographyService.js";
+  import { workspaceStore } from "../stores/workspaceStore.svelte.js";
+  import { getPlaceholders } from "../utils/countryData.js";
 
   const t = getContext("t");
 
@@ -26,6 +28,7 @@
    * @property {boolean} searching - Indicates whether a search is currently in progress.
    * @property {() => void} onSearch - Callback triggered when search is submitted.
    * @property {() => void} onClear - Callback triggered when clear is requested.
+   * @property {string} [currentLanguage="EN"]
    */
 
   /** @type {SearchFiltersProps} */
@@ -34,8 +37,11 @@
     searchIsValid = $bindable(false),
     searching = false,
     onSearch = () => {},
-    onClear = () => {}
+    onClear = () => {},
+    currentLanguage = "EN"
   } = $props();
+
+  let placeholders = $derived(getPlaceholders(workspaceStore.homeCountry, currentLanguage));
 
   let countrySuggestions = $state(/** @type {string[]} */ ([]));
   let stateProvinceSuggestions = $state(/** @type {string[]} */ ([]));
@@ -224,8 +230,8 @@
         <Autocomplete
           id="search-country"
           label=""
-          placeholder="Partial ex. Mad"
-          placeholderKey="search-country-placeholder"
+          placeholder={placeholders.searchCountry}
+          placeholderKey=""
           bind:value={filters.country}
           suggestions={countrySuggestions}
           oninput={handleCountryInput}
@@ -241,8 +247,8 @@
         <Autocomplete
           id="search-stateProvince"
           label=""
-          placeholder="Partial eg 'Itas'"
-          placeholderKey="search-admin2-placeholder"
+          placeholder={placeholders.searchAdmin}
+          placeholderKey=""
           bind:value={filters.stateProvince}
           suggestions={stateProvinceSuggestions}
           oninput={handleStateProvinceInput}
@@ -253,9 +259,8 @@
         <label for="search-locality" data-i18n-key="locality-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("locality-label", "Locality")}</label>
         <input
           id="search-locality"
-          data-i18n-key="search-locality-placeholder"
           type="text"
-          placeholder={t("search-locality-placeholder", "Partial search eg 'Anta ré'")}
+          placeholder={placeholders.searchLocality}
           bind:value={filters.locality}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           autocomplete="off"
