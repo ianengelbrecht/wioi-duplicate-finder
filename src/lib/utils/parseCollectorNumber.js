@@ -11,8 +11,8 @@ export function parseCollectorNumber(recordNumber) {
     suffix: ""
   };
   if (!recordNumber) return result;
-  const str = recordNumber.trim();
-  
+  const str = recordNumber.trim().replace(/\s+/g, "");
+
   const yearSlashRegex = /^(.*?\b(?:19|20)?\d{2}\s*\/\s*)(\d+)(.*)$/;
   const yearSlashMatch = str.match(yearSlashRegex);
   if (yearSlashMatch) {
@@ -21,7 +21,7 @@ export function parseCollectorNumber(recordNumber) {
     result.suffix = yearSlashMatch[3];
     return result;
   }
-  
+
   const digitRegex = /^(.*?)(\d+)(.*)$/;
   const digitMatch = str.match(digitRegex);
   if (digitMatch) {
@@ -30,7 +30,12 @@ export function parseCollectorNumber(recordNumber) {
     result.suffix = digitMatch[3];
     return result;
   }
-  
-  result.prefix = str;
-  return result;
+
+  if (str.toLowerCase() == "s.n." || str.toLowerCase() == "s.n") {
+    result.number = str;
+    return result;
+  }
+
+  return result; // the value is not a valid collector number, return empty parts
+
 }

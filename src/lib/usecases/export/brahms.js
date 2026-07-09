@@ -87,6 +87,7 @@ export function mapBrahmsRecord(rec, options = {}) {
 
   const elevParts = parseElevation(rec.verbatimElevation);
   const alt = elevParts.elevation !== null && elevParts.elevation !== undefined ? elevParts.elevation : "";
+  const altUnit = alt ? 'm' : "";
 
   let localityNotes = rec.locationNotes || "";
   if (rec.cultivated) {
@@ -150,7 +151,7 @@ export function mapBrahmsRecord(rec, options = {}) {
 
   row.push(
     alt,
-    "", // altunit
+    altUnit,
     localityNotes,
     rec.habitat || "", // habitat/site description
     rec.fieldNotes || "", // plant description

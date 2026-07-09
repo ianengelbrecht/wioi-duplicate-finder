@@ -6,7 +6,8 @@
  *   minElevation: number | null,
  *   maxElevation: number | null,
  *   elevation: number | null,
- *   elevationUncertainty: number | null
+ *   elevationUncertainty: number | null,
+ *   elevationUnit: string | null
  * }}
  */
 export function parseElevation(verbatimElevation) {
@@ -15,15 +16,16 @@ export function parseElevation(verbatimElevation) {
       minElevation: null,
       maxElevation: null,
       elevation: null,
-      elevationUncertainty: null
+      elevationUncertainty: null,
+      elevationUnit: null
     };
   }
 
   const text = verbatimElevation.trim().toLowerCase();
 
   // Determine units
-  const isFeet = /\b(feet|foot|ft|f)\b/i.test(text);
-  const conversionFactor = isFeet ? 0.3048 : 1;
+  const isFeet = /(feet|foot|ft|f)\b/i.test(text);
+  const conversionFactor = isFeet ? 0.305 : 1;
 
   // Look for explicit ranges first
   const rangeMatch = text.match(
@@ -43,7 +45,8 @@ export function parseElevation(verbatimElevation) {
       elevation: Math.round((minElevation + maxElevation) / 2),
       elevationUncertainty: Math.round(
         (maxElevation - minElevation) / 2
-      )
+      ),
+      elevationUnit: isFeet ? 'ft' : 'm'
     };
   }
 
@@ -56,7 +59,9 @@ export function parseElevation(verbatimElevation) {
       minElevation: null,
       maxElevation: null,
       elevation: null,
-      elevationUncertainty: null
+      elevationUncertainty: null,
+      elevationUnit: null
+
     };
   }
 
@@ -74,7 +79,8 @@ export function parseElevation(verbatimElevation) {
       elevation: Math.round((minElevation + maxElevation) / 2),
       elevationUncertainty: Math.round(
         (maxElevation - minElevation) / 2
-      )
+      ),
+      elevationUnit: isFeet ? 'ft' : 'm'
     };
   }
 
@@ -82,9 +88,10 @@ export function parseElevation(verbatimElevation) {
   const elevation = Math.round(numbers[0] * conversionFactor);
 
   return {
-    minElevation: null,
-    maxElevation: null,
+    minElevation: elevation,
+    maxElevation: elevation,
     elevation,
-    elevationUncertainty: null
+    elevationUncertainty: 0,
+    elevationUnit: isFeet ? 'ft' : 'm'
   };
 }
