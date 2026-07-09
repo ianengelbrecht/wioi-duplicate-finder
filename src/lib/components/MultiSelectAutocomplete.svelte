@@ -52,6 +52,8 @@
   let activeIndex = $state(-1);
   let containerRef = $state(/** @type {any} */ (null));
   let inputRef = $state(/** @type {any} */ (null));
+  let dropdownListRef = $state(/** @type {HTMLUListElement | null} */ (null));
+  let editDropdownListRef = $state(/** @type {HTMLUListElement | null} */ (null));
   /** @type {any} */
   let timeoutId = null;
   /** @type {any} */
@@ -353,6 +355,38 @@
       document.removeEventListener("click", handleDocumentClick);
     };
   });
+
+  $effect(() => {
+    if (showDropdown && activeIndex >= 0 && dropdownListRef) {
+      const activeEl = dropdownListRef.children[activeIndex];
+      if (activeEl) {
+        const containerRect = dropdownListRef.getBoundingClientRect();
+        const elemRect = activeEl.getBoundingClientRect();
+        
+        if (elemRect.top < containerRect.top) {
+          dropdownListRef.scrollTop -= (containerRect.top - elemRect.top);
+        } else if (elemRect.bottom > containerRect.bottom) {
+          dropdownListRef.scrollTop += (elemRect.bottom - containerRect.bottom);
+        }
+      }
+    }
+  });
+
+  $effect(() => {
+    if (showEditDropdown && editActiveIndex >= 0 && editDropdownListRef) {
+      const activeEl = editDropdownListRef.children[editActiveIndex];
+      if (activeEl) {
+        const containerRect = editDropdownListRef.getBoundingClientRect();
+        const elemRect = activeEl.getBoundingClientRect();
+        
+        if (elemRect.top < containerRect.top) {
+          editDropdownListRef.scrollTop -= (containerRect.top - elemRect.top);
+        } else if (elemRect.bottom > containerRect.bottom) {
+          editDropdownListRef.scrollTop += (elemRect.bottom - containerRect.bottom);
+        }
+      }
+    }
+  });
 </script>
 
 <div class="relative w-full" bind:this={containerRef}>
@@ -403,7 +437,7 @@
   </div>
 
   {#if showDropdown && suggestions.length > 0}
-    <ul class="absolute z-50 left-0 right-0 top-full mt-[-1px] bg-white border border-slate-300 shadow-md max-h-60 overflow-y-auto rounded-none divide-y divide-slate-100">
+    <ul bind:this={dropdownListRef} class="absolute z-50 left-0 right-0 top-full mt-[-1px] bg-white border border-slate-300 shadow-md max-h-60 overflow-y-auto rounded-none divide-y divide-slate-100">
       {#each suggestions as sug, i}
         <li>
           <button
@@ -450,7 +484,7 @@
           />
 
           {#if showEditDropdown && editSuggestions.length > 0}
-            <ul class="absolute z-[90] left-0 right-0 top-full mt-[-1px] bg-white border border-slate-300 shadow-md max-h-60 overflow-y-auto rounded-none divide-y divide-slate-100">
+            <ul bind:this={editDropdownListRef} class="absolute z-[90] left-0 right-0 top-full mt-[-1px] bg-white border border-slate-300 shadow-md max-h-60 overflow-y-auto rounded-none divide-y divide-slate-100">
               {#each editSuggestions as sug, i}
                 <li>
                   <button
