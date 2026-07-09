@@ -20,13 +20,23 @@
   let isInitialsManuallyEdited = $state(false);
   let isSaving = $state(false);
 
+  /**
+   * Helper to calculate initials from given and family names.
+   * @param {string} gName
+   * @param {string} fName
+   * @returns {string}
+   */
+  function calculateInitials(gName, fName) {
+    const parts = `${gName} ${fName}`.trim().split(/\s+/).filter(Boolean);
+    return parts
+      .map(part => part.charAt(0).toUpperCase() + ".")
+      .join(" ");
+  }
+
   // Auto-calculate initials if not manually overridden
   $effect(() => {
     if (editingUser && !isInitialsManuallyEdited) {
-      const parts = `${editGivenName} ${editFamilyName}`.trim().split(/\s+/).filter(Boolean);
-      editInitials = parts
-        .map(part => part.charAt(0).toUpperCase() + ".")
-        .join(" ");
+      editInitials = calculateInitials(editGivenName, editFamilyName);
     }
   });
 
@@ -48,11 +58,14 @@
    */
   function startEdit(user) {
     editingUser = user;
-    editGivenName = user.givenName;
-    editFamilyName = user.familyName;
-    editInitials = user.initials;
+    editGivenName = user.givenName || "";
+    editFamilyName = user.familyName || "";
+    editInitials = user.initials || "";
     editIsAdmin = user.isAdmin;
-    isInitialsManuallyEdited = false;
+    
+    const expected = calculateInitials(user.givenName || "", user.familyName || "");
+    isInitialsManuallyEdited = !!(user.initials && user.initials !== expected);
+    
     errorMessage = "";
     successMessage = "";
   }

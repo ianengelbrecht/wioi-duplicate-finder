@@ -69,10 +69,10 @@
   "search-clear-btn": "Clear",
   "search-btn": "Search Database",
   "search-searching": "Searching...",
-  "search-warn-collector": "⚠️ Collector search requires a collector number, or if just a collector and a date field, it also requires at least one of (family, scientific name, country, Admin 1, or locality).",
-  "search-warn-record-num": "⚠️ Collector number always requires a collector name, regardless of other fields.",
+  "search-warn-collector": "⚠️ Collector search requires a collector number, full date, or at least three other fields (family, scientific name, country, Admin 2, or locality).",
+  "search-warn-record-num": "⚠️ Collector number search requires a collector or full date.",
   "search-warn-date": "⚠️ Searches on year, month, or day require at least two other non-date fields.",
-  "search-warn-other": "⚠️ Searching on family, scientific name, country, Admin 1, or locality requires at least two other fields (total of 3 or more fields).",
+  "search-warn-other": "⚠️ Searching on family, scientific name, country, Admin 2, or locality requires at least one date field and one other field.",
   "search-no-results": "No matches found.",
   "search-results-count": "matches found",
   "capture-heading": "Specimen Capture & Search",
@@ -275,5 +275,6 @@
   "update-btn-installing": "Installing",
   "update-status-checking": "Checking for updates...",
   "update-status-uptodate": "up to date",
-  "update-status-check-now": "Click to check for updates"
+  "update-status-check-now": "Click to check for updates",
+  "profile-settings-heading": "My Profile"
 }

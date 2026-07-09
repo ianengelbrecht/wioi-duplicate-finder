@@ -69,10 +69,10 @@
   "search-clear-btn": "Effacer",
   "search-btn": "Rechercher dans la base",
   "search-searching": "Recherche en cours...",
-  "search-warn-collector": "⚠️ La recherche par collecteur nécessite un numéro de collecteur ou, s'il n'y a qu'un collecteur et un champ de date, elle nécessite également au moins l'un des éléments suivants (famille, nom scientifique, pays, Admin 1 ou localité).",
-  "search-warn-record-num": "⚠️ Le numéro de collecteur nécessite toujours un nom de collecteur, quels que soient les autres champs.",
+  "search-warn-collector": "⚠️ La recherche sur le collecteur nécessite un numéro de collecteur, une date complète ou au moins trois autres champs (famille, nom scientifique, pays, Admin 2 ou localité).",
+  "search-warn-record-num": "⚠️ La recherche sur le numéro de collecteur nécessite un collecteur ou une date complète.",
   "search-warn-date": "⚠️ Les recherches sur l'année, le mois ou le jour nécessitent au moins deux autres champs non-date.",
-  "search-warn-other": "⚠️ La recherche sur la famille, le nom scientifique, le pays, l'Admin 1 ou la localité nécessite au moins deux autres champs (au total 3 champs ou plus).",
+  "search-warn-other": "⚠️ La recherche sur la famille, le nom scientifique, le pays, l'Admin 2 ou la localité nécessite au moins un champ de date et un autre champ.",
   "search-no-results": "Aucun résultat trouvé.",
   "search-results-count": "résultats trouvés",
   "capture-heading": "Saisie & Recherche de spécimens",
@@ -274,5 +274,6 @@
   "select-db-btn": "Sélectionner le fichier de base de données",
   "update-status-checking": "Recherche de mises à jour...",
   "update-status-uptodate": "à jour",
-  "update-status-check-now": "Cliquez pour rechercher des mises à jour"
+  "update-status-check-now": "Cliquez pour rechercher des mises à jour",
+  "profile-settings-heading": "Mon profil"
 }

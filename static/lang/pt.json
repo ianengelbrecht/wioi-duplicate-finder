@@ -69,10 +69,10 @@
   "search-clear-btn": "Limpar",
   "search-btn": "Buscar no Banco de Dados",
   "search-searching": "Buscando...",
-  "search-warn-collector": "⚠️ A busca por coletor requer um número de coletor ou, se for apenas coletor e data, também requer pelo menos um de (família, nome científico, país, Admin 1 ou localidade).",
-  "search-warn-record-num": "⚠️ O número do coletor sempre requer um nome de coletor, independentemente de outros campos.",
+  "search-warn-collector": "⚠️ A busca por coletor requer um número de coletor, data completa ou pelo menos três outros campos (família, nome científico, país, Admin 2 ou localidade).",
+  "search-warn-record-num": "⚠️ A busca por número de coletor requer um coletor ou data completa.",
   "search-warn-date": "⚠️ Buscas por ano, mês ou dia requerem pelo menos dois outros campos que não sejam data.",
-  "search-warn-other": "⚠️ A busca por família, nome científico, país, Admin 1 ou localidade requer pelo menos dois outros campos (total de 3 ou mais campos).",
+  "search-warn-other": "⚠️ A busca por família, nome científico, país, Admin 2 ou localidade requer pelo menos um campo de data e um outro campo.",
   "search-no-results": "Nenhum resultado encontrado.",
   "search-results-count": "resultados encontrados",
   "capture-heading": "Captura & Busca de Espécimes",
@@ -275,5 +275,6 @@
   "select-db-btn": "Selecionar Arquivo de Banco de Dados",
   "update-status-checking": "Verificando atualizações...",
   "update-status-uptodate": "atualizado",
-  "update-status-check-now": "Clique para verificar atualizações"
+  "update-status-check-now": "Clique para verificar atualizações",
+  "profile-settings-heading": "Meu Perfil"
 }

@@ -1162,7 +1162,11 @@ fn recreate_gbif_triggers(conn: &Connection) -> Result<()> {
                     FROM char_pos
                     WHERE pos < length(NEW.fieldNumber)
                 )
-                SELECT trim(digit_seq) FROM char_pos ORDER BY pos DESC LIMIT 1
+                SELECT CASE 
+                    WHEN NEW.fieldNumber IS NULL OR NEW.fieldNumber = '' THEN NULL
+                    WHEN trim(digit_seq) IS NULL OR trim(digit_seq) = '' THEN '-'
+                    ELSE trim(digit_seq)
+                END FROM char_pos ORDER BY pos DESC LIMIT 1
             )
             WHERE gbifID = NEW.gbifID;
         END;",
@@ -1189,7 +1193,11 @@ fn recreate_gbif_triggers(conn: &Connection) -> Result<()> {
                     FROM char_pos
                     WHERE pos < length(NEW.fieldNumber)
                 )
-                SELECT trim(digit_seq) FROM char_pos ORDER BY pos DESC LIMIT 1
+                SELECT CASE 
+                    WHEN NEW.fieldNumber IS NULL OR NEW.fieldNumber = '' THEN NULL
+                    WHEN trim(digit_seq) IS NULL OR trim(digit_seq) = '' THEN '-'
+                    ELSE trim(digit_seq)
+                END FROM char_pos ORDER BY pos DESC LIMIT 1
             )
             WHERE gbifID = NEW.gbifID;
         END;",
@@ -1508,7 +1516,7 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
                     FROM char_pos
                     WHERE pos < length(fieldNumber)
                 )
-                SELECT trim(digit_seq) FROM char_pos ORDER BY pos DESC LIMIT 1
+                SELECT CASE WHEN trim(digit_seq) IS NULL OR trim(digit_seq) = '' THEN '-' ELSE trim(digit_seq) END FROM char_pos ORDER BY pos DESC LIMIT 1
             )
             WHERE fieldNumber IS NOT NULL AND fieldNumber != '' AND (cleanedFieldNumber IS NULL OR cleanedFieldNumber = '');",
             [],
@@ -1963,5 +1971,138 @@ mod tests {
         .unwrap();
         assert_eq!(results2.len(), 1);
         assert_eq!(results2[0].scientific_name, "Digitaria adscendens");
+    }
+
+    #[test]
+    fn test_field_number_normalization() {
+        let mut conn = Connection::open_in_memory().unwrap();
+
+        // 1. Initialize schema via run_migrations
+        run_migrations(&mut conn).unwrap();
+
+        // 2. Insert records using SQL directly (testing triggers)
+        conn.execute(
+            "INSERT INTO gbif (gbifID, fieldNumber) VALUES (1, 's.n.')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO gbif (gbifID, fieldNumber) VALUES (2, '1234a')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO gbif (gbifID, fieldNumber) VALUES (3, NULL)",
+            [],
+        )
+        .unwrap();
+        conn.execute("INSERT INTO gbif (gbifID, fieldNumber) VALUES (4, '')", [])
+            .unwrap();
+
+        // Check trigger-populated cleanedFieldNumber
+        let cfn1: Option<String> = conn
+            .query_row(
+                "SELECT cleanedFieldNumber FROM gbif WHERE gbifID = 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let cfn2: Option<String> = conn
+            .query_row(
+                "SELECT cleanedFieldNumber FROM gbif WHERE gbifID = 2",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let cfn3: Option<String> = conn
+            .query_row(
+                "SELECT cleanedFieldNumber FROM gbif WHERE gbifID = 3",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let cfn4: Option<String> = conn
+            .query_row(
+                "SELECT cleanedFieldNumber FROM gbif WHERE gbifID = 4",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+
+        assert_eq!(cfn1.as_deref(), Some("-"));
+        assert_eq!(cfn2.as_deref(), Some("1234"));
+        assert_eq!(cfn3, None);
+        assert_eq!(cfn4, None);
+
+        // 3. Clear cleanedFieldNumber to simulate old un-normalized data or imported data
+        conn.execute("UPDATE gbif SET cleanedFieldNumber = NULL", [])
+            .unwrap();
+
+        // Now check how many un-normalized records are detected before normalizing
+        let count_cfn: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM gbif WHERE fieldNumber IS NOT NULL AND fieldNumber != '' AND (cleanedFieldNumber IS NULL OR cleanedFieldNumber = '')",
+            [],
+            |r| r.get(0)
+        ).unwrap_or(0);
+        assert_eq!(count_cfn, 2); // 1 ('s.n.') and 2 ('1234a')
+
+        // Run the manual migration step for cleanedFieldNumber
+        let count_cfn: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM gbif WHERE fieldNumber IS NOT NULL AND fieldNumber != '' AND (cleanedFieldNumber IS NULL OR cleanedFieldNumber = '')",
+            [],
+            |r| r.get(0)
+        ).unwrap_or(0);
+
+        if count_cfn > 0 {
+            conn.execute(
+                "UPDATE gbif SET cleanedFieldNumber = (
+                    WITH RECURSIVE char_pos(pos, digit_seq, in_digit) AS (
+                        SELECT 1, 
+                               CASE WHEN substr(fieldNumber, 1, 1) GLOB '[0-9]' THEN substr(fieldNumber, 1, 1) ELSE '' END,
+                               CASE WHEN substr(fieldNumber, 1, 1) GLOB '[0-9]' THEN 1 ELSE 0 END
+                        UNION ALL
+                        SELECT pos + 1,
+                               CASE 
+                                 WHEN substr(fieldNumber, pos + 1, 1) GLOB '[0-9]' THEN 
+                                   CASE WHEN in_digit THEN digit_seq || substr(fieldNumber, pos + 1, 1) ELSE digit_seq || ' ' || substr(fieldNumber, pos + 1, 1) END
+                                 ELSE 
+                                   digit_seq
+                               END,
+                               CASE WHEN substr(fieldNumber, pos + 1, 1) GLOB '[0-9]' THEN 1 ELSE 0 END
+                        FROM char_pos
+                        WHERE pos < length(fieldNumber)
+                    )
+                    SELECT CASE WHEN trim(digit_seq) IS NULL OR trim(digit_seq) = '' THEN '-' ELSE trim(digit_seq) END FROM char_pos ORDER BY pos DESC LIMIT 1
+                )
+                WHERE fieldNumber IS NOT NULL AND fieldNumber != '' AND (cleanedFieldNumber IS NULL OR cleanedFieldNumber = '');",
+                [],
+            ).unwrap();
+        }
+
+        // Check if there are any un-normalized records left
+        let count_cfn_after: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM gbif WHERE fieldNumber IS NOT NULL AND fieldNumber != '' AND (cleanedFieldNumber IS NULL OR cleanedFieldNumber = '')",
+            [],
+            |r| r.get(0)
+        ).unwrap_or(0);
+        assert_eq!(count_cfn_after, 0);
+
+        // Verify the values
+        let cfn1_after: Option<String> = conn
+            .query_row(
+                "SELECT cleanedFieldNumber FROM gbif WHERE gbifID = 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let cfn2_after: Option<String> = conn
+            .query_row(
+                "SELECT cleanedFieldNumber FROM gbif WHERE gbifID = 2",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(cfn1_after.as_deref(), Some("-"));
+        assert_eq!(cfn2_after.as_deref(), Some("1234"));
     }
 }

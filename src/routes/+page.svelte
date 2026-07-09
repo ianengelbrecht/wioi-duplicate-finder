@@ -28,6 +28,7 @@
   import { referenceService } from "$lib/services/referenceService.js";
   import { backupService } from "$lib/services/backupService.js";
   import { exportService } from "$lib/services/exportService.js";
+  import { userService } from "$lib/services/userService.js";
   import { COUNTRY_DATA } from "$lib/utils/countryData.js";
   
   // Use-case logic
@@ -103,7 +104,20 @@
       
       const storedUser = localStorage.getItem("currentUser");
       if (storedUser) {
-        authStore.setCurrentUser(JSON.parse(storedUser));
+        const parsedUser = JSON.parse(storedUser);
+        try {
+          const freshUser = await userService.getUserById(parsedUser.id);
+          if (freshUser) {
+            authStore.setCurrentUser(freshUser);
+          } else {
+            authStore.setCurrentUser(null);
+            authStore.setView("auth");
+            return;
+          }
+        } catch (err) {
+          console.error("Failed to refresh user details:", err);
+          authStore.setCurrentUser(parsedUser);
+        }
         await loadSessions();
         await loadExportSettings();
         await checkDatasetCounts();
@@ -431,12 +445,6 @@
         <div class="md:col-span-1 flex flex-col justify-between ">
           <div class="flex flex-col gap-2">
             <button
-              onclick={() => activeTab = "settings"}
-              class="w-full text-left px-4 py-3 text-xs font-bold uppercase tracking-wider border rounded-none transition-all {activeTab === 'settings' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}"
-            >
-              {t("application-settings", "Application Settings")}
-            </button>
-            <button
               onclick={() => {
                 if (workspaceStore.hasRequiredDatasets) {
                   activeTab = "sessions";
@@ -464,7 +472,15 @@
               >
                 {t("manage-users-heading", "Manage Users")}
               </button>
+              {:else}
+              <span class="text-xs uppercase">User management not available</span>
             {/if}
+            <button
+              onclick={() => activeTab = "settings"}
+              class="w-full text-left px-4 py-3 text-xs font-bold uppercase tracking-wider border rounded-none transition-all {activeTab === 'settings' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}"
+            >
+              {t("application-settings", "Application Settings")}
+            </button>
           </div>
           <!-- Funders logos -->
           <div class="">

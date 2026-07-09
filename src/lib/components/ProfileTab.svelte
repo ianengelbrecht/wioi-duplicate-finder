@@ -1,28 +1,48 @@
 <script>
-  import { getContext } from "svelte";
+  import { onMount, getContext } from "svelte";
   import { authStore } from "$lib/stores/authStore.svelte.js";
   import { userService } from "$lib/services/userService.js";
 
   const t = getContext("t");
 
   // Local state for the form
-  let givenName = $state(authStore.currentUser?.givenName || "");
-  let familyName = $state(authStore.currentUser?.familyName || "");
-  let initials = $state(authStore.currentUser?.initials || "");
+  let givenName = $state("");
+  let familyName = $state("");
+  let initials = $state("");
   let initialsManuallyEdited = $state(false);
 
   let successMessage = $state("");
   let errorMessage = $state("");
+  let isEdited = $state(false);
   let isSaving = $state(false);
+  let isLoading = $state(true);
+
+  /**
+   * Helper to calculate initials from given and family names.
+   * @param {string} gName
+   * @param {string} fName
+   * @returns {string}
+   */
+  function calculateInitials(gName, fName) {
+    const parts = `${gName} ${fName}`.trim().split(/\s+/).filter(Boolean);
+    return parts
+      .map(part => part.charAt(0).toUpperCase() + ".")
+      .join(" ");
+  }
 
   // Auto-calculate initials if not manually overridden
   $effect(() => {
     if (!initialsManuallyEdited) {
-      const parts = `${givenName} ${familyName}`.trim().split(/\s+/).filter(Boolean);
-      initials = parts
-        .map(part => part.charAt(0).toUpperCase() + ".")
-        .join(" ");
+      initials = calculateInitials(givenName, familyName);
     }
+  });
+
+  $effect(() => {
+    isEdited = (
+      givenName !== (authStore.currentUser?.givenName || "") ||
+      familyName !== (authStore.currentUser?.familyName || "") ||
+      initials !== (authStore.currentUser?.initials || "")
+    );
   });
 
   /**
@@ -58,6 +78,35 @@
       isSaving = false;
     }
   }
+
+  async function loadProfile() {
+    if (!authStore.currentUser) return;
+    isLoading = true;
+    errorMessage = "";
+    try {
+      const user = await userService.getUserById(authStore.currentUser.id);
+      if (user) {
+        // Set initialsManuallyEdited first so the $effect doesn't overwrite it
+        const expected = calculateInitials(user.givenName || "", user.familyName || "");
+        initialsManuallyEdited = !!(user.initials && user.initials !== expected);
+
+        givenName = user.givenName || "";
+        familyName = user.familyName || "";
+        initials = user.initials || "";
+
+        // Update in-memory auth store so it remains synchronized
+        authStore.updateCurrentUserDetails(user.givenName, user.familyName, user.initials);
+      }
+    } catch (err) {
+      errorMessage = (/** @type {any} */ (err)).toString();
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  onMount(() => {
+    loadProfile();
+  });
 </script>
 
 <div class="space-y-6 flex-1 flex flex-col min-h-0">
@@ -84,58 +133,66 @@
     </div>
   {/if}
 
-  <form onsubmit={handleSave} class="space-y-4 max-w-md">
-    <div>
-      <label for="username" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{t("username-label", "Username")}</label>
-      <input
-        id="username"
-        type="text"
-        value={authStore.currentUser?.username}
-        disabled
-        class="w-full bg-slate-50 border border-slate-300 text-slate-500 text-sm px-3 py-2 outline-none rounded-none cursor-not-allowed"
-      />
+  {#if isLoading}
+    <div class="py-12 flex justify-center items-center">
+      <div class="w-6 h-6 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
     </div>
+  {:else}
+    <form onsubmit={handleSave} class="space-y-4 max-w-md">
+      <div>
+        <label for="username" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{t("username-label", "Username")}</label>
+        <input
+          id="username"
+          type="text"
+          value={authStore.currentUser?.username}
+          disabled
+          class="w-full bg-slate-50 border border-slate-300 text-slate-500 text-sm px-3 py-2 outline-none rounded-none cursor-not-allowed"
+        />
+      </div>
 
-    <div>
-      <label for="givenName" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("given-name-label", "Given Name")}</label>
-      <input
-        id="givenName"
-        type="text"
-        placeholder={t("given-name-placeholder", "Enter given name")}
-        bind:value={givenName}
-        class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
-      />
-    </div>
+      <div>
+        <label for="givenName" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("given-name-label", "Given Name")}</label>
+        <input
+          id="givenName"
+          type="text"
+          placeholder={t("given-name-placeholder", "Enter given name")}
+          bind:value={givenName}
+          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+        />
+      </div>
 
-    <div>
-      <label for="familyName" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("family-name-label", "Family Name")}</label>
-      <input
-        id="familyName"
-        type="text"
-        placeholder={t("family-name-placeholder", "Enter family name")}
-        bind:value={familyName}
-        class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
-      />
-    </div>
+      <div>
+        <label for="familyName" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("family-name-label", "Family Name")}</label>
+        <input
+          id="familyName"
+          type="text"
+          placeholder={t("family-name-placeholder", "Enter family name")}
+          bind:value={familyName}
+          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+        />
+      </div>
 
-    <div>
-      <label for="initials" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("initials-label", "Initials")}</label>
-      <input
-        id="initials"
-        type="text"
-        placeholder={t("initials-placeholder", "Enter initials")}
-        bind:value={initials}
-        oninput={() => initialsManuallyEdited = true}
-        class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
-      />
-    </div>
+      <div>
+        <label for="initials" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("initials-label", "Initials")}</label>
+        <input
+          id="initials"
+          type="text"
+          placeholder={t("initials-placeholder", "Enter initials")}
+          bind:value={initials}
+          oninput={() => initialsManuallyEdited = true}
+          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+        />
+      </div>
 
-    <button
-      type="submit"
-      disabled={isSaving}
-      class="bg-slate-900 hover:bg-slate-800 text-white px-6 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-    >
-      {isSaving ? t("saving-btn", "Saving...") : t("save-changes-btn", "Save Changes")}
-    </button>
-  </form>
+      <div class="flex w-full justify-end">
+        <button
+          type="submit"
+          disabled={isSaving || !isEdited}
+          class="{ isEdited? 'bg-slate-900 hover:bg-slate-800 text-white' : 'bg-slate-200 text-slate-500 cursor-default!'} px-6 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isSaving ? t("saving-btn", "Saving...") : t("save-changes-btn", "Save Changes")}
+        </button>
+      </div>
+    </form>
+  {/if}
 </div>

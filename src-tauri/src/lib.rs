@@ -30,6 +30,7 @@ pub fn run() {
             commands::initialize_database,
             commands::register_user,
             commands::login_user,
+            commands::get_user_by_id,
             commands::get_all_users,
             commands::update_user_profile,
             commands::update_user_by_admin,

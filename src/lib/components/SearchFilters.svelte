@@ -58,7 +58,8 @@
   let hasYear = $derived(filters.year !== "");
   let hasMonth = $derived(filters.month !== "");
   let hasDay = $derived(filters.day !== "");
-  let hasDate = $derived(hasYear || hasMonth || hasDay);
+  let hasFullDate = $derived(hasYear && hasMonth && hasDay);
+  let hasAnyDate = $derived(hasYear || hasMonth || hasDay);
   
   let hasOther = $derived(hasFamily || hasScientificName || hasCountry || hasStateProvince || hasLocality);
   
@@ -72,10 +73,28 @@
       .filter(Boolean).length
   );
 
-  let collectorRuleOk = $derived(!hasRecordedBy || hasRecordNumber || (hasDate && hasOther));
-  let recordNumberRuleOk = $derived(!hasRecordNumber || hasRecordedBy || (hasDate && hasOther));
-  let dateRuleOk = $derived(!hasDate || (nonDateFieldsCount >= 2));
-  let tglRuleOk = $derived(!hasOther || (totalFilledCount >= 3));
+  // Validation rules:
+  
+  // Collector search requires:
+  // - collector number, OR
+  // - date plus at least one tax/geography/locality field
+  let collectorRuleOk = $derived(
+    !hasRecordedBy ||
+    hasRecordNumber ||
+    hasFullDate || (hasOther && nonDateFieldsCount >= 3)
+  );
+
+  
+  // Collector number requires:
+  // - collector name OR date
+  let recordNumberRuleOk = $derived(
+    !hasRecordNumber ||
+    hasRecordedBy ||
+    hasFullDate
+  );
+
+  let dateRuleOk = $derived(!hasAnyDate || hasRecordedBy || (nonDateFieldsCount >= 2));
+  let tglRuleOk = $derived(!hasOther || (totalFilledCount >= 3 && hasAnyDate));
 
   let calculatedIsValid = $derived(totalFilledCount > 0 && collectorRuleOk && recordNumberRuleOk && dateRuleOk && tglRuleOk);
 
@@ -272,22 +291,22 @@
   <!-- Constraints Warning Flags -->
   {#if hasRecordedBy && !collectorRuleOk}
     <div data-i18n-key="search-warn-collector" class="mt-3 text-xs bg-amber-50 border-l-2 border-amber-500 text-amber-700 px-3 py-2 font-medium">
-      {t("search-warn-collector", "⚠️ Collector search requires a collector number, or if just a collector and a date field, it also requires at least one of (family, scientific name, country, Admin 1, or locality).")}
+      {t("search-warn-collector", "⚠️ Collector search requires a collector number, full date, or at least three other fields (family, scientific name, country, Admin 2, or locality).")}
     </div>
   {/if}
   {#if hasRecordNumber && !recordNumberRuleOk}
     <div data-i18n-key="search-warn-record-num" class="mt-3 text-xs bg-amber-50 border-l-2 border-amber-500 text-amber-700 px-3 py-2 font-medium">
-      {t("search-warn-record-num", "⚠️ Collector number always requires a collector name, regardless of other fields.")}
+      {t("search-warn-record-num", "⚠️ Collector number search requires a collector or full date.")}
     </div>
   {/if}
-  {#if hasDate && !dateRuleOk}
+  {#if hasFullDate && !dateRuleOk}
     <div data-i18n-key="search-warn-date" class="mt-3 text-xs bg-amber-50 border-l-2 border-amber-500 text-amber-700 px-3 py-2 font-medium">
       {t("search-warn-date", "⚠️ Searches on year, month, or day require at least two other non-date fields.")}
     </div>
   {/if}
   {#if hasOther && !tglRuleOk}
     <div data-i18n-key="search-warn-other" class="mt-3 text-xs bg-amber-50 border-l-2 border-amber-500 text-amber-700 px-3 py-2 font-medium">
-      {t("search-warn-other", "⚠️ Searching on family, scientific name, country, Admin 1, or locality requires at least two other fields (total of 3 or more fields).")}
+      {t("search-warn-other", "⚠️ Searching on family, scientific name, country, Admin 2, or locality requires at least one date field and one other field.")}
     </div>
   {/if}
 

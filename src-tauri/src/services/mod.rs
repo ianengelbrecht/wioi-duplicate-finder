@@ -75,6 +75,11 @@ impl AuthService {
 pub struct UserService;
 
 impl UserService {
+    pub fn get_user_by_id(app: &AppHandle, id: i32) -> Result<Option<UserDto>, String> {
+        let conn = get_connection(app)?;
+        UserRepository::get_user_by_id(&conn, id).map_err(|e| e.to_string())
+    }
+
     pub fn get_all_users(app: &AppHandle, caller_id: i32) -> Result<Vec<UserDto>, String> {
         let conn = get_connection(app)?;
         let caller_is_admin =
@@ -254,125 +259,125 @@ impl TaxonomyService {
         app: &AppHandle,
         filters: serde_json::Value,
     ) -> Result<Vec<ReferenceSpecimen>, String> {
-        let recorded_by = filters
-            .get("recordedBy")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .trim();
-        let record_number = filters
-            .get("recordNumber")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .trim();
-        let locality = filters
-            .get("locality")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .trim();
-        let scientific_name = filters
-            .get("scientificName")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .trim();
-        let family = filters
-            .get("family")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .trim();
-        let country = filters
-            .get("country")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .trim();
-        let state_province = filters
-            .get("stateProvince")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .trim();
+        // let recorded_by = filters
+        //     .get("recordedBy")
+        //     .and_then(|v| v.as_str())
+        //     .unwrap_or("")
+        //     .trim();
+        // let record_number = filters
+        //     .get("recordNumber")
+        //     .and_then(|v| v.as_str())
+        //     .unwrap_or("")
+        //     .trim();
+        // let locality = filters
+        //     .get("locality")
+        //     .and_then(|v| v.as_str())
+        //     .unwrap_or("")
+        //     .trim();
+        // let scientific_name = filters
+        //     .get("scientificName")
+        //     .and_then(|v| v.as_str())
+        //     .unwrap_or("")
+        //     .trim();
+        // let family = filters
+        //     .get("family")
+        //     .and_then(|v| v.as_str())
+        //     .unwrap_or("")
+        //     .trim();
+        // let country = filters
+        //     .get("country")
+        //     .and_then(|v| v.as_str())
+        //     .unwrap_or("")
+        //     .trim();
+        // let state_province = filters
+        //     .get("stateProvince")
+        //     .and_then(|v| v.as_str())
+        //     .unwrap_or("")
+        //     .trim();
 
-        let year = filters.get("year").and_then(|v| v.as_i64());
-        let month = filters.get("month").and_then(|v| v.as_i64());
-        let day = filters.get("day").and_then(|v| v.as_i64());
+        // let year = filters.get("year").and_then(|v| v.as_i64());
+        // let month = filters.get("month").and_then(|v| v.as_i64());
+        // let day = filters.get("day").and_then(|v| v.as_i64());
 
-        let has_recorded_by = !recorded_by.is_empty();
-        let has_record_number = !record_number.is_empty();
-        let has_locality = !locality.is_empty();
-        let has_scientific_name = !scientific_name.is_empty();
-        let has_family = !family.is_empty();
-        let has_country = !country.is_empty();
-        let has_state_province = !state_province.is_empty();
+        // let has_recorded_by = !recorded_by.is_empty();
+        // let has_record_number = !record_number.is_empty();
+        // let has_locality = !locality.is_empty();
+        // let has_scientific_name = !scientific_name.is_empty();
+        // let has_family = !family.is_empty();
+        // let has_country = !country.is_empty();
+        // let has_state_province = !state_province.is_empty();
 
-        let has_year = year.is_some();
-        let has_month = month.is_some();
-        let has_day = day.is_some();
-        let has_date = has_year || has_month || has_day;
+        // let has_year = year.is_some();
+        // let has_month = month.is_some();
+        // let has_day = day.is_some();
+        // let has_date = has_year || has_month || has_day;
 
-        let has_other =
-            has_family || has_scientific_name || has_country || has_state_province || has_locality;
+        // let has_other =
+        //     has_family || has_scientific_name || has_country || has_state_province || has_locality;
 
-        let mut non_date_fields_count = 0;
-        if has_recorded_by {
-            non_date_fields_count += 1;
-        }
-        if has_record_number {
-            non_date_fields_count += 1;
-        }
-        if has_family {
-            non_date_fields_count += 1;
-        }
-        if has_scientific_name {
-            non_date_fields_count += 1;
-        }
-        if has_country {
-            non_date_fields_count += 1;
-        }
-        if has_state_province {
-            non_date_fields_count += 1;
-        }
-        if has_locality {
-            non_date_fields_count += 1;
-        }
+        // let mut non_date_fields_count = 0;
+        // if has_recorded_by {
+        //     non_date_fields_count += 1;
+        // }
+        // if has_record_number {
+        //     non_date_fields_count += 1;
+        // }
+        // if has_family {
+        //     non_date_fields_count += 1;
+        // }
+        // if has_scientific_name {
+        //     non_date_fields_count += 1;
+        // }
+        // if has_country {
+        //     non_date_fields_count += 1;
+        // }
+        // if has_state_province {
+        //     non_date_fields_count += 1;
+        // }
+        // if has_locality {
+        //     non_date_fields_count += 1;
+        // }
 
-        let mut total_filled_count = non_date_fields_count;
-        if has_year {
-            total_filled_count += 1;
-        }
-        if has_month {
-            total_filled_count += 1;
-        }
-        if has_day {
-            total_filled_count += 1;
-        }
+        // let mut total_filled_count = non_date_fields_count;
+        // if has_year {
+        //     total_filled_count += 1;
+        // }
+        // if has_month {
+        //     total_filled_count += 1;
+        // }
+        // if has_day {
+        //     total_filled_count += 1;
+        // }
 
-        if total_filled_count == 0 {
-            return Err("Please enter at least one query search field.".to_string());
-        }
+        // if total_filled_count == 0 {
+        //     return Err("Please enter at least one query search field.".to_string());
+        // }
 
-        // Rule 1: collector requires at least a collector number, or if just collector and one of the date fields, then also one of the other fields
-        if has_recorded_by && !has_record_number && !(has_date && has_other) {
-            return Err("Collector search requires a collector number, or if just a collector and a date field, it also requires at least one of (family, scientific name, country, Admin Div 1, or locality).".to_string());
-        }
+        // // Rule 1: collector requires at least a collector number, or if just collector and one of the date fields, then also one of the other fields
+        // if has_recorded_by && !has_record_number && !(has_date && has_other) {
+        //     return Err("Collector search requires a collector number, or if just a collector and a date field, it also requires at least one of (family, scientific name, country, Admin Div 1, or locality).".to_string());
+        // }
 
-        // Rule 2: collector number always requires a collector
-        if has_record_number && !has_recorded_by {
-            return Err(
-                "Collector number always requires a collector name, regardless of other fields."
-                    .to_string(),
-            );
-        }
+        // // Rule 2: collector number always requires a collector
+        // if has_record_number && !has_recorded_by {
+        //     return Err(
+        //         "Collector number always requires a collector name, regardless of other fields."
+        //             .to_string(),
+        //     );
+        // }
 
-        // Rule 3: date searches require at least two other non-date fields
-        if has_date && non_date_fields_count < 2 {
-            return Err(
-                "Searches on year, month, or day require at least two other non-date fields."
-                    .to_string(),
-            );
-        }
+        // // Rule 3: date searches require at least two other non-date fields
+        // if has_date && non_date_fields_count < 2 {
+        //     return Err(
+        //         "Searches on year, month, or day require at least two other non-date fields."
+        //             .to_string(),
+        //     );
+        // }
 
-        // Rule 4: family, scientific name, country, stateProvince, or locality requires at least two other fields (total of 3 or more fields)
-        if has_other && total_filled_count < 3 {
-            return Err("Searching on family, scientific name, country, Admin Div 1, or locality requires at least two other fields (total of 3 or more fields).".to_string());
-        }
+        // // Rule 4: family, scientific name, country, stateProvince, or locality requires at least two other fields (total of 3 or more fields)
+        // if has_other && total_filled_count < 3 {
+        //     return Err("Searching on family, scientific name, country, Admin Div 1, or locality requires at least two other fields (total of 3 or more fields).".to_string());
+        // }
 
         let conn = get_connection(app)?;
         TaxonomyRepository::search_reference(&conn, &filters)

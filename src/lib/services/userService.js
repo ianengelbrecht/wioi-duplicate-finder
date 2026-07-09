@@ -12,6 +12,15 @@ import { invoke } from "@tauri-apps/api/core";
 
 export const userService = {
   /**
+   * Fetches user details by ID.
+   * @param {number} id 
+   * @returns {Promise<UserDto|null>}
+   */
+  async getUserById(id) {
+    return await invoke("get_user_by_id", { id });
+  },
+
+  /**
    * Fetches all users (only accessible by administrators).
    * @param {number} callerId 
    * @returns {Promise<UserDto[]>}

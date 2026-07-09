@@ -129,6 +129,30 @@ impl UserRepository {
             |row| row.get(0),
         )
     }
+
+    pub fn get_user_by_id(conn: &Connection, id: i32) -> Result<Option<UserDto>, Error> {
+        let mut stmt = conn.prepare(
+            "SELECT id, username, given_name, family_name, initials, is_admin FROM users WHERE id = ?1"
+        )?;
+        let mut rows = stmt.query_map(params![id], |row| {
+            let is_admin_int: i32 = row.get(5)?;
+            Ok(UserDto {
+                id: row.get(0)?,
+                username: row.get(1)?,
+                given_name: row.get(2)?,
+                family_name: row.get(3)?,
+                initials: row.get(4)?,
+                is_admin: is_admin_int != 0,
+            })
+        })?;
+
+        if let Some(row) = rows.next() {
+            let user = row?;
+            Ok(Some(user))
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 pub struct SessionRepository;
@@ -1475,7 +1499,18 @@ impl ReferenceRepository {
                     }
                 };
 
-                let cleaned_field_number = field_number.as_ref().map(|s| extract_digits(s));
+                let cleaned_field_number = field_number.as_ref().and_then(|s| {
+                    if s.trim().is_empty() {
+                        None
+                    } else {
+                        let digits = extract_digits(s);
+                        if digits.trim().is_empty() {
+                            Some("-".to_string())
+                        } else {
+                            Some(digits)
+                        }
+                    }
+                });
 
                 stmt.execute(params![
                     gbif_id,

@@ -69,10 +69,10 @@
   "search-clear-btn": "Hamafa",
   "search-btn": "Hikaroka ao amin'ny Tahiry",
   "search-searching": "Mikaroka...",
-  "search-warn-collector": "⚠️ Ny fikarohana mpanangona dia mila laharana, na raha mpanangona sy daty fotsiny dia mila iray amin'ireto (fianakaviana, anarana ara-tsiansa, firenena, na toerana).",
-  "search-warn-record-num": "⚠️ Ny laharan'ny mpanangona dia mila anaran'ny mpanangona foana.",
+  "search-warn-collector": "⚠️ Ny fikarohana mpanangona dia mila laharana, daty feno, na farafahakeliny faritra telo hafa (fianakaviana, anarana ara-tsiansa, firenena, Admin 2, na toerana).",
+  "search-warn-record-num": "⚠️ Ny fikarohana amin'ny laharan'ny mpanangona dia mila mpanangona na daty feno.",
   "search-warn-date": "⚠️ Ny fikarohana taona, volana, na andro dia mila famenoana faritra roa hafa ankoatry ny daty.",
-  "search-warn-other": "⚠️ Ny fikarohana amin'ny anarana fianakaviana, anarana ara-tsiansa, firenena, na toerana dia mila famenoana faritra roa hafa farafahakeliny (3 faritra no feno).",
+  "search-warn-other": "⚠️ Ny fikarohana amin'ny anarana fianakaviana, anarana ara-tsiansa, firenena, na toerana dia mila farafahakeliny iray amin'ny saha daty sy saha iray hafa.",
   "search-no-results": "Tsy nahitana vokany.",
   "search-results-count": "vokany hita",
   "capture-heading": "Fitahirizana & Fikarohana Santiona",
@@ -275,5 +275,6 @@
   "select-db-btn": "Safidio ny rakitra Database",
   "update-status-checking": "Mitady fanavaozana...",
   "update-status-uptodate": "efa vaovao",
-  "update-status-check-now": "Tsindrio raha hitady fanavaozana"
+  "update-status-check-now": "Tsindrio raha hitady fanavaozana",
+  "profile-settings-heading": "Ny Mombamomba Ahy"
 }

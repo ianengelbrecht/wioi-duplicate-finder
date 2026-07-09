@@ -44,6 +44,11 @@ pub fn login_user(
 }
 
 #[tauri::command]
+pub fn get_user_by_id(app: AppHandle, id: i32) -> Result<Option<UserDto>, String> {
+    crate::services::UserService::get_user_by_id(&app, id)
+}
+
+#[tauri::command]
 pub fn get_all_users(app: AppHandle, caller_id: i32) -> Result<Vec<UserDto>, String> {
     crate::services::UserService::get_all_users(&app, caller_id)
 }
