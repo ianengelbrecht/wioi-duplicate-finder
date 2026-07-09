@@ -8,11 +8,24 @@ pub mod parsers;
 pub mod repositories;
 pub mod services;
 
+use tauri::Manager;
 use db::shutdown_database;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+            println!("Second instance attempted to start");
+            println!("Args: {:?}", argv);
+            println!("CWD: {:?}", cwd);
+
+            // Bring the existing window to the front
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(
