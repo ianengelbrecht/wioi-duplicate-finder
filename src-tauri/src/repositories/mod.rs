@@ -804,8 +804,9 @@ impl AgentRepository {
 
     pub fn autocomplete_agent(conn: &Connection, query: &str) -> Result<Vec<String>, Error> {
         let normalized = normalize_search_recorded_by(query);
-        let mut stmt =
-            conn.prepare("SELECT agentName FROM agents WHERE searchAgentName LIKE ?1 LIMIT 10")?;
+        let mut stmt = conn.prepare(
+            "SELECT agentName FROM agents WHERE searchAgentName LIKE ?1 ORDER BY last_used DESC, agentName ASC",
+        )?;
         let rows = stmt.query_map(params![format!("{}%", normalized)], |row| row.get(0))?;
 
         let mut list = Vec::new();
@@ -822,11 +823,20 @@ impl AgentRepository {
         Ok(exists)
     }
 
-    pub fn add_agent(conn: &Connection, name: &str) -> Result<(), Error> {
+    pub fn add_or_update_agent(
+        conn: &Connection,
+        name: &str,
+        user_id: Option<i32>,
+        timestamp: Option<&str>,
+    ) -> Result<(), Error> {
         let search_name = normalize_search_recorded_by(name);
         conn.execute(
-            "INSERT OR IGNORE INTO agents (agentName, searchAgentName) VALUES (?1, ?2)",
-            params![name, search_name],
+            "INSERT INTO agents (agentName, searchAgentName, created_at, created_by, last_used, last_used_by)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             ON CONFLICT(agentName) DO UPDATE SET
+                 last_used = COALESCE(excluded.last_used, last_used),
+                 last_used_by = COALESCE(excluded.last_used_by, last_used_by)",
+            params![name, search_name, timestamp, user_id, timestamp, user_id],
         )?;
         Ok(())
     }
@@ -844,6 +854,7 @@ impl ExportRepository {
         include_islands: bool,
         backup_location: &str,
         home_country: &str,
+        initials_require_periods: bool,
     ) -> Result<(), Error> {
         conn.execute(
             "INSERT INTO export_settings (
@@ -853,16 +864,18 @@ impl ExportRepository {
                 include_grid_reference, 
                 include_islands, 
                 backup_location,
-                home_country
+                home_country,
+                initials_require_periods
              ) 
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) 
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) 
              ON CONFLICT(user_id) DO UPDATE SET 
                 format=?2, 
                 collection_code=?3, 
                 include_grid_reference=?4, 
                 include_islands=?5, 
                 backup_location=?6,
-                home_country=?7",
+                home_country=?7,
+                initials_require_periods=?8",
             params![
                 user_id,
                 format,
@@ -870,7 +883,8 @@ impl ExportRepository {
                 include_grid_reference as i32,
                 include_islands as i32,
                 backup_location,
-                home_country
+                home_country,
+                initials_require_periods as i32
             ],
         )?;
         Ok(())
@@ -881,10 +895,11 @@ impl ExportRepository {
         user_id: i32,
     ) -> Result<Option<ExportSettingsDto>, Error> {
         let mut stmt =
-            conn.prepare("SELECT format, collection_code, include_grid_reference, include_islands, backup_location, home_country FROM export_settings WHERE user_id = ?1")?;
+            conn.prepare("SELECT format, collection_code, include_grid_reference, include_islands, backup_location, home_country, initials_require_periods FROM export_settings WHERE user_id = ?1")?;
         let mut rows = stmt.query_map(params![user_id], |row| {
             let include_grid_ref_raw: i32 = row.get(2)?;
             let include_islands_raw: i32 = row.get(3)?;
+            let initials_require_periods_raw: i32 = row.get(6)?;
             Ok(ExportSettingsDto {
                 format: row.get(0)?,
                 collection_code: row.get(1)?,
@@ -892,6 +907,7 @@ impl ExportRepository {
                 include_islands: include_islands_raw != 0,
                 backup_location: row.get(4)?,
                 home_country: row.get(5)?,
+                initials_require_periods: initials_require_periods_raw != 0,
             })
         })?;
 

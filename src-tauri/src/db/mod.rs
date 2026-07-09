@@ -906,6 +906,8 @@ fn run_migrations(conn: &mut Connection) -> Result<()> {
             include_grid_reference INTEGER NOT NULL DEFAULT 0,
             include_islands INTEGER NOT NULL DEFAULT 0,
             backup_location TEXT NOT NULL DEFAULT '',
+            home_country TEXT NOT NULL DEFAULT '',
+            initials_require_periods INTEGER NOT NULL DEFAULT 1,
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
         );",
         [],
@@ -948,6 +950,12 @@ fn run_migrations(conn: &mut Connection) -> Result<()> {
     if !es_col_exists(conn, "home_country") {
         let _ = conn.execute(
             "ALTER TABLE export_settings ADD COLUMN home_country TEXT NOT NULL DEFAULT ''",
+            [],
+        );
+    }
+    if !es_col_exists(conn, "initials_require_periods") {
+        let _ = conn.execute(
+            "ALTER TABLE export_settings ADD COLUMN initials_require_periods INTEGER NOT NULL DEFAULT 1",
             [],
         );
     }
@@ -1123,7 +1131,11 @@ fn run_migrations(conn: &mut Connection) -> Result<()> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS agents (
             agentName TEXT PRIMARY KEY,
-            searchAgentName TEXT NOT NULL
+            searchAgentName TEXT NOT NULL,
+            created_at TEXT,
+            created_by INTEGER,
+            last_used TEXT,
+            last_used_by INTEGER
         );",
         [],
     )?;
@@ -1131,6 +1143,55 @@ fn run_migrations(conn: &mut Connection) -> Result<()> {
         "CREATE INDEX IF NOT EXISTS idx_agents_searchAgentName ON agents(searchAgentName);",
         [],
     )?;
+
+    // Migrate existing databases to add created_at, created_by, last_used, and last_used_by columns if missing
+    let agent_created_at_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('agents') WHERE name='created_at'",
+            [],
+            |r| r.get::<_, i32>(0).map(|c| c > 0),
+        )
+        .unwrap_or(false);
+
+    if !agent_created_at_exists {
+        let _ = conn.execute("ALTER TABLE agents ADD COLUMN created_at TEXT", []);
+    }
+
+    let agent_created_by_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('agents') WHERE name='created_by'",
+            [],
+            |r| r.get::<_, i32>(0).map(|c| c > 0),
+        )
+        .unwrap_or(false);
+
+    if !agent_created_by_exists {
+        let _ = conn.execute("ALTER TABLE agents ADD COLUMN created_by INTEGER", []);
+    }
+
+    let agent_last_used_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('agents') WHERE name='last_used'",
+            [],
+            |r| r.get::<_, i32>(0).map(|c| c > 0),
+        )
+        .unwrap_or(false);
+
+    if !agent_last_used_exists {
+        let _ = conn.execute("ALTER TABLE agents ADD COLUMN last_used TEXT", []);
+    }
+
+    let agent_last_used_by_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('agents') WHERE name='last_used_by'",
+            [],
+            |r| r.get::<_, i32>(0).map(|c| c > 0),
+        )
+        .unwrap_or(false);
+
+    if !agent_last_used_by_exists {
+        let _ = conn.execute("ALTER TABLE agents ADD COLUMN last_used_by INTEGER", []);
+    }
 
     Ok(())
 }

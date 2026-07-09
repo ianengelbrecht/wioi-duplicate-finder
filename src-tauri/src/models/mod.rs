@@ -74,6 +74,7 @@ pub struct ExportSettingsDto {
     pub include_islands: bool,
     pub backup_location: String,
     pub home_country: String,
+    pub initials_require_periods: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

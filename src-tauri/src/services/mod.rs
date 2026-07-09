@@ -224,17 +224,26 @@ impl SpecimenService {
         let mut conn = get_connection(app)?;
         let tx = conn.transaction().map_err(|e| e.to_string())?;
 
-        // Seed agents table with new collector/determiner names
+        let user_id: Option<i32> = tx
+            .query_row(
+                "SELECT user_id FROM sessions WHERE id = ?1",
+                params![record.session_id],
+                |r| r.get(0),
+            )
+            .ok();
+        let now = chrono::Local::now().to_rfc3339();
+
+        // Seed/update agents table with new/existing collector/determiner names
         if let Some(ref recorded_by) = record.recorded_by {
             let new_recorded_by_agents = split_names(recorded_by);
             for name in new_recorded_by_agents {
-                let _ = AgentRepository::add_agent(&tx, &name);
+                let _ = AgentRepository::add_or_update_agent(&tx, &name, user_id, Some(&now));
             }
         }
         if let Some(ref identified_by) = record.identified_by {
             let new_identified_by_agents = split_names(identified_by);
             for name in new_identified_by_agents {
-                let _ = AgentRepository::add_agent(&tx, &name);
+                let _ = AgentRepository::add_or_update_agent(&tx, &name, user_id, Some(&now));
             }
         }
 
@@ -499,9 +508,10 @@ impl AgentService {
         AgentRepository::check_agent_exists(&conn, name).map_err(|e| e.to_string())
     }
 
-    pub fn add_agent(app: &AppHandle, name: &str) -> Result<(), String> {
+    pub fn add_agent(app: &AppHandle, name: &str, created_by: Option<i32>) -> Result<(), String> {
         let conn = get_connection(app)?;
-        AgentRepository::add_agent(&conn, name).map_err(|e| e.to_string())
+        let now = chrono::Local::now().to_rfc3339();
+        AgentRepository::add_or_update_agent(&conn, name, created_by, Some(&now)).map_err(|e| e.to_string())
     }
 }
 
@@ -554,6 +564,7 @@ impl ExportService {
         include_islands: bool,
         backup_location: &str,
         home_country: &str,
+        initials_require_periods: bool,
     ) -> Result<(), String> {
         let conn = get_connection(app)?;
         ExportRepository::save_export_settings(
@@ -565,6 +576,7 @@ impl ExportService {
             include_islands,
             backup_location,
             home_country,
+            initials_require_periods,
         )
         .map_err(|e| e.to_string())
     }
@@ -580,6 +592,7 @@ impl ExportService {
                 include_islands: false,
                 backup_location: "".to_string(),
                 home_country: "".to_string(),
+                initials_require_periods: true,
             }),
             Err(e) => Err(e.to_string()),
         }

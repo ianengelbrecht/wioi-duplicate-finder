@@ -179,8 +179,8 @@ pub fn check_agent_exists(app: AppHandle, name: String) -> Result<bool, String> 
 }
 
 #[tauri::command]
-pub fn add_agent(app: AppHandle, name: String) -> Result<(), String> {
-    AgentService::add_agent(&app, &name)
+pub fn add_agent(app: AppHandle, name: String, created_by: Option<i32>) -> Result<(), String> {
+    AgentService::add_agent(&app, &name, created_by)
 }
 
 #[tauri::command]
@@ -225,6 +225,7 @@ pub fn save_export_settings(
     include_islands: bool,
     backup_location: String,
     home_country: String,
+    initials_require_periods: bool,
 ) -> Result<(), String> {
     ExportService::save_export_settings(
         &app,
@@ -235,6 +236,7 @@ pub fn save_export_settings(
         include_islands,
         &backup_location,
         &home_country,
+        initials_require_periods,
     )
 }
 
