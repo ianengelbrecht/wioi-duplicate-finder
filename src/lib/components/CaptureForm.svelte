@@ -1575,7 +1575,7 @@
 
       <!-- Locality -->
       <div class="col-span-4">
-        <label for="capture-locality" data-i18n-key="locality-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("locality-label", "Locality")}</label>
+        <label for="capture-locality" data-i18n-key="locality-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("locality-label", "Locality (Gazetteer)")}</label>
         <div class="relative flex items-center ">
           <div class="w-full">
             <Autocomplete
@@ -1647,42 +1647,7 @@
         </div>
       </div>
 
-      <!-- Coordinates and Cultivated -->
-      <div class="grid grid-cols-12 gap-3">
-        <div class="relative col-span-9">
-          <label for="capture-verbatimCoordinates" data-i18n-key="verbatim-coordinates-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-            {t("verbatim-coordinates-label", "Coordinates")}
-            {#if coordinatesError}
-              <span data-i18n-key="coord-error-badge" class="text-[9px] text-red-500 font-bold ml-1 uppercase">{t("coord-error-badge", "(Invalid)")}</span>
-            {/if}
-          </label>
-          <input
-            id="capture-verbatimCoordinates"
-            data-i18n-key="verbatim-coordinates-placeholder"
-            type="text"
-            placeholder={t("verbatim-coordinates-placeholder", "eg 20°34'S, 47°12'E")}
-            bind:value={form.verbatimCoordinates}
-            onblur={handleCoordinatesBlur}
-            class="w-full bg-white border text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all {coordinatesError ? 'border-red-500 bg-red-50 focus:border-red-500 focus:ring-red-500' : 'border-slate-300'}"
-          />
-          {#if form.decimalLatitude && form.decimalLongitude}
-            <div class="absolute top-0 right-0 text-[10px] text-slate-400 mt-1">
-              {(Number(form.decimalLatitude)).toFixed(6)}, {(Number(form.decimalLongitude)).toFixed(6)}
-            </div>
-          {/if}
-        </div>
-        <!-- Cultivated Specimen Flag -->
-        <div class="col-span-3 flex items-center pt-5">
-          <label class="flex items-center gap-2 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              bind:checked={form.cultivated}
-              class="w-4 h-4 border border-slate-300 rounded-none accent-slate-800 outline-none cursor-pointer"
-            />
-            <span data-i18n-key="cultivated-label" class="text-xs font-semibold text-slate-600 uppercase tracking-wider">{t("cultivated-label", "Cultivated Specimen")}</span>
-          </label>
-        </div>
-      </div>
+      
 
       <!-- Locality Notes -->
       <div class="grid grid-cols-12 gap-3">
@@ -1746,6 +1711,43 @@
               </button>
             {/if}
           </div>
+        </div>
+      </div>
+
+      <!-- Coordinates and Cultivated -->
+      <div class="grid grid-cols-12 gap-3">
+        <div class="relative col-span-9">
+          <label for="capture-verbatimCoordinates" data-i18n-key="verbatim-coordinates-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+            {t("verbatim-coordinates-label", "Coordinates")}
+            {#if coordinatesError}
+              <span data-i18n-key="coord-error-badge" class="text-[9px] text-red-500 font-bold ml-1 uppercase">{t("coord-error-badge", "(Invalid)")}</span>
+            {/if}
+          </label>
+          <input
+            id="capture-verbatimCoordinates"
+            data-i18n-key="verbatim-coordinates-placeholder"
+            type="text"
+            placeholder={t("verbatim-coordinates-placeholder", "eg 20°34'S, 47°12'E")}
+            bind:value={form.verbatimCoordinates}
+            onblur={handleCoordinatesBlur}
+            class="w-full bg-white border text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all {coordinatesError ? 'border-red-500 bg-red-50 focus:border-red-500 focus:ring-red-500' : 'border-slate-300'}"
+          />
+          {#if form.decimalLatitude && form.decimalLongitude}
+            <div class="absolute top-0 right-0 text-[10px] text-slate-400 mt-1">
+              {(Number(form.decimalLatitude)).toFixed(6)}, {(Number(form.decimalLongitude)).toFixed(6)}
+            </div>
+          {/if}
+        </div>
+        <!-- Cultivated Specimen Flag -->
+        <div class="col-span-3 flex items-center pt-5">
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              bind:checked={form.cultivated}
+              class="w-4 h-4 border border-slate-300 rounded-none accent-slate-800 outline-none cursor-pointer"
+            />
+            <span data-i18n-key="cultivated-label" class="text-xs font-semibold text-slate-600 uppercase tracking-wider">{t("cultivated-label", "Cultivated Specimen")}</span>
+          </label>
         </div>
       </div>
 
