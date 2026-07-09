@@ -67,7 +67,7 @@
   );
 
   let collectorRuleOk = $derived(!hasRecordedBy || hasRecordNumber || (hasDate && hasOther));
-  let recordNumberRuleOk = $derived(!hasRecordNumber || hasRecordedBy);
+  let recordNumberRuleOk = $derived(!hasRecordNumber || hasRecordedBy || (hasDate && hasOther));
   let dateRuleOk = $derived(!hasDate || (nonDateFieldsCount >= 2));
   let tglRuleOk = $derived(!hasOther || (totalFilledCount >= 3));
 
