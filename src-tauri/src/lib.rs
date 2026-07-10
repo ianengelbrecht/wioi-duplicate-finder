@@ -8,8 +8,8 @@ pub mod parsers;
 pub mod repositories;
 pub mod services;
 
-use tauri::Manager;
 use db::shutdown_database;
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

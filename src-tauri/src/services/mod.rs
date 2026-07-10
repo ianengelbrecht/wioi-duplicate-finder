@@ -511,7 +511,8 @@ impl AgentService {
     pub fn add_agent(app: &AppHandle, name: &str, created_by: Option<i32>) -> Result<(), String> {
         let conn = get_connection(app)?;
         let now = chrono::Local::now().to_rfc3339();
-        AgentRepository::add_or_update_agent(&conn, name, created_by, Some(&now)).map_err(|e| e.to_string())
+        AgentRepository::add_or_update_agent(&conn, name, created_by, Some(&now))
+            .map_err(|e| e.to_string())
     }
 }
 

@@ -642,25 +642,35 @@ impl TaxonomyRepository {
             return Ok(Vec::new());
         }
 
-        let mut fts_query = String::new();
-        for (i, term) in terms.iter().enumerate() {
-            let clean = term.trim_matches(|c: char| c.is_ascii_punctuation());
-            if !clean.is_empty() {
-                if i > 0 {
-                    fts_query.push_str(" + ");
-                }
-                fts_query.push_str(&format!("{}*", clean));
-            }
+        let mut pattern = String::from("^");
+        let lowercase_terms: Vec<String> = terms
+            .iter()
+            .map(|t| {
+                t.to_lowercase()
+                    .trim_matches(|c: char| c.is_ascii_punctuation())
+                    .to_string()
+            })
+            .filter(|t| !t.is_empty())
+            .collect();
+
+        if lowercase_terms.is_empty() {
+            return Ok(Vec::new());
         }
+
+        pattern.push_str(&lowercase_terms.join(".*\\s"));
+        pattern.push_str(".*");
+
+        let first_term = lowercase_terms[0].clone();
+        let like_prefix = format!("{}%", first_term);
 
         let mut stmt = conn.prepare(
             "SELECT plant_name_id, taxon_name, family, genus, species, taxon_authors, taxon_rank, fullname 
              FROM wcvp_taxonomy 
-             WHERE rowid IN (SELECT rowid FROM wcvp_taxonomy_fts WHERE wcvp_taxonomy_fts MATCH ?1) 
+             WHERE normalized_taxon_name LIKE ?1 AND normalized_taxon_name REGEXP ?2 
              LIMIT 15",
         )?;
 
-        let rows = stmt.query_map(params![fts_query], |row| {
+        let rows = stmt.query_map(params![like_prefix, pattern], |row| {
             let id: String = row.get(0)?;
             let name: String = row.get(1)?;
             let family: Option<String> = row.get(2)?;
@@ -1662,11 +1672,6 @@ impl ReferenceRepository {
                 .filter(|s| !s.is_empty())
         };
 
-        // Temporarily drop triggers for performance
-        let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_ai", []);
-        let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_ad", []);
-        let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_au", []);
-
         let tx = conn.transaction().map_err(|e| e.to_string())?;
 
         {
@@ -1936,11 +1941,6 @@ impl ReferenceRepository {
         Self::populate_wcvp_fullname(conn).map_err(|e| e.to_string())?;
 
         crate::db::set_wcvp_version(conn, version)?;
-
-        if let Some(app_handle) = app {
-            let _ = app_handle.emit("wcvp-import-progress", "Rebuilding search index...");
-        }
-        crate::db::recreate_wcvp_triggers_and_rebuild_fts(conn)?;
 
         Ok(())
     }

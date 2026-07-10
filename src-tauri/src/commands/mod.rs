@@ -143,7 +143,7 @@ pub fn search_reference(
 }
 
 #[tauri::command]
-pub fn autocomplete_scientific_name(
+pub async fn autocomplete_scientific_name(
     app: AppHandle,
     query: String,
 ) -> Result<Vec<TaxonAutocompleteResult>, String> {

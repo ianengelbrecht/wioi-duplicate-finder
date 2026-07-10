@@ -1,7 +1,8 @@
 use chrono::{Local, NaiveDate, NaiveDateTime};
 use log::{error, info, warn};
 use pbkdf2::pbkdf2_hmac_array;
-use rusqlite::{params, Connection, Result};
+use regex::Regex;
+use rusqlite::{functions::FunctionFlags, params, Connection, Result};
 use sha2::Sha256;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -129,6 +130,37 @@ pub fn get_db_path(app: &AppHandle) -> Option<PathBuf> {
     }
 }
 
+/// Registers a custom regexp function on the connection.
+pub fn register_regexp_function(conn: &Connection) -> Result<()> {
+    conn.create_scalar_function(
+        "regexp",
+        2,
+        FunctionFlags::SQLITE_DETERMINISTIC | FunctionFlags::SQLITE_DIRECTONLY,
+        |ctx| {
+            let pattern: String = ctx.get(0)?;
+            let text: String = ctx.get(1)?;
+
+            thread_local! {
+                static CACHE: std::cell::RefCell<std::collections::HashMap<String, Regex>> =
+                    std::cell::RefCell::new(std::collections::HashMap::new());
+            }
+
+            let is_match = CACHE.with(|cache| {
+                let mut cache = cache.borrow_mut();
+                let re = cache.entry(pattern.clone()).or_insert_with(|| {
+                    regex::RegexBuilder::new(&pattern)
+                        .case_insensitive(true)
+                        .build()
+                        .unwrap_or_else(|_| Regex::new(".*").unwrap())
+                });
+                re.is_match(&text)
+            });
+
+            Ok(is_match)
+        },
+    )
+}
+
 /// Factory function to open a SQLite database connection with custom pragmas.
 pub fn get_connection(app: &AppHandle) -> std::result::Result<Connection, String> {
     let db_path = get_db_path(app).ok_or_else(|| "Database path is not configured.".to_string())?;
@@ -142,6 +174,8 @@ pub fn get_connection(app: &AppHandle) -> std::result::Result<Connection, String
     let _ = conn.execute("PRAGMA synchronous=NORMAL;", []);
     conn.execute("PRAGMA foreign_keys=ON;", [])
         .map_err(|e| e.to_string())?;
+
+    register_regexp_function(&conn).map_err(|e| e.to_string())?;
 
     Ok(conn)
 }
@@ -1116,17 +1150,6 @@ fn run_migrations(conn: &mut Connection) -> Result<()> {
 
     recreate_gbif_triggers(conn)?;
 
-    // 4. FTS5 Virtual Table for wcvp_taxonomy table
-    conn.execute(
-        "CREATE VIRTUAL TABLE IF NOT EXISTS wcvp_taxonomy_fts USING fts5(
-            taxon_name,
-            content='wcvp_taxonomy'
-        );",
-        [],
-    )?;
-
-    recreate_wcvp_triggers(conn)?;
-
     // Create agents table
     conn.execute(
         "CREATE TABLE IF NOT EXISTS agents (
@@ -1192,6 +1215,44 @@ fn run_migrations(conn: &mut Connection) -> Result<()> {
     if !agent_last_used_by_exists {
         let _ = conn.execute("ALTER TABLE agents ADD COLUMN last_used_by INTEGER", []);
     }
+
+    // Migration: Drop wcvp_taxonomy_fts table and triggers if they exist, and create index on normalized_taxon_name
+    let fts_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='wcvp_taxonomy_fts'",
+            [],
+            |r| r.get::<_, i32>(0).map(|c| c > 0),
+        )
+        .unwrap_or(false);
+
+    if fts_exists {
+        info!("Dropping wcvp_taxonomy_fts and triggers (migrating to regex-based lookup)...");
+        let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_ai", []);
+        let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_ad", []);
+        let _ = conn.execute("DROP TRIGGER IF EXISTS wcvp_taxonomy_au", []);
+        let _ = conn.execute("DROP TABLE IF EXISTS wcvp_taxonomy_fts", []);
+
+        // Force re-normalization of records containing infraspecific rank indicators
+        info!("Resetting normalized_taxon_name for infraspecific records to force re-normalization...");
+        let _ = conn.execute(
+            "UPDATE wcvp_taxonomy SET normalized_taxon_name = NULL 
+             WHERE taxon_name LIKE '% subsp.%' 
+                OR taxon_name LIKE '% var.%' 
+                OR taxon_name LIKE '% f.%' 
+                OR taxon_name LIKE '% ssp.%'
+                OR taxon_name LIKE '% subg.%'
+                OR taxon_name LIKE '% sect.%'
+                OR taxon_name LIKE '% subsp %'
+                OR taxon_name LIKE '% var %'
+                OR taxon_name LIKE '% ssp %'",
+            [],
+        );
+    }
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_wcvp_taxonomy_normalized_name ON wcvp_taxonomy(normalized_taxon_name);",
+        [],
+    )?;
 
     Ok(())
 }
@@ -1370,42 +1431,6 @@ fn recreate_gbif_triggers(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-fn recreate_wcvp_triggers(conn: &Connection) -> Result<()> {
-    conn.execute(
-        "CREATE TRIGGER IF NOT EXISTS wcvp_taxonomy_ai
-        AFTER INSERT ON wcvp_taxonomy
-        BEGIN
-            INSERT INTO wcvp_taxonomy_fts(rowid, taxon_name)
-            VALUES (new.rowid, new.taxon_name);
-        END;",
-        [],
-    )?;
-
-    conn.execute(
-        "CREATE TRIGGER IF NOT EXISTS wcvp_taxonomy_ad
-        AFTER DELETE ON wcvp_taxonomy
-        BEGIN
-            INSERT INTO wcvp_taxonomy_fts(wcvp_taxonomy_fts, rowid, taxon_name)
-            VALUES ('delete', old.rowid, old.taxon_name);
-        END;",
-        [],
-    )?;
-
-    conn.execute(
-        "CREATE TRIGGER IF NOT EXISTS wcvp_taxonomy_au
-        AFTER UPDATE ON wcvp_taxonomy
-        BEGIN
-            INSERT INTO wcvp_taxonomy_fts(wcvp_taxonomy_fts, rowid, taxon_name)
-            VALUES ('delete', old.rowid, old.taxon_name);
-
-            INSERT INTO wcvp_taxonomy_fts(rowid, taxon_name)
-            VALUES (new.rowid, new.taxon_name);
-        END;",
-        [],
-    )?;
-    Ok(())
-}
-
 pub fn get_wcvp_version(conn: &Connection) -> std::result::Result<i32, String> {
     let query = "SELECT value FROM app_metadata WHERE key = 'wcvp_version';";
     match conn.query_row(query, [], |r| r.get::<_, String>(0)) {
@@ -1431,14 +1456,8 @@ pub fn set_wcvp_version(conn: &Connection, version: i32) -> std::result::Result<
 }
 
 pub fn recreate_wcvp_triggers_and_rebuild_fts(
-    conn: &Connection,
+    _conn: &Connection,
 ) -> std::result::Result<(), String> {
-    recreate_wcvp_triggers(conn).map_err(|e| e.to_string())?;
-    conn.execute(
-        "INSERT INTO wcvp_taxonomy_fts(wcvp_taxonomy_fts) VALUES('rebuild');",
-        [],
-    )
-    .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -1638,14 +1657,7 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
             tx.commit()?;
         }
 
-        recreate_wcvp_triggers(conn)?;
-
-        info!("Rebuilding FTS5 full-text index for wcvp_taxonomy...");
-        conn.execute(
-            "INSERT INTO wcvp_taxonomy_fts(wcvp_taxonomy_fts) VALUES('rebuild');",
-            [],
-        )?;
-        info!("WCVP normalization and index rebuild completed!");
+        info!("WCVP normalization completed!");
     }
 
     Ok(())
@@ -1862,15 +1874,6 @@ mod tests {
         )
         .unwrap();
 
-        conn.execute(
-            "CREATE VIRTUAL TABLE wcvp_taxonomy_fts USING fts5(
-                taxon_name,
-                content='wcvp_taxonomy'
-            );",
-            [],
-        )
-        .unwrap();
-
         let default_v = get_wcvp_version(&conn).unwrap();
         assert_eq!(default_v, 15);
 
@@ -1942,6 +1945,8 @@ mod tests {
     #[test]
     fn test_autocomplete_scientific_name() {
         let conn = Connection::open_in_memory().unwrap();
+        register_regexp_function(&conn).unwrap();
+
         conn.execute(
             "CREATE TABLE app_metadata (
                 key TEXT PRIMARY KEY,
@@ -1986,15 +1991,6 @@ mod tests {
                 hybrid_formula TEXT,
                 reviewed TEXT,
                 fullname TEXT
-            );",
-            [],
-        )
-        .unwrap();
-
-        conn.execute(
-            "CREATE VIRTUAL TABLE wcvp_taxonomy_fts USING fts5(
-                taxon_name,
-                content='wcvp_taxonomy'
             );",
             [],
         )
