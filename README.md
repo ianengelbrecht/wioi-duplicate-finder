@@ -63,21 +63,11 @@ That said, it's often easier to make simple changes directly to the files in you
 
 ## Deployment
 
-The project is set up with the updater plugin to allow for automatic updates. This requires the relevant public private key pair to sign app on build. See [the Tauri building instructions](https://v2.tauri.app/plugin/updater/#building) for details.
+We use release.py to push both the application and the documentation to the Github CI pipelines and everything is handled there. The script includes various checks to make sure everything is in order first.
 
-We're using GitHub Actions for deployment. When ready to deploy a new version (and make absolutely sure you're ready!), do the following:
+`release.py [-h] [--data-also] {major,minor,patch}`
 
-```
-git add .
-git commit -m "Release v0.2.0"
-
-git tag app-v0.2.0
-
-git push origin main
-git push origin app-v0.2.0
-```
-
-REMEMBER TO BUMP THE VERSION NUMBER FIRST!!!
+Note that if you provide new or updated datasets, include the --data-also flag, and then copy all datasets to the app release manually (zipped).
 
 ## Deployment database
 
