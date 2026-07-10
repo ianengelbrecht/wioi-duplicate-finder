@@ -1920,11 +1920,13 @@
   
         <!-- Identification Date Fields -->
         <div class="col-span-2">
-          <label for="capture-yearIdentified" data-i18n-key="det-year-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("det-year-label", "Year Ident.")}</label>
+          <label for="capture-dayIdentified" data-i18n-key="det-day-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("det-day-label", "Day Ident.")}</label>
           <input
-            id="capture-yearIdentified"
+            id="capture-dayIdentified"
             type="number"
-            bind:value={form.yearIdentified}
+            min="1"
+            max="31"
+            bind:value={form.dayIdentified}
             onblur={handleIdentificationDateBlur}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
@@ -1942,13 +1944,11 @@
           />
         </div>
         <div class="col-span-2">
-          <label for="capture-dayIdentified" data-i18n-key="det-day-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("det-day-label", "Day Ident.")}</label>
+          <label for="capture-yearIdentified" data-i18n-key="det-year-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("det-year-label", "Year Ident.")}</label>
           <input
-            id="capture-dayIdentified"
+            id="capture-yearIdentified"
             type="number"
-            min="1"
-            max="31"
-            bind:value={form.dayIdentified}
+            bind:value={form.yearIdentified}
             onblur={handleIdentificationDateBlur}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-2 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
