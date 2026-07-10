@@ -34,6 +34,10 @@ CARGO_TOML = APP_ROOT / "src-tauri" / "Cargo.toml"
 
 DOCS_RELEASE_JSON = DOCS_ROOT / "src" / "config" / "release.json"
 
+DOCS_CONTENT_ROOT = DOCS_ROOT / "src" / "content" / "docs"
+DOCS_RELEASE_NOTES_DIR = "releases"
+DOCS_LANGUAGES = ("en", "fr", "pt", "mg")
+
 # Only used with --data-also. Change if your file lives elsewhere.
 DOCS_DATA_JSON = DOCS_ROOT / "src" / "config" / "data.json"
 
@@ -180,6 +184,43 @@ def ensure_up_to_date(repo: Path, branch: str) -> None:
         )
 
 
+def get_release_notes_paths(filename: str) -> dict[str, Path]:
+    """Return the release-notes path for every documentation language."""
+    paths = {}
+
+    for language in DOCS_LANGUAGES:
+        language_root = (
+            DOCS_CONTENT_ROOT / language
+        )
+        paths[language] = language_root / DOCS_RELEASE_NOTES_DIR / filename
+
+    return paths
+
+
+def validate_release_notes(new_version: str) -> None:
+    """Ensure every next.md exists and no versioned destination exists yet."""
+    source_paths = get_release_notes_paths("next.md")
+    destination_paths = get_release_notes_paths(f"v{new_version}.md")
+
+    missing = [path for path in source_paths.values() if not path.is_file()]
+
+    if missing:
+        formatted = "\n".join(f"  {path}" for path in missing)
+        raise RuntimeError(
+            "Release notes are missing for one or more languages:\n"
+            f"{formatted}"
+        )
+
+    existing = [path for path in destination_paths.values() if path.exists()]
+
+    if existing:
+        formatted = "\n".join(f"  {path}" for path in existing)
+        raise RuntimeError(
+            "Versioned release-note files already exist:\n"
+            f"{formatted}"
+        )
+
+
 def tag_exists_locally_or_remotely(repo: Path, tag: str) -> bool:
     local_tag = git(repo, "tag", "--list", tag, capture_output=True)
 
@@ -283,6 +324,50 @@ def update_cargo_toml(version: str) -> None:
 
     updated_text = text[: match.start(1)] + updated_section + text[match.end(1) :]
     CARGO_TOML.write_text(updated_text, encoding="utf-8")
+
+
+def update_frontmatter_title(text: str, title: str, path: Path) -> str:
+    """Replace the title in a Markdown file's YAML frontmatter."""
+    match = re.match(r"\A---\r?\n(.*?)\r?\n---(?=\r?\n|\Z)", text, re.DOTALL)
+
+    if not match:
+        raise RuntimeError(f"Missing YAML frontmatter in {path}")
+
+    frontmatter = match.group(1)
+    updated_frontmatter, replacements = re.subn(
+        r"(?m)^title\s*:\s*.*$",
+        f"title: {title}",
+        frontmatter,
+        count=1,
+    )
+
+    if replacements != 1:
+        raise RuntimeError(f"Missing frontmatter title in {path}")
+
+    return text[: match.start(1)] + updated_frontmatter + text[match.end(1) :]
+
+
+def publish_release_notes(version: str) -> None:
+    """Version every next.md file and recreate an empty next.md template."""
+    source_paths = get_release_notes_paths("next.md")
+    destination_paths = get_release_notes_paths(f"v{version}.md")
+
+    # Read and validate every file before changing any of them.
+    updated_contents = {}
+
+    for language, source_path in source_paths.items():
+        text = source_path.read_text(encoding="utf-8")
+        updated_contents[language] = update_frontmatter_title(
+            text,
+            f"v{version}",
+            source_path,
+        )
+
+    for language, source_path in source_paths.items():
+        destination_path = destination_paths[language]
+        source_path.rename(destination_path)
+        destination_path.write_text(updated_contents[language], encoding="utf-8")
+        source_path.write_text("---\ntitle: next\n---\n", encoding="utf-8")
 
 
 def update_docs_release_json(version: str) -> None:
@@ -447,6 +532,8 @@ def main() -> None:
     if tag_exists_locally_or_remotely(DOCS_ROOT, tag):
         raise RuntimeError(f"Tag already exists in docs repository: {tag}")
 
+    validate_release_notes(new_version)
+
     print("\nRelease summary")
     print("=" * 60)
     print(f"Current version: {app_version}")
@@ -465,14 +552,6 @@ def main() -> None:
         print("\nRelease cancelled. No files were changed.")
         return
 
-    confirmation = input(
-        f"\nHave you updated the release notes for this new release? [y/N]: "
-    ).strip().lower()
-
-    if confirmation not in {"y", "yes"}:
-        print("\nRelease cancelled. No files were changed.")
-        return
-
     # Application updates.
     prepare_database()
     update_tauri_config(new_version)
@@ -481,6 +560,7 @@ def main() -> None:
     update_cargo_toml(new_version)
 
     # Documentation updates.
+    publish_release_notes(new_version)
     update_docs_release_json(new_version)
 
     if args.data_also:
