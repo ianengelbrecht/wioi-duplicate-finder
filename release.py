@@ -326,14 +326,15 @@ def update_cargo_toml(version: str) -> None:
     CARGO_TOML.write_text(updated_text, encoding="utf-8")
 
 
-def update_frontmatter_title(text: str, title: str, path: Path) -> str:
-    """Replace the title in a Markdown file's YAML frontmatter."""
+def update_release_frontmatter(text: str, title: str, path: Path) -> str:
+    """Update the title and make a release page visible in the sidebar."""
     match = re.match(r"\A---\r?\n(.*?)\r?\n---(?=\r?\n|\Z)", text, re.DOTALL)
 
     if not match:
         raise RuntimeError(f"Missing YAML frontmatter in {path}")
 
     frontmatter = match.group(1)
+
     updated_frontmatter, replacements = re.subn(
         r"(?m)^title\s*:\s*.*$",
         f"title: {title}",
@@ -342,9 +343,19 @@ def update_frontmatter_title(text: str, title: str, path: Path) -> str:
     )
 
     if replacements != 1:
-        raise RuntimeError(f"Missing frontmatter title in {path}")
+        raise RuntimeError(f"Missing title in YAML frontmatter in {path}")
 
-    return text[: match.start(1)] + updated_frontmatter + text[match.end(1) :]
+    updated_frontmatter = re.sub(
+        r"(?ms)^sidebar:\s*\n(?:^[ \t]+.*\n?)*",
+        "",
+        updated_frontmatter,
+    ).rstrip()
+
+    return (
+        text[: match.start(1)]
+        + updated_frontmatter
+        + text[match.end(1) :]
+    )
 
 
 def publish_release_notes(version: str) -> None:
@@ -357,17 +368,24 @@ def publish_release_notes(version: str) -> None:
 
     for language, source_path in source_paths.items():
         text = source_path.read_text(encoding="utf-8")
-        updated_contents[language] = update_frontmatter_title(
+        updated_contents[language] = update_release_frontmatter(
             text,
             f"v{version}",
             source_path,
         )
 
+    new_next_content = """---
+        title: next
+        sidebar:
+        hidden: true
+        ---
+        """
+
     for language, source_path in source_paths.items():
         destination_path = destination_paths[language]
         source_path.rename(destination_path)
         destination_path.write_text(updated_contents[language], encoding="utf-8")
-        source_path.write_text("---\ntitle: next\n---\n", encoding="utf-8")
+        source_path.write_text(new_next_content, encoding="utf-8")
 
 
 def update_docs_release_json(version: str) -> None:
