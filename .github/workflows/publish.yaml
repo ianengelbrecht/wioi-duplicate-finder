@@ -55,6 +55,6 @@ jobs:
           DOCS_REF: ${{ github.ref_name }}
         run: |
           gh workflow run deploy.yml \
-            --repo ianengelbrecht/duplicate-finder-docs \
+            --repo ianengelbrecht/wioi-duplicate-finder-docs \
             --ref main \
             -f ref="$DOCS_REF"
