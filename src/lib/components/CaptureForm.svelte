@@ -1041,6 +1041,323 @@
     }
   }
 
+  /**
+   * Pastes a Darwin Core JSON object from the clipboard and maps it to the form fields.
+   * Displays warning if there are any unmapped fields.
+   * @returns {Promise<void>}
+   */
+  async function handlePasteJson() {
+    statusMessageKey = "";
+    statusMessageDefault = "";
+    statusType = "";
+
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text || !text.trim()) {
+        statusMessageKey = "empty-clipboard-error";
+        statusMessageDefault = "Error: Clipboard is empty.";
+        statusType = "error";
+        return;
+      }
+
+      let data;
+      try {
+        data = JSON.parse(text.trim());
+      } catch (err) {
+        statusMessageKey = "invalid-json-error";
+        statusMessageDefault = "Error: Clipboard content is not valid JSON.";
+        statusType = "error";
+        return;
+      }
+
+      if (Array.isArray(data)) {
+        if (data.length > 0) {
+          data = data[0];
+        } else {
+          statusMessageKey = "empty-array-error";
+          statusMessageDefault = "Error: Paste array is empty.";
+          statusType = "error";
+          return;
+        }
+      }
+
+      if (typeof data !== "object" || data === null) {
+        statusMessageKey = "invalid-json-object-error";
+        statusMessageDefault = "Error: Paste content must be a JSON object.";
+        statusType = "error";
+        return;
+      }
+
+      const mappedKeys = new Set();
+
+      // 1. catalogNumber
+      if ("catalogNumber" in data) {
+        form.catalogNumber = data.catalogNumber !== null && data.catalogNumber !== undefined ? String(data.catalogNumber) : "";
+        mappedKeys.add("catalogNumber");
+      }
+
+      // 2. duplicates
+      if ("duplicates" in data) {
+        form.duplicates = data.duplicates !== null && data.duplicates !== undefined ? String(data.duplicates) : "";
+        mappedKeys.add("duplicates");
+      }
+
+      // 3. recordedBy
+      if ("recordedBy" in data) {
+        const val = data.recordedBy;
+        let names = [];
+        if (Array.isArray(val)) {
+          names = val;
+        } else if (val !== null && val !== undefined) {
+          names = splitNames(String(val));
+        }
+        form.recordedBy = names[0] || "";
+        form.additionalCollectors = names.slice(1);
+        mappedKeys.add("recordedBy");
+      }
+
+      // 4. additionalCollectors
+      if ("additionalCollectors" in data) {
+        const val = data.additionalCollectors;
+        if (Array.isArray(val)) {
+          form.additionalCollectors = val.map(String);
+        } else if (val !== null && val !== undefined) {
+          form.additionalCollectors = splitNames(String(val));
+        }
+        mappedKeys.add("additionalCollectors");
+      }
+
+      // 5. recordNumber
+      if ("recordNumber" in data) {
+        form.recordNumber = data.recordNumber !== null && data.recordNumber !== undefined ? String(data.recordNumber) : "";
+        mappedKeys.add("recordNumber");
+      }
+
+      // 6. verbatimEventDate / eventDate
+      if ("verbatimEventDate" in data) {
+        form.verbatimEventDate = data.verbatimEventDate !== null && data.verbatimEventDate !== undefined ? String(data.verbatimEventDate) : "";
+        mappedKeys.add("verbatimEventDate");
+      } else if ("eventDate" in data) {
+        form.verbatimEventDate = data.eventDate !== null && data.eventDate !== undefined ? String(data.eventDate) : "";
+        mappedKeys.add("eventDate");
+      }
+
+      // 7. year, month, day
+      let hasExplicitDateFields = false;
+      if ("year" in data) {
+        form.year = data.year !== null && data.year !== undefined ? String(data.year) : "";
+        mappedKeys.add("year");
+        hasExplicitDateFields = true;
+      }
+      if ("month" in data) {
+        form.month = data.month !== null && data.month !== undefined ? String(data.month) : "";
+        mappedKeys.add("month");
+        hasExplicitDateFields = true;
+      }
+      if ("day" in data) {
+        form.day = data.day !== null && data.day !== undefined ? String(data.day) : "";
+        mappedKeys.add("day");
+        hasExplicitDateFields = true;
+      }
+      if (!hasExplicitDateFields && form.verbatimEventDate) {
+        parseVerbatimDate();
+      }
+
+      // 8. Geo fields
+      if ("country" in data) {
+        form.country = data.country !== null && data.country !== undefined ? String(data.country) : "";
+        mappedKeys.add("country");
+      }
+      if ("stateProvince" in data) {
+        form.stateProvince = data.stateProvince !== null && data.stateProvince !== undefined ? String(data.stateProvince) : "";
+        mappedKeys.add("stateProvince");
+      }
+      if ("county" in data) {
+        form.county = data.county !== null && data.county !== undefined ? String(data.county) : "";
+        mappedKeys.add("county");
+      }
+      if ("islandGroup" in data) {
+        form.islandGroup = data.islandGroup !== null && data.islandGroup !== undefined ? String(data.islandGroup) : "";
+        mappedKeys.add("islandGroup");
+      }
+      if ("island" in data) {
+        form.island = data.island !== null && data.island !== undefined ? String(data.island) : "";
+        mappedKeys.add("island");
+      }
+      if ("locality" in data) {
+        form.locality = data.locality !== null && data.locality !== undefined ? String(data.locality) : "";
+        mappedKeys.add("locality");
+      }
+      if ("verbatimLocality" in data) {
+        form.verbatimLocality = data.verbatimLocality !== null && data.verbatimLocality !== undefined ? String(data.verbatimLocality) : "";
+        mappedKeys.add("verbatimLocality");
+      }
+
+      // 9. verbatimCoordinates & decimalLatitude/decimalLongitude
+      if ("verbatimCoordinates" in data) {
+        form.verbatimCoordinates = data.verbatimCoordinates !== null && data.verbatimCoordinates !== undefined ? String(data.verbatimCoordinates) : "";
+        mappedKeys.add("verbatimCoordinates");
+        handleCoordinatesBlur();
+      } else {
+        let hasLat = "decimalLatitude" in data;
+        let hasLon = "decimalLongitude" in data;
+        if (hasLat) {
+          form.decimalLatitude = data.decimalLatitude !== null && data.decimalLatitude !== undefined ? String(data.decimalLatitude) : "";
+          mappedKeys.add("decimalLatitude");
+        }
+        if (hasLon) {
+          form.decimalLongitude = data.decimalLongitude !== null && data.decimalLongitude !== undefined ? String(data.decimalLongitude) : "";
+          mappedKeys.add("decimalLongitude");
+        }
+        if (hasLat && hasLon && form.decimalLatitude && form.decimalLongitude) {
+          form.verbatimCoordinates = `${form.decimalLatitude}, ${form.decimalLongitude}`;
+          coordinatesError = false;
+        }
+      }
+
+      // 10. locationRemarks / locationNotes
+      if ("locationRemarks" in data) {
+        form.locationNotes = data.locationRemarks !== null && data.locationRemarks !== undefined ? String(data.locationRemarks) : "";
+        mappedKeys.add("locationRemarks");
+      } else if ("locationNotes" in data) {
+        form.locationNotes = data.locationNotes !== null && data.locationNotes !== undefined ? String(data.locationNotes) : "";
+        mappedKeys.add("locationNotes");
+      }
+
+      // 11. verbatimElevation / elevation
+      if ("verbatimElevation" in data) {
+        form.verbatimElevation = data.verbatimElevation !== null && data.verbatimElevation !== undefined ? String(data.verbatimElevation) : "";
+        mappedKeys.add("verbatimElevation");
+      } else if ("elevation" in data) {
+        form.verbatimElevation = data.elevation !== null && data.elevation !== undefined ? String(data.elevation) : "";
+        mappedKeys.add("elevation");
+      }
+
+      // 12. habitat
+      if ("habitat" in data) {
+        form.habitat = data.habitat !== null && data.habitat !== undefined ? String(data.habitat) : "";
+        mappedKeys.add("habitat");
+      }
+
+      // 13. identificationQualifier
+      if ("identificationQualifier" in data) {
+        form.identificationQualifier = data.identificationQualifier !== null && data.identificationQualifier !== undefined ? String(data.identificationQualifier) : "";
+        mappedKeys.add("identificationQualifier");
+      }
+
+      // 14. scientificName & taxonomy lookup
+      if ("scientificName" in data) {
+        form.scientificName = data.scientificName !== null && data.scientificName !== undefined ? String(data.scientificName) : "";
+        mappedKeys.add("scientificName");
+        handleTaxonBlur();
+      }
+
+      // 15. taxonID
+      if ("taxonID" in data) {
+        form.taxonID = data.taxonID !== null && data.taxonID !== undefined ? String(data.taxonID) : "";
+        mappedKeys.add("taxonID");
+      }
+
+      // 16. typeStatus
+      if ("typeStatus" in data) {
+        form.typeStatus = data.typeStatus !== null && data.typeStatus !== undefined ? String(data.typeStatus) : "";
+        mappedKeys.add("typeStatus");
+      }
+
+      // 17. identifiedBy
+      if ("identifiedBy" in data) {
+        const val = data.identifiedBy;
+        let names = [];
+        if (Array.isArray(val)) {
+          names = val;
+        } else if (val !== null && val !== undefined) {
+          names = splitNames(String(val));
+        }
+        form.identifiedBy = names;
+        mappedKeys.add("identifiedBy");
+      }
+
+      // 18. yearIdentified, monthIdentified, dayIdentified, dateIdentified
+      let hasExplicitIdDateFields = false;
+      if ("yearIdentified" in data) {
+        form.yearIdentified = data.yearIdentified !== null && data.yearIdentified !== undefined ? String(data.yearIdentified) : "";
+        mappedKeys.add("yearIdentified");
+        hasExplicitIdDateFields = true;
+      }
+      if ("monthIdentified" in data) {
+        form.monthIdentified = data.monthIdentified !== null && data.monthIdentified !== undefined ? String(data.monthIdentified) : "";
+        mappedKeys.add("monthIdentified");
+        hasExplicitIdDateFields = true;
+      }
+      if ("dayIdentified" in data) {
+        form.dayIdentified = data.dayIdentified !== null && data.dayIdentified !== undefined ? String(data.dayIdentified) : "";
+        mappedKeys.add("dayIdentified");
+        hasExplicitIdDateFields = true;
+      }
+      if (!hasExplicitIdDateFields && "dateIdentified" in data) {
+        const val = data.dateIdentified;
+        mappedKeys.add("dateIdentified");
+        if (val !== null && val !== undefined && String(val).trim()) {
+          const { day, month, year } = parser.attempt(String(val));
+          form.dayIdentified = day ? String(day) : "";
+          form.monthIdentified = month ? String(month) : "";
+          form.yearIdentified = year ? String(year) : "";
+        }
+      }
+
+      // 19. identificationRemarks
+      if ("identificationRemarks" in data) {
+        form.identificationRemarks = data.identificationRemarks !== null && data.identificationRemarks !== undefined ? String(data.identificationRemarks) : "";
+        mappedKeys.add("identificationRemarks");
+      }
+
+      // 20. occurrenceRemarks
+      if ("occurrenceRemarks" in data) {
+        form.occurrenceRemarks = data.occurrenceRemarks !== null && data.occurrenceRemarks !== undefined ? String(data.occurrenceRemarks) : "";
+        mappedKeys.add("occurrenceRemarks");
+      }
+
+      // 21. fieldNotes
+      if ("fieldNotes" in data) {
+        form.fieldNotes = data.fieldNotes !== null && data.fieldNotes !== undefined ? String(data.fieldNotes) : "";
+        mappedKeys.add("fieldNotes");
+      }
+
+      // 22. cultivated
+      if ("cultivated" in data) {
+        const val = data.cultivated;
+        if (typeof val === "boolean") {
+          form.cultivated = val;
+        } else if (typeof val === "string") {
+          const lower = val.toLowerCase();
+          form.cultivated = lower === "true" || lower === "yes" || lower === "cultivated";
+        } else {
+          form.cultivated = Boolean(val);
+        }
+        mappedKeys.add("cultivated");
+      }
+
+      // Determine unmapped keys
+      const ignoredKeys = new Set(["id", "occurrenceID", "@context", "type", "modified"]);
+      const allKeys = Object.keys(data);
+      const unmapped = allKeys.filter(k => !mappedKeys.has(k) && !ignoredKeys.has(k));
+
+      if (unmapped.length > 0) {
+        statusMessageKey = "";
+        statusMessageDefault = "Notice: The following JSON fields were not mapped: " + unmapped.join(", ");
+        statusType = "success";
+      } else {
+        statusMessageKey = "";
+        statusMessageDefault = "";
+        statusType = "";
+      }
+    } catch (err) {
+      statusMessageKey = "";
+      statusMessageDefault = "Error pasting JSON: " + (err instanceof Error ? err.message : String(err));
+      statusType = "error";
+    }
+  }
+
   function handleGlobalKeyDown(/** @type {KeyboardEvent} */ e) {
     if (e.ctrlKey && e.key.toLowerCase() === "s") {
       e.preventDefault();
@@ -1069,7 +1386,21 @@
         <span data-i18n-key="new-form-badge" class="text-[9px] bg-emerald-100 text-emerald-800 font-bold uppercase tracking-wider px-1.5 py-0.5">{t("new-form-badge", "NEW FORM")}</span>
       {/if}
     </div>
-    <span data-i18n-key="save-shortcut-desc" class="text-[10px] text-slate-400 font-semibold uppercase">{t("save-shortcut-desc", "Shortcut: Ctrl+S to save")}</span>
+    <div class="flex gap-2 items-center">
+      <button
+        id="paste-json-button"
+        class="flex items-center gap-0 cursor-pointer disabled:cursor-default px-2 py-2 text-[10px] font-bold tracking-wider bg-slate-700 text-white hover:bg-slate-800 transition-colors rounded-none"
+        disabled={Boolean(form.id) || saving}
+        onclick={handlePasteJson}
+        title={t("paste-json-tooltip", "Paste DwC JSON")}
+      >
+        <span class="w-3 h-3 inline-block mr-1">
+          <PasteIcon  />
+        </span>
+        JSON
+      </button>
+      <span data-i18n-key="save-shortcut-desc" class="text-[10px] text-slate-400 font-semibold uppercase">{t("save-shortcut-desc", "Shortcut: Ctrl+S to save")}</span>
+    </div>
   </div>
 
   <!-- Form Fields -->
