@@ -216,6 +216,7 @@ pub fn get_table_counts(app: AppHandle) -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn save_export_settings(
     app: AppHandle,
     user_id: i32,

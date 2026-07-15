@@ -855,6 +855,7 @@ impl AgentRepository {
 pub struct ExportRepository;
 
 impl ExportRepository {
+    #[allow(clippy::too_many_arguments)]
     pub fn save_export_settings(
         conn: &Connection,
         user_id: i32,

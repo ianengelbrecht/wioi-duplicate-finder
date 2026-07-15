@@ -180,24 +180,36 @@ pub fn get_connection(app: &AppHandle) -> std::result::Result<Connection, String
     Ok(conn)
 }
 
-fn get_last_quick_check_date(conn: &Connection) -> Option<NaiveDate> {
-    let query = "SELECT value FROM app_metadata WHERE key = 'last_quick_check';";
-    if let Ok(val_str) = conn.query_row(query, [], |r| r.get::<_, String>(0)) {
-        if val_str.len() >= 10 {
-            if let Ok(date) = NaiveDate::parse_from_str(&val_str[0..10], "%Y-%m-%d") {
-                return Some(date);
-            }
-        }
-    }
-    None
-}
-
 fn set_last_quick_check_datetime(conn: &Connection) {
     let now_str = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let _ = conn.execute(
         "INSERT OR REPLACE INTO app_metadata (key, value) VALUES ('last_quick_check', ?1);",
         [&now_str],
     );
+}
+
+fn is_clean_shutdown(conn: &Connection) -> bool {
+    let query = "SELECT value FROM app_metadata WHERE key = 'clean_shutdown';";
+    if let Ok(val_str) = conn.query_row(query, [], |r| r.get::<_, String>(0)) {
+        return val_str == "1";
+    }
+    false
+}
+
+fn set_clean_shutdown(conn: &Connection, clean: bool) {
+    let val = if clean { "1" } else { "0" };
+    let _ = conn.execute(
+        "INSERT OR REPLACE INTO app_metadata (key, value) VALUES ('clean_shutdown', ?1);",
+        [val],
+    );
+}
+
+fn is_reference_normalized(conn: &Connection) -> bool {
+    let query = "SELECT value FROM app_metadata WHERE key = 'reference_normalized';";
+    if let Ok(val_str) = conn.query_row(query, [], |r| r.get::<_, String>(0)) {
+        return val_str == "1";
+    }
+    false
 }
 
 /// Initializes the database on startup.
@@ -264,7 +276,7 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
     info!("Opened database at absolute path: {:?}", db_path);
     let mut conn = get_connection(app)?;
 
-    // Ensure app_metadata table exists so we can store quick check datetime
+    // Ensure app_metadata table exists so we can store metadata
     let _ = conn.execute(
         "CREATE TABLE IF NOT EXISTS app_metadata (
             key TEXT PRIMARY KEY,
@@ -273,16 +285,18 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
         [],
     );
 
-    // Run quick integrity check on startup only if not already run today and NOT a new database
-    if !is_new {
-        let today = Local::now().date_naive();
-        let last_check = get_last_quick_check_date(&conn);
-        let should_check = match last_check {
-            Some(date) => date != today,
-            None => true,
-        };
+    // If it's a brand new empty database, mark reference data as normalized
+    if is_new {
+        let _ = conn.execute(
+            "INSERT OR REPLACE INTO app_metadata (key, value) VALUES ('reference_normalized', '1');",
+            [],
+        );
+    }
 
-        if should_check {
+    // Run quick integrity check and FTS checks on startup only if not clean last shutdown and NOT a new database
+    if !is_new {
+        let is_clean = is_clean_shutdown(&conn);
+        if !is_clean {
             let _ = app.emit("db-init-progress", "Running database integrity checks...");
             info!("Running startup database integrity quick_check...");
             match conn.query_row("PRAGMA quick_check;", [], |r| r.get::<_, String>(0)) {
@@ -306,28 +320,7 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
                     ));
                 }
             }
-        } else {
-            info!("Skipping database quick_check on startup (already run today).");
-        }
-    }
 
-    // Setup tables
-    let _ = app.emit("db-init-progress", "Running database migrations...");
-    run_migrations(&mut conn).map_err(|e| e.to_string())?;
-
-    // Validate structure after running migrations if it was a new empty database
-    if is_new {
-        validate_database_file(&db_path).map_err(|e| format!("DATABASE_INVALID:{}", e))?;
-    } else {
-        // Run FTS integrity checks and auto-rebuild if corrupted (only once a day)
-        let today = Local::now().date_naive();
-        let last_check = get_last_quick_check_date(&conn);
-        let should_check = match last_check {
-            Some(date) => date != today,
-            None => true,
-        };
-
-        if should_check {
             let _ = app.emit("db-init-progress", "Running FTS search index checks...");
             info!("Running startup FTS index integrity checks...");
             if let Err(e) = conn.execute(
@@ -350,34 +343,32 @@ pub fn init_database(app: &AppHandle) -> std::result::Result<(), String> {
                     info!("Successfully rebuilt and repaired gbif_fts index!");
                 }
             }
-
-            if let Err(e) = conn.execute(
-                "INSERT INTO wcvp_taxonomy_fts(wcvp_taxonomy_fts) VALUES('integrity-check');",
-                [],
-            ) {
-                let _ = app.emit(
-                    "db-init-progress",
-                    "Rebuilding and repairing taxon name autocomplete index...",
-                );
-                warn!(
-                    "wcvp_taxonomy_fts index integrity check failed: {}. Attempting rebuild...",
-                    e
-                );
-                if let Err(rebuild_err) = conn.execute(
-                    "INSERT INTO wcvp_taxonomy_fts(wcvp_taxonomy_fts) VALUES('rebuild');",
-                    [],
-                ) {
-                    error!("Failed to rebuild wcvp_taxonomy_fts index: {}", rebuild_err);
-                } else {
-                    info!("Successfully rebuilt and repaired wcvp_taxonomy_fts index!");
-                }
-            }
+        } else {
+            info!(
+                "Skipping database integrity and FTS checks on startup (clean shutdown verified)."
+            );
         }
     }
 
+    // Set clean_shutdown to 0 on startup to mark it as active/running
+    set_clean_shutdown(&conn, false);
+
+    // Setup tables
+    let _ = app.emit("db-init-progress", "Running database migrations...");
+    run_migrations(&mut conn).map_err(|e| e.to_string())?;
+
+    // Validate structure after running migrations if it was a new empty database
+    if is_new {
+        validate_database_file(&db_path).map_err(|e| format!("DATABASE_INVALID:{}", e))?;
+    }
+
     // Auto-normalize imported CSV reference records if they exist and are empty
-    let _ = app.emit("db-init-progress", "Normalizing reference data...");
-    auto_normalize_reference_data(&mut conn).map_err(|e| e.to_string())?;
+    if !is_reference_normalized(&conn) {
+        let _ = app.emit("db-init-progress", "Normalizing reference data...");
+        auto_normalize_reference_data(&mut conn).map_err(|e| e.to_string())?;
+    } else {
+        info!("Skipping reference data normalization check (already normalized).");
+    }
 
     // Startup population of the agents table
     let _ = app.emit("db-init-progress", "Populating collector catalog...");
@@ -404,13 +395,16 @@ pub fn shutdown_database(app: &AppHandle) {
             Ok(res) => {
                 if res != "ok" {
                     warn!("Database quick_check failed on shutdown: {}", res);
+                    set_clean_shutdown(&conn, false);
                 } else {
                     info!("Database quick_check passed on shutdown.");
                     set_last_quick_check_datetime(&conn);
+                    set_clean_shutdown(&conn, true);
                 }
             }
             Err(e) => {
                 error!("Failed to run database quick_check on shutdown: {}", e);
+                set_clean_shutdown(&conn, false);
             }
         }
     }
@@ -1660,6 +1654,12 @@ pub fn auto_normalize_reference_data(conn: &mut Connection) -> Result<()> {
         info!("WCVP normalization completed!");
     }
 
+    // Mark reference data as normalized
+    let _ = conn.execute(
+        "INSERT OR REPLACE INTO app_metadata (key, value) VALUES ('reference_normalized', '1');",
+        [],
+    );
+
     Ok(())
 }
 
@@ -1731,6 +1731,12 @@ pub fn finalize_reference_import(conn: &mut Connection) -> std::result::Result<(
         .map_err(|e| e.to_string())?;
 
     populate_agents_table(conn, true).map_err(|e| e.to_string())?;
+
+    // Mark reference data as normalized
+    let _ = conn.execute(
+        "INSERT OR REPLACE INTO app_metadata (key, value) VALUES ('reference_normalized', '1');",
+        [],
+    );
 
     Ok(())
 }

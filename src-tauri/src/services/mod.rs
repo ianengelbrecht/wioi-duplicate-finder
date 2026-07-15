@@ -556,6 +556,7 @@ impl GeographyService {
 pub struct ExportService;
 
 impl ExportService {
+    #[allow(clippy::too_many_arguments)]
     pub fn save_export_settings(
         app: &AppHandle,
         user_id: i32,
