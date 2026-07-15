@@ -133,6 +133,10 @@ def bump_version(version: str, bump_type: str) -> str:
 
     raise RuntimeError(f"Unknown bump type: {bump_type}")
 
+def get_minor_release_version(version: str) -> str:
+    """Return the major.minor part of a semantic version."""
+    major, minor, _patch = parse_version(version)
+    return f"{major}.{minor}"
 
 # =============================================================================
 # VALIDATION
@@ -550,7 +554,10 @@ def main() -> None:
     if tag_exists_locally_or_remotely(DOCS_ROOT, tag):
         raise RuntimeError(f"Tag already exists in docs repository: {tag}")
 
-    validate_release_notes(new_version)
+    docs_release_version = get_minor_release_version(new_version)
+
+    if args.bump == "minor":
+        validate_release_notes(docs_release_version)
 
     print("\nRelease summary")
     print("=" * 60)
@@ -578,8 +585,10 @@ def main() -> None:
     update_cargo_toml(new_version)
 
     # Documentation updates.
-    publish_release_notes(new_version)
-    update_docs_release_json(new_version)
+    if args.bump == "minor":
+        publish_release_notes(docs_release_version)
+    
+    update_docs_release_json(docs_release_version)
 
     if args.data_also:
         update_docs_data_json(new_version)
