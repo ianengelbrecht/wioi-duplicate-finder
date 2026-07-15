@@ -130,6 +130,8 @@
   "settings-description": "Configure the reference data and settings for your herbarium.",
   "working-collection-code": "Working Collection Code",
   "export-format-sub": "(files are exported as comma separated values -- CSV).",
+  "initials-with-periods": "with full stops",
+  "initials-no-periods": "no full stops",
   "specimens-captured-heading": "Specimens Captured",
   "records-count": "records",
   "export-csv-btn": "Export CSV",

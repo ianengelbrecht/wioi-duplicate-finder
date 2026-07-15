@@ -130,6 +130,8 @@
   "settings-description": "Hamarino ny tahiry fototra sy ny fametrahana ho an'ny herbieranao.",
   "working-collection-code": "Kaodin'ny Fitambaram-bokatra miasa",
   "export-format-sub": "(ny lahatahiry dia avoaka amin'ny alalan'ny faingo -- CSV).",
+  "initials-with-periods": "amin'ny teboka feno",
+  "initials-no-periods": "tsy misy teboka feno",
   "specimens-captured-heading": "Santiona Voatahiry",
   "records-count": "tahiry",
   "export-csv-btn": "Hamoaka CSV",

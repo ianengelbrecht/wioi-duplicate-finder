@@ -130,6 +130,8 @@
   "settings-description": "Configure os dados de referência e as configurações do seu herbário.",
   "working-collection-code": "Código de Coleção de Trabalho",
   "export-format-sub": "(os arquivos são exportados como valores separados por vírgula -- CSV).",
+  "initials-with-periods": "com pontos finais",
+  "initials-no-periods": "sem pontos finais",
   "specimens-captured-heading": "Espécimes Capturados",
   "records-count": "registros",
   "export-csv-btn": "Exportar CSV",

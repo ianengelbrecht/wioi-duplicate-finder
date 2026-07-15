@@ -153,6 +153,7 @@
 
 <div class="p-4 border-b border-slate-300 bg-slate-50">
   <div class="flex flex-col gap-3">
+    
     <!-- Row 1: Collector, Collector No, Year, Month, Day (narrow date inputs) -->
     <div class="grid grid-cols-12 gap-3">
       <div class="col-span-4">
@@ -179,13 +180,17 @@
           autocomplete="off"
         />
       </div>
+
+      <!-- Date fields -->
       <div class="col-span-5 flex gap-2">
         <div class="flex-1">
-          <label for="search-year" data-i18n-key="year-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("year-label", "Year")}</label>
+          <label for="search-day" data-i18n-key="day-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("day-label", "Day")}</label>
           <input
-            id="search-year"
+            id="search-day"
             type="number"
-            bind:value={filters.year}
+            min="1"
+            max="31"
+            bind:value={filters.day}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
         </div>
@@ -201,13 +206,11 @@
           />
         </div>
         <div class="flex-1">
-          <label for="search-day" data-i18n-key="day-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("day-label", "Day")}</label>
+          <label for="search-year" data-i18n-key="year-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("year-label", "Year")}</label>
           <input
-            id="search-day"
+            id="search-year"
             type="number"
-            min="1"
-            max="31"
-            bind:value={filters.day}
+            bind:value={filters.year}
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
         </div>

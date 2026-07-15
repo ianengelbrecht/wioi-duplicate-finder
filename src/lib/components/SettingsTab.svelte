@@ -401,7 +401,7 @@
           onchange={() => settingsEdited = true}
           class="text-slate-800"
         />
-        <span>with periods</span>
+        <span>{t("initials-with-periods", "with full stops")}</span>
       </label>
       <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
         <input
@@ -412,7 +412,7 @@
           onchange={() => settingsEdited = true}
           class="text-slate-800"
         />
-        <span>no periods</span>
+        <span>{t("initials-no-periods", "no full stops")}</span>
       </label>
     </div>
     
