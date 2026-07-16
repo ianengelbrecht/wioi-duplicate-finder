@@ -378,18 +378,31 @@ def publish_release_notes(version: str) -> None:
             source_path,
         )
 
+    # we have to keep the indentation like this so that it works in the .md files
     new_next_content = """---
-        title: next
-        sidebar:
+    title: next
+    sidebar:
         hidden: true
-        ---
-        """
+---
+"""
 
-    for language, source_path in source_paths.items():
+    for language in DOCS_LANGUAGES:
+        source_path = source_paths[language]
         destination_path = destination_paths[language]
-        source_path.rename(destination_path)
-        destination_path.write_text(updated_contents[language], encoding="utf-8")
-        source_path.write_text(new_next_content, encoding="utf-8")
+
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Write the completed release page.
+        destination_path.write_text(
+            updated_contents[language],
+            encoding="utf-8",
+        )
+
+        # Replace next.md with a fresh template for every language.
+        source_path.write_text(
+            new_next_content,
+            encoding="utf-8",
+        )
 
 
 def update_docs_release_json(version: str) -> None:
