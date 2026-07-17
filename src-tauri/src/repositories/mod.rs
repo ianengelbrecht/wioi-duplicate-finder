@@ -262,7 +262,7 @@ impl SpecimenRepository {
                     islandGroup, island,
                     locality, locationRemarks, verbatimCoordinates, decimalLatitude, decimalLongitude, verbatimElevation, gridReference, habitat, occurrenceRemarks, fieldNotes,
                     typeStatus, identificationQualifier, scientificName, identifiedBy, yearIdentified, 
-                    monthIdentified, dayIdentified, identificationRemarks, taxonID, cultivated 
+                    monthIdentified, dayIdentified, identificationRemarks, taxonID, cultivated, recordSource 
              FROM captured_records 
              WHERE session_id = ?1 
              ORDER BY id DESC"
@@ -270,6 +270,7 @@ impl SpecimenRepository {
 
         let rows = stmt.query_map(params![session_id], |row| {
             let cultivated: Option<i32> = row.get(35)?;
+            let record_source: Option<String> = row.get(36)?;
             Ok(CapturedRecord {
                 id: Some(row.get(0)?),
                 session_id,
@@ -308,6 +309,7 @@ impl SpecimenRepository {
                 identification_remarks: row.get(33)?,
                 taxon_id: row.get(34)?,
                 cultivated: cultivated.unwrap_or(0) == 1,
+                record_source,
             })
         })?;
 
@@ -330,8 +332,8 @@ impl SpecimenRepository {
                     verbatimCoordinates=?18, decimalLatitude=?19, decimalLongitude=?20, verbatimElevation=?21, gridReference=?22, habitat=?23, 
                     occurrenceRemarks=?24, fieldNotes=?25, typeStatus=?26, identificationQualifier=?27, scientificName=?28, 
                     identifiedBy=?29, yearIdentified=?30, monthIdentified=?31, dayIdentified=?32, identificationRemarks=?33, 
-                    taxonID=?34, cultivated=?35
-                 WHERE id = ?36 AND session_id = ?37",
+                    taxonID=?34, cultivated=?35, recordSource=?36
+                 WHERE id = ?37 AND session_id = ?38",
                 params![
                     record.collection_code, record.catalog_number, record.duplicates, record.record_number, record.recorded_by,
                     record.verbatim_event_date, record.year, record.month, record.day, record.country,
@@ -339,7 +341,7 @@ impl SpecimenRepository {
                     record.verbatim_coordinates, record.decimal_latitude, record.decimal_longitude, record.verbatim_elevation, record.grid_reference, record.habitat,
                     record.occurrence_remarks, record.field_notes, record.type_status, record.identification_qualifier, record.scientific_name,
                     record.identified_by, record.year_identified, record.month_identified, record.day_identified, record.identification_remarks,
-                    record.taxon_id, cultivated_int, existing_id, record.session_id
+                    record.taxon_id, cultivated_int, record.record_source, existing_id, record.session_id
                 ]
             )?;
             Ok(existing_id)
@@ -351,15 +353,15 @@ impl SpecimenRepository {
                     islandGroup, island,
                     locality, locationRemarks, verbatimCoordinates, decimalLatitude, decimalLongitude, verbatimElevation, gridReference, habitat, occurrenceRemarks, fieldNotes,
                     typeStatus, identificationQualifier, scientificName, identifiedBy, yearIdentified,
-                    monthIdentified, dayIdentified, identificationRemarks, taxonID, cultivated
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35, ?36)",
+                    monthIdentified, dayIdentified, identificationRemarks, taxonID, cultivated, recordSource
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35, ?36, ?37)",
                 params![
                     record.session_id, record.collection_code, record.catalog_number, record.duplicates, record.record_number, record.recorded_by,
                     record.verbatim_event_date, record.year, record.month, record.day, record.country, record.state_province, record.county, record.municipality,
                     record.island_group, record.island,
                     record.locality, record.location_remarks, record.verbatim_coordinates, record.decimal_latitude, record.decimal_longitude, record.verbatim_elevation, record.grid_reference, record.habitat, record.occurrence_remarks, record.field_notes,
                     record.type_status, record.identification_qualifier, record.scientific_name, record.identified_by, record.year_identified,
-                    record.month_identified, record.day_identified, record.identification_remarks, record.taxon_id, cultivated_int
+                    record.month_identified, record.day_identified, record.identification_remarks, record.taxon_id, cultivated_int, record.record_source
                 ]
             )?;
             let new_id = conn.last_insert_rowid() as i32;

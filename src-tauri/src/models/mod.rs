@@ -64,6 +64,7 @@ pub struct CapturedRecord {
     #[serde(rename = "taxonID")]
     pub taxon_id: Option<String>,
     pub cultivated: bool,
+    pub record_source: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

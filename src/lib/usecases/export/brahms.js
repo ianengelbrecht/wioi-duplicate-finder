@@ -32,7 +32,7 @@ export function getBrahmsHeaders(options = {}) {
     "locality notes",
     "habitat/site description",
     "plant description", "cultivated",
-    "general notes"
+    "general notes", "recordSource"
   );
   return headers;
 }
@@ -149,7 +149,8 @@ export function mapBrahmsRecord(rec, options = {}) {
     rec.habitat || "", // habitat/site description
     rec.fieldNotes || "", // plant description
     rec.cultivated ? "true" : "false", // cultivated
-    generalNotes
+    generalNotes,
+    rec.recordSource || ""
   );
 
   return row;

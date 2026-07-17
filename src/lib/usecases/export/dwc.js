@@ -44,7 +44,8 @@ export function getDwcHeaders() {
     "dwc:dateIdentified",
     "dwc:identificationRemarks",
     "dwc:taxonID",
-    "cultivated"
+    "cultivated",
+    "recordSource"
   ];
 }
 
@@ -108,6 +109,7 @@ export function mapDwcRecord(rec, options = {}) {
     formatISO8601Date(rec.yearIdentified, rec.monthIdentified, rec.dayIdentified),
     rec.identificationRemarks || "",
     rec.taxonID || "",
-    rec.cultivated ? "true" : "false"
+    rec.cultivated ? "true" : "false",
+    rec.recordSource || ""
   ];
 }

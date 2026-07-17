@@ -881,6 +881,7 @@ fn run_migrations(conn: &mut Connection) -> Result<()> {
             identificationRemarks TEXT,
             taxonID TEXT,
             cultivated INTEGER DEFAULT 0,
+            recordSource TEXT,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             modified_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
@@ -926,6 +927,21 @@ fn run_migrations(conn: &mut Connection) -> Result<()> {
     if !cr_grid_exists {
         let _ = conn.execute(
             "ALTER TABLE captured_records ADD COLUMN gridReference TEXT",
+            [],
+        );
+    }
+
+    let cr_source_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('captured_records') WHERE name='recordSource'",
+            [],
+            |r| r.get::<_, i32>(0).map(|c| c > 0),
+        )
+        .unwrap_or(false);
+
+    if !cr_source_exists {
+        let _ = conn.execute(
+            "ALTER TABLE captured_records ADD COLUMN recordSource TEXT",
             [],
         );
     }

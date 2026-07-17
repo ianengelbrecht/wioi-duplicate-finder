@@ -246,7 +246,7 @@
   }
 
   function handleSelectSearchResult(/** @type {any} */ rec) {
-    workspaceStore.activeRecord = { ...rec };
+    workspaceStore.activeRecord = { ...rec, recordSource: "duplicate" };
   }
 
   async function handleExportCSV() {

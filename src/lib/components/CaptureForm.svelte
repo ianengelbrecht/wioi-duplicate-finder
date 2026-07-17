@@ -82,7 +82,8 @@
     identificationRemarks: "",
     occurrenceRemarks: "",
     fieldNotes: "",
-    cultivated: false
+    cultivated: false,
+    recordSource: "manual"
   });
 
   let isGridCalculated = $state(false);
@@ -223,6 +224,7 @@
       form.occurrenceRemarks = activeRecord.occurrenceRemarks || "";
       form.fieldNotes = activeRecord.fieldNotes || "";
       form.cultivated = !!activeRecord.cultivated;
+      form.recordSource = activeRecord.recordSource || null;
       titleCasedStates = getInitialTrackingState();
       
       statusMessageKey = "";
@@ -420,7 +422,8 @@
       identificationRemarks: "",
       occurrenceRemarks: "",
       fieldNotes: "",
-      cultivated: false
+      cultivated: false,
+      recordSource: "manual"
     };
     isGridCalculated = false;
     activeRecord = null;
@@ -1182,6 +1185,7 @@
       }
 
       const mappedKeys = new Set();
+      form.recordSource = "json";
 
       // 1. catalogNumber
       if ("catalogNumber" in data) {
