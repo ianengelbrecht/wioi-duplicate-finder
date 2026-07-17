@@ -260,7 +260,7 @@ impl SpecimenRepository {
             "SELECT id, collectionCode, catalogNumber, duplicates, recordNumber, recordedBy, 
                     verbatimEventDate, year, month, day, country, stateProvince, county, municipality, 
                     islandGroup, island,
-                    locality, locationRemarks, verbatimCoordinates, decimalLatitude, decimalLongitude, verbatimElevation, habitat, occurrenceRemarks, fieldNotes,
+                    locality, locationRemarks, verbatimCoordinates, decimalLatitude, decimalLongitude, verbatimElevation, gridReference, habitat, occurrenceRemarks, fieldNotes,
                     typeStatus, identificationQualifier, scientificName, identifiedBy, yearIdentified, 
                     monthIdentified, dayIdentified, identificationRemarks, taxonID, cultivated 
              FROM captured_records 
@@ -269,7 +269,7 @@ impl SpecimenRepository {
         )?;
 
         let rows = stmt.query_map(params![session_id], |row| {
-            let cultivated: Option<i32> = row.get(34)?;
+            let cultivated: Option<i32> = row.get(35)?;
             Ok(CapturedRecord {
                 id: Some(row.get(0)?),
                 session_id,
@@ -294,18 +294,19 @@ impl SpecimenRepository {
                 decimal_latitude: row.get(19)?,
                 decimal_longitude: row.get(20)?,
                 verbatim_elevation: row.get(21)?,
-                habitat: row.get(22)?,
-                occurrence_remarks: row.get(23)?,
-                field_notes: row.get(24)?,
-                type_status: row.get(25)?,
-                identification_qualifier: row.get(26)?,
-                scientific_name: row.get(27)?,
-                identified_by: row.get(28)?,
-                year_identified: row.get(29)?,
-                month_identified: row.get(30)?,
-                day_identified: row.get(31)?,
-                identification_remarks: row.get(32)?,
-                taxon_id: row.get(33)?,
+                grid_reference: row.get(22)?,
+                habitat: row.get(23)?,
+                occurrence_remarks: row.get(24)?,
+                field_notes: row.get(25)?,
+                type_status: row.get(26)?,
+                identification_qualifier: row.get(27)?,
+                scientific_name: row.get(28)?,
+                identified_by: row.get(29)?,
+                year_identified: row.get(30)?,
+                month_identified: row.get(31)?,
+                day_identified: row.get(32)?,
+                identification_remarks: row.get(33)?,
+                taxon_id: row.get(34)?,
                 cultivated: cultivated.unwrap_or(0) == 1,
             })
         })?;
@@ -326,16 +327,16 @@ impl SpecimenRepository {
                     collectionCode=?1, catalogNumber=?2, duplicates=?3, recordNumber=?4, recordedBy=?5,
                     verbatimEventDate=?6, year=?7, month=?8, day=?9, country=?10,
                     stateProvince=?11, county=?12, municipality=?13, islandGroup=?14, island=?15, locality=?16, locationRemarks=?17,
-                    verbatimCoordinates=?18, decimalLatitude=?19, decimalLongitude=?20, verbatimElevation=?21, habitat=?22, 
-                    occurrenceRemarks=?23, fieldNotes=?24, typeStatus=?25, identificationQualifier=?26, scientificName=?27, 
-                    identifiedBy=?28, yearIdentified=?29, monthIdentified=?30, dayIdentified=?31, identificationRemarks=?32, 
-                    taxonID=?33, cultivated=?34
-                 WHERE id = ?35 AND session_id = ?36",
+                    verbatimCoordinates=?18, decimalLatitude=?19, decimalLongitude=?20, verbatimElevation=?21, gridReference=?22, habitat=?23, 
+                    occurrenceRemarks=?24, fieldNotes=?25, typeStatus=?26, identificationQualifier=?27, scientificName=?28, 
+                    identifiedBy=?29, yearIdentified=?30, monthIdentified=?31, dayIdentified=?32, identificationRemarks=?33, 
+                    taxonID=?34, cultivated=?35
+                 WHERE id = ?36 AND session_id = ?37",
                 params![
                     record.collection_code, record.catalog_number, record.duplicates, record.record_number, record.recorded_by,
                     record.verbatim_event_date, record.year, record.month, record.day, record.country,
                     record.state_province, record.county, record.municipality, record.island_group, record.island, record.locality, record.location_remarks,
-                    record.verbatim_coordinates, record.decimal_latitude, record.decimal_longitude, record.verbatim_elevation, record.habitat,
+                    record.verbatim_coordinates, record.decimal_latitude, record.decimal_longitude, record.verbatim_elevation, record.grid_reference, record.habitat,
                     record.occurrence_remarks, record.field_notes, record.type_status, record.identification_qualifier, record.scientific_name,
                     record.identified_by, record.year_identified, record.month_identified, record.day_identified, record.identification_remarks,
                     record.taxon_id, cultivated_int, existing_id, record.session_id
@@ -348,15 +349,15 @@ impl SpecimenRepository {
                     session_id, collectionCode, catalogNumber, duplicates, recordNumber, recordedBy,
                     verbatimEventDate, year, month, day, country, stateProvince, county, municipality,
                     islandGroup, island,
-                    locality, locationRemarks, verbatimCoordinates, decimalLatitude, decimalLongitude, verbatimElevation, habitat, occurrenceRemarks, fieldNotes,
+                    locality, locationRemarks, verbatimCoordinates, decimalLatitude, decimalLongitude, verbatimElevation, gridReference, habitat, occurrenceRemarks, fieldNotes,
                     typeStatus, identificationQualifier, scientificName, identifiedBy, yearIdentified,
                     monthIdentified, dayIdentified, identificationRemarks, taxonID, cultivated
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35)",
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35, ?36)",
                 params![
                     record.session_id, record.collection_code, record.catalog_number, record.duplicates, record.record_number, record.recorded_by,
                     record.verbatim_event_date, record.year, record.month, record.day, record.country, record.state_province, record.county, record.municipality,
                     record.island_group, record.island,
-                    record.locality, record.location_remarks, record.verbatim_coordinates, record.decimal_latitude, record.decimal_longitude, record.verbatim_elevation, record.habitat, record.occurrence_remarks, record.field_notes,
+                    record.locality, record.location_remarks, record.verbatim_coordinates, record.decimal_latitude, record.decimal_longitude, record.verbatim_elevation, record.grid_reference, record.habitat, record.occurrence_remarks, record.field_notes,
                     record.type_status, record.identification_qualifier, record.scientific_name, record.identified_by, record.year_identified,
                     record.month_identified, record.day_identified, record.identification_remarks, record.taxon_id, cultivated_int
                 ]

@@ -63,6 +63,14 @@ export function mapDwcRecord(rec, options = {}) {
     dwcLocationRemarks = dwcLocationRemarks ? `${dwcLocationRemarks}; cultivated` : "cultivated";
   }
 
+  let locality = rec.locality || "";
+  if (rec.gridReference && rec.gridReference.trim()) {
+    const grid = rec.gridReference.trim();
+    if (!locality.includes(grid)) {
+      locality = locality ? `${locality} [${grid}]` : grid;
+    }
+  }
+
   return [
     rec.collectionCode || "",
     rec.catalogNumber || "",
@@ -79,7 +87,7 @@ export function mapDwcRecord(rec, options = {}) {
     rec.municipality || "",
     rec.islandGroup || "",
     rec.island || "",
-    rec.locality || "",
+    locality,
     dwcLocationRemarks, // locationRemarks maps to locationNotes in UI record
     rec.verbatimCoordinates || "",
     rec.decimalLatitude !== null && rec.decimalLatitude !== undefined ? rec.decimalLatitude : "",

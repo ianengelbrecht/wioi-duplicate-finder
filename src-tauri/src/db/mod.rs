@@ -867,6 +867,7 @@ fn run_migrations(conn: &mut Connection) -> Result<()> {
             decimalLatitude REAL,
             decimalLongitude REAL,
             verbatimElevation TEXT,
+            gridReference TEXT,
             habitat TEXT,
             occurrenceRemarks TEXT,
             fieldNotes TEXT,
@@ -912,6 +913,18 @@ fn run_migrations(conn: &mut Connection) -> Result<()> {
 
     if !cr_island_exists {
         let _ = conn.execute("ALTER TABLE captured_records ADD COLUMN island TEXT", []);
+    }
+
+    let cr_grid_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('captured_records') WHERE name='gridReference'",
+            [],
+            |r| r.get::<_, i32>(0).map(|c| c > 0),
+        )
+        .unwrap_or(false);
+
+    if !cr_grid_exists {
+        let _ = conn.execute("ALTER TABLE captured_records ADD COLUMN gridReference TEXT", []);
     }
 
     conn.execute(

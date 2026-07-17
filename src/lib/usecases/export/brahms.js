@@ -76,14 +76,7 @@ export function mapBrahmsRecord(rec, options = {}) {
   const ns = hasLat ? (Number(rec.decimalLatitude) >= 0 ? "N" : "S") : "";
   const ew = hasLon ? (Number(rec.decimalLongitude) >= 0 ? "E" : "W") : "";
 
-  let qdsVal = "";
-  if (includeQDS) {
-    try {
-      qdsVal = coordsToQDS(rec.decimalLatitude, rec.decimalLongitude) || "";
-    } catch (e) {
-      qdsVal = "";
-    }
-  }
+  const qdsVal = rec.gridReference || "";
 
   const elevParts = parseElevation(rec.verbatimElevation);
   const alt = elevParts.elevation !== null && elevParts.elevation !== undefined ? elevParts.elevation : "";

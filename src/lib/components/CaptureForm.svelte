@@ -9,12 +9,14 @@
   import AaIcon from "./icons/AaIcon.svelte";
   import UndoIcon from "./icons/UndoIcon.svelte";
   import CheckIcon from "./icons/CheckIcon.svelte";
+  import SearchIcon from "./icons/SearchIcon.svelte";
   import { specimenService } from "../services/specimenService.js";
   import { taxonomyService } from "../services/taxonomyService.js";
   import { agentService } from "../services/agentService.js";
   import { geographyService } from "../services/geographyService.js";
   import { isValidPartialDate, comparePartialDates } from "../utils/isValidPartialDate.js";
   import { splitNames } from "../utils/splitNames.js";
+  import { coordsToQDS } from "../utils/coordsToQDS.js";
   import { getDuplicateSuggestions } from "../utils/duplicates.js";
   import { titleCaseField, undoTitleCaseField, getInitialTrackingState } from "../utils/titleCaseHelper.js";
   import { copySelectedOrValue, pasteAtCursor } from "../utils/clipboard.js";
@@ -67,6 +69,7 @@
     locationNotes: "", // Mapped to locationRemarks
     verbatimLocality: "",
     verbatimElevation: "",
+    gridReference: "",
     habitat: "",
     identificationQualifier: "",
     scientificName: "",
@@ -81,6 +84,8 @@
     fieldNotes: "",
     cultivated: false
   });
+
+  let isGridCalculated = $state(false);
 
   let placeholders = $derived(getPlaceholders(workspaceStore.homeCountry, currentLanguage));
 
@@ -176,6 +181,8 @@
       form.locationNotes = activeRecord.locationNotes || activeRecord.locationRemarks || "";
       form.verbatimLocality = activeRecord.verbatimLocality || "";
       form.verbatimElevation = activeRecord.verbatimElevation || "";
+      form.gridReference = activeRecord.gridReference || "";
+      isGridCalculated = false;
       form.habitat = activeRecord.habitat || "";
       form.identificationQualifier = activeRecord.identificationQualifier || "";
       form.scientificName = activeRecord.scientificName || "";
@@ -377,6 +384,7 @@
       locationNotes: "",
       verbatimLocality: "",
       verbatimElevation: "",
+      gridReference: "",
       habitat: "",
       identificationQualifier: "",
       scientificName: "",
@@ -391,6 +399,7 @@
       fieldNotes: "",
       cultivated: false
     };
+    isGridCalculated = false;
     activeRecord = null;
     statusMessageKey = "";
     statusMessageDefault = "";
@@ -434,6 +443,8 @@
     form.locationNotes = lastSavedRecord.locationNotes;
     form.verbatimLocality = lastSavedRecord.verbatimLocality;
     form.verbatimElevation = lastSavedRecord.verbatimElevation;
+    form.gridReference = lastSavedRecord.gridReference || "";
+    isGridCalculated = false;
     form.habitat = lastSavedRecord.habitat;
     form.identificationQualifier = lastSavedRecord.identificationQualifier;
     form.scientificName = lastSavedRecord.scientificName;
@@ -586,8 +597,13 @@
   let islandGroupSuggestions = $state([]);
   /** @type {string[]} */
   let islandSuggestions = $state([]);
-  /** @type {string[]} */
-  let localitySuggestions = $state([]);
+  let showLocalitySearchDialog = $state(false);
+  /** @type {string} */
+  let dialogSearchQuery = $state("");
+  /** @type {any[]} */
+  let dialogLocalitySuggestions = $state([]);
+  /** @type {any} */
+  let dialogSearchInputRef = $state(null);
 
   let isAnyGeoPopulated = $derived(
     !!((form.country && form.country.trim().length > 0) ||
@@ -645,7 +661,7 @@
     }
   }
 
-  /** @type {HTMLInputElement|null} */
+  /** @type {HTMLTextAreaElement|null} */
   let localityInputRef = $state(null);
   let localityCopied = $state(false);
   /** @type {any} */
@@ -710,6 +726,10 @@
       coordinatesError = false;
       form.decimalLatitude = "";
       form.decimalLongitude = "";
+      if (isGridCalculated) {
+        form.gridReference = "";
+        isGridCalculated = false;
+      }
       return;
     }
     try {
@@ -718,9 +738,26 @@
         coordinatesError = false;
         form.decimalLatitude = String(result.decimalLatitude);
         form.decimalLongitude = String(result.decimalLongitude);
+
+        // Calculate QDS if not populated
+        if (!form.gridReference || form.gridReference.trim() === "") {
+          try {
+            const calculated = coordsToQDS(form.decimalLatitude, form.decimalLongitude);
+            if (calculated) {
+              form.gridReference = calculated;
+              isGridCalculated = true;
+            }
+          } catch (err) {
+            console.error("Error calculating QDS from coordinates:", err);
+          }
+        }
       }
     } catch (e) {
       coordinatesError = true;
+      if (isGridCalculated) {
+        form.gridReference = "";
+        isGridCalculated = false;
+      }
     }
   }
 
@@ -825,16 +862,27 @@
     }
   }
 
+  function handleSearchLocality() {
+    showLocalitySearchDialog = true;
+    dialogSearchQuery = "";
+    dialogLocalitySuggestions = [];
+    setTimeout(() => {
+      if (dialogSearchInputRef) {
+        dialogSearchInputRef.focus();
+      }
+    }, 50);
+  }
+
   /**
    * @param {string} val
    */
-  async function handleLocalityInput(val) {
+  async function handleDialogLocalityInput(val) {
     if (val.trim().length < 2) {
-      localitySuggestions = [];
+      dialogLocalitySuggestions = [];
       return;
     }
     try {
-      localitySuggestions = await geographyService.autocompleteLocality(val);
+      dialogLocalitySuggestions = await geographyService.autocompleteLocality(val);
     } catch (e) {
       console.error(e);
     }
@@ -843,9 +891,12 @@
   /**
    * @param {any} suggestion
    */
-  function handleLocalitySelect(suggestion) {
+  function handleDialogLocalitySelect(suggestion) {
     if (!suggestion || typeof suggestion === "string") return;
 
+    if (suggestion.locality) {
+      form.locality = suggestion.locality;
+    }
     if (suggestion.country) {
       form.country = suggestion.country;
     }
@@ -863,7 +914,24 @@
       form.decimalLatitude = suggestion.decimalLatitude !== null && suggestion.decimalLatitude !== undefined ? String(suggestion.decimalLatitude) : "";
       form.decimalLongitude = suggestion.decimalLongitude !== null && suggestion.decimalLongitude !== undefined ? String(suggestion.decimalLongitude) : "";
       coordinatesError = false;
+
+      // Calculate QDS if not populated
+      if (!form.gridReference || form.gridReference.trim() === "") {
+        try {
+          const calculated = coordsToQDS(form.decimalLatitude, form.decimalLongitude);
+          if (calculated) {
+            form.gridReference = calculated;
+            isGridCalculated = true;
+          }
+        } catch (err) {
+          console.error("Error calculating QDS from suggestion coordinates:", err);
+        }
+      }
     }
+
+    showLocalitySearchDialog = false;
+    dialogSearchQuery = "";
+    dialogLocalitySuggestions = [];
   }
 
   /**
@@ -1050,6 +1118,7 @@
     statusMessageKey = "";
     statusMessageDefault = "";
     statusType = "";
+    isGridCalculated = false;
 
     try {
       const text = await navigator.clipboard.readText();
@@ -1193,6 +1262,19 @@
         mappedKeys.add("verbatimLocality");
       }
 
+      // 8.5 gridReference
+      if ("gridReference" in data && data.gridReference !== null && data.gridReference !== undefined && String(data.gridReference).trim() !== "") {
+        form.gridReference = String(data.gridReference);
+        mappedKeys.add("gridReference");
+      } else if ("grid" in data && data.grid !== null && data.grid !== undefined && String(data.grid).trim() !== "") {
+        form.gridReference = String(data.grid);
+        mappedKeys.add("grid");
+      } else {
+        form.gridReference = "";
+        if ("gridReference" in data) mappedKeys.add("gridReference");
+        if ("grid" in data) mappedKeys.add("grid");
+      }
+
       // 9. verbatimCoordinates & decimalLatitude/decimalLongitude
       if ("verbatimCoordinates" in data) {
         form.verbatimCoordinates = data.verbatimCoordinates !== null && data.verbatimCoordinates !== undefined ? String(data.verbatimCoordinates) : "";
@@ -1212,6 +1294,18 @@
         if (hasLat && hasLon && form.decimalLatitude && form.decimalLongitude) {
           form.verbatimCoordinates = `${form.decimalLatitude}, ${form.decimalLongitude}`;
           coordinatesError = false;
+          // Calculate QDS if not populated
+          if (!form.gridReference || form.gridReference.trim() === "") {
+            try {
+              const calculated = coordsToQDS(form.decimalLatitude, form.decimalLongitude);
+              if (calculated) {
+                form.gridReference = calculated;
+                isGridCalculated = true;
+              }
+            } catch (err) {
+              console.error("Error calculating QDS from pasted coordinates:", err);
+            }
+          }
         }
       }
 
@@ -1919,22 +2013,14 @@
         <label for="capture-locality" data-i18n-key="locality-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("locality-label", "Locality (Gazetteer)")}</label>
         <div class="relative flex items-center ">
           <div class="w-full">
-            <Autocomplete
+            <textarea
               id="capture-locality"
-              label=""
               placeholder={placeholders.locality}
-              placeholderKey=""
               bind:value={form.locality}
-              suggestions={localitySuggestions}
-              oninput={handleLocalityInput}
-              onselect={handleLocalitySelect}
-              displayKey="locality"
-              delay={300}
-              bind:inputRef={localityInputRef}
-              extraInputClass="pr-20"
-              useTextArea={true}
-              textAreaRows={2}
-            />
+              bind:this={localityInputRef}
+              rows="2"
+              class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all pr-24"
+            ></textarea>
           </div>
           
           <!-- Buttons -->
@@ -1984,6 +2070,11 @@
                 <AaIcon />
               </button>
             {/if}
+          </div>
+          <div class="absolute right-0 -top-8 flex items-center justify-center" >
+          <button id="search-locality-button" type="button" onclick={handleSearchLocality} title={t("search-locality-title", "Search Locality")} class="w-8 h-8 p-1 text-slate-400 hover:text-slate-600  transition-colors cursor-pointer rounded hover:bg-slate-100">
+            <SearchIcon />
+          </button>
           </div>
         </div>
       </div>
@@ -2122,7 +2213,48 @@
         </div>
       </div>
 
-      <!-- Verbatim Elevation and Habitat -->
+      <!-- Habitat -->
+      <div class="w-full">
+        <label for="capture-habitat" data-i18n-key="habitat-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("habitat-label", "Habitat")}</label>
+        <div class="relative flex items-center">
+          <input
+            id="capture-habitat"
+            data-i18n-key="habitat-placeholder"
+            type="text"
+            placeholder={t("habitat-placeholder", "eg Tapia woodland")}
+            bind:value={form.habitat}
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all pr-12"
+          />
+          <div class="absolute right-5 flex items-center gap-1 z-100">
+
+            {#if form.habitat === titleCasedStates.habitat.titleCased && titleCasedStates.habitat.titleCased !== ""}
+              <button
+                type="button"
+                onclick={() => undoTitleCaseField(form, titleCasedStates, "habitat")}
+                data-i18n-key="undo-title-case"
+                title={t("undo-title-case", "Undo Casing")}
+                class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                <UndoIcon />
+              </button>
+            {:else}
+              <button
+                type="button"
+                onclick={() => titleCaseField(form, titleCasedStates, "habitat")}
+                data-i18n-key="title-case-habitat"
+                title={t("title-case-habitat", "Title case Habitat")}
+                class="w-6 h-6 p-1.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
+                tabindex="-1"
+              >
+                <AaIcon />
+              </button>
+            {/if}
+          </div>
+        </div>
+      </div>
+
+      <!-- Verbatim Elevation and grid reference -->
       <div class="grid grid-cols-12 gap-3">
         <div class="col-span-4">
           <label for="capture-verbatimElevation" data-i18n-key="verbatim-elevation-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("verbatim-elevation-label", "Verbatim Elevation")}</label>
@@ -2135,44 +2267,20 @@
             class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
           />
         </div>
-        <div class="col-span-8">
-          <label for="capture-habitat" data-i18n-key="habitat-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("habitat-label", "Habitat")}</label>
-          <div class="relative flex items-center">
-            <input
-              id="capture-habitat"
-              data-i18n-key="habitat-placeholder"
-              type="text"
-              placeholder={t("habitat-placeholder", "eg Tapia woodland")}
-              bind:value={form.habitat}
-              class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all pr-12"
-            />
-            <div class="absolute right-5 flex items-center gap-1 z-100">
-
-              {#if form.habitat === titleCasedStates.habitat.titleCased && titleCasedStates.habitat.titleCased !== ""}
-                <button
-                  type="button"
-                  onclick={() => undoTitleCaseField(form, titleCasedStates, "habitat")}
-                  data-i18n-key="undo-title-case"
-                  title={t("undo-title-case", "Undo Casing")}
-                  class="w-6 h-6 p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
-                  tabindex="-1"
-                >
-                  <UndoIcon />
-                </button>
-              {:else}
-                <button
-                  type="button"
-                  onclick={() => titleCaseField(form, titleCasedStates, "habitat")}
-                  data-i18n-key="title-case-habitat"
-                  title={t("title-case-habitat", "Title case Habitat")}
-                  class="w-6 h-6 p-1.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded hover:bg-slate-100"
-                  tabindex="-1"
-                >
-                  <AaIcon />
-                </button>
-              {/if}
-            </div>
-          </div>
+        <div class="relative col-span-4">
+          <label for="capture-grid" data-i18n-key="grid-label" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">{t("grid-label", "Grid reference")}</label>
+          <input
+            id="capture-grid"
+            data-i18n-key="grid-placeholder"
+            type="text"
+            placeholder={t("grid-placeholder", "eg 2432CD")}
+            bind:value={form.gridReference}
+            oninput={() => isGridCalculated = false}
+            class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          />
+          {#if isGridCalculated && form.gridReference}
+            <div class="absolute text-[10px] text-emerald-800 font-semibold uppercase px-1 py-px bg-emerald-100 rounded top-0 right-0">{t("grid-calculated-badge", "calc.")}</div>
+          {/if}
         </div>
       </div>
     </div>
@@ -2353,3 +2461,64 @@
     </button>
   </div>
 </div>
+
+{#if showLocalitySearchDialog}
+  <div 
+    class="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
+    role="dialog"
+    aria-modal="true"
+    tabindex="-1"
+    onclick={(e) => { if (e.target === e.currentTarget) showLocalitySearchDialog = false; }}
+    onkeydown={(e) => { 
+      if (e.key === "Escape") {
+        e.preventDefault();
+        showLocalitySearchDialog = false; 
+      }
+    }}
+  >
+    <div class="bg-white border border-slate-200 shadow-2xl max-w-lg w-full p-5 flex flex-col gap-4 rounded-none min-h-[350px]">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+        <h3 class="font-bold text-slate-800 text-sm uppercase tracking-wider">{t("search-locality-dialog-title", "Search Locality (Gazetteer)")}</h3>
+        <button 
+          type="button" 
+          onclick={() => { showLocalitySearchDialog = false; }}
+          title={t("close-btn", "Close")}
+          class="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="flex-1 relative pb-20">
+        <Autocomplete
+          id="dialog-locality-search"
+          label={t("search-locality-input-label", "Search Locality")}
+          placeholder={t("search-locality-placeholder", "Start typing to search...")}
+          bind:value={dialogSearchQuery}
+          suggestions={dialogLocalitySuggestions}
+          oninput={handleDialogLocalityInput}
+          onselect={handleDialogLocalitySelect}
+          displayKey="locality"
+          delay={300}
+          bind:inputRef={dialogSearchInputRef}
+          useTextArea={false}
+        />
+        <p class="text-xs text-slate-400 mt-2">
+          {t("search-locality-help", "Type at least 2 characters to search the gazetteer database. Select a locality to populate form fields.")}
+        </p>
+      </div>
+
+      <div class="flex justify-end gap-2 border-t border-slate-100 pt-3">
+        <button
+          type="button"
+          onclick={() => { showLocalitySearchDialog = false; }}
+          class="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 border border-slate-200 transition-colors cursor-pointer rounded-none"
+        >
+          {t("close-btn", "Close")}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

@@ -49,6 +49,7 @@ pub struct CapturedRecord {
     pub decimal_latitude: Option<f64>,
     pub decimal_longitude: Option<f64>,
     pub verbatim_elevation: Option<String>,
+    pub grid_reference: Option<String>,
     pub habitat: Option<String>,
     pub occurrence_remarks: Option<String>,
     pub field_notes: Option<String>,
