@@ -271,7 +271,7 @@
   }
 </script>
 
-<div class="space-y-6">
+<div class="flex flex-col gap-4 min-h-0">
   <div>
     <h2 data-i18n-key="application-settings" class="text-md font-bold text-slate-900 uppercase tracking-wide font-outfit">{t("application-settings", "Application settings")}</h2>
     <p data-i18n-key="settings-description" class="text-xs text-slate-500 mt-1 font-inter">{t("settings-description", "Configure the collection code and export format for your herbarium.")}</p>
@@ -295,325 +295,329 @@
     </div>
   {/if}
 
-  <!-- Home Country & Collection Code Setting -->
-  <div class="flex flex-col sm:flex-row gap-4 pt-2 border-t border-slate-100">
-    <!-- Home Country Selection -->
-    <div class="space-y-2 flex-1 sm:max-w-[280px]">
-      <label for="settings-homeCountry" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">{t("home-country", "Home Country")}</label>
-      <select
-        id="settings-homeCountry"
-        bind:value={workspaceStore.homeCountry}
-        onchange={() => settingsEdited = true}
-        class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all cursor-pointer"
-      >
-        <option value="">{t("select-country-default", "-- Select Home Country --")}</option>
-        {#each Object.keys(COUNTRY_DATA) as countryName}
-          <option value={countryName}>{countryName}</option>
-        {/each}
-      </select>
-    </div>
+  <div class="h-full flex flex-col gap-4 overflow-y-auto">
 
-    <!-- Working Collection Code -->
-    <div class="space-y-2 flex-1 sm:max-w-[280px]">
-      <label for="settings-collectionCode" data-i18n-key="working-collection-code" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">{t("working-collection-code", "Working Collection Code")}</label>
-      <input
-        id="settings-collectionCode"
-        type="text"
-        placeholder="e.g. TAN"
-        bind:value={workspaceStore.workingCollectionCode}
-        onchange={() => settingsEdited = true}
-        onkeyup={(e) => /^[a-zA-Z]$/.test(e.key) && (settingsEdited = true)}
-        class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
-      />
-    </div>
-  </div>
-
-  <!-- Preferred Date Format Setting -->
-  <div class="space-y-2 pt-2 border-t border-slate-100">
-    <div>
-      <span data-i18n-key="preferred-date-format" class="text-xs font-bold text-slate-700 uppercase tracking-wider">{t("preferred-date-format", "Preferred Date Format")}</span>
-      <span data-i18n-key="preferred-date-format-sub" class="text-xs text-slate-500">{t("preferred-date-format-sub", "(used as the default format when parsing verbatim dates).")}</span>
-    </div>
-    
-    <div class="flex gap-4">
-      <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
-        <input
-          type="radio"
-          name="preferred-date-format"
-          value="en-GB"
-          bind:group={workspaceStore.preferredDateFormat}
+    <!-- Home Country & Collection Code Setting -->
+    <div class="flex flex-col sm:flex-row gap-4 pt-2 border-t border-slate-100">
+      <!-- Home Country Selection -->
+      <div class="space-y-2 flex-1 sm:max-w-[280px]">
+        <label for="settings-homeCountry" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">{t("home-country", "Home Country")}</label>
+        <select
+          id="settings-homeCountry"
+          bind:value={workspaceStore.homeCountry}
           onchange={() => settingsEdited = true}
-          class="text-slate-800"
-        />
-        <span>dd/MM/yyyy (GB)</span>
-      </label>
-      <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
-        <input
-          type="radio"
-          name="preferred-date-format"
-          value="en-US"
-          bind:group={workspaceStore.preferredDateFormat}
-          onchange={() => settingsEdited = true}
-          class="text-slate-800"
-        />
-        <span>M/d/yyyy (US)</span>
-      </label>
-    </div>
-  </div>
-
-  <!-- Format Choice -->
-  <div class="space-y-2">
-    <div>
-      <span data-i18n-key="export-format" class="text-xs font-bold text-slate-700 uppercase tracking-wider">{t("export-format", "Export Format ")}</span>
-      <span data-i18n-key="export-format-sub" class="text-xs text-slate-500">{t("export-format-sub", "(files are exported as comma separated values -- CSV).")}</span>
-    </div>
-    
-    <div class="flex gap-4">
-      <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
-        <input
-          type="radio"
-          name="export-format"
-          value="DwC"
-          bind:group={workspaceStore.exportFormat}
-          onchange={() => settingsEdited = true}
-          class="text-slate-800"
-        />
-        <span>Darwin Core</span>
-      </label>
-      <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
-        <input
-          type="radio"
-          name="export-format"
-          value="BRAHMS"
-          bind:group={workspaceStore.exportFormat}
-          onchange={() => settingsEdited = true}
-          class="text-slate-800"
-        />
-        <span>BRAHMS7</span>
-      </label>
-    </div>
-  </div>
-
-  <!-- Grid Reference & Islands Setting -->
-  <div class="flex flex-col sm:flex-row sm:items-center gap-6 pt-2">
-    <label class="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wider cursor-pointer">
-      <input
-        id="settings-qds"
-        type="checkbox"
-        bind:checked={workspaceStore.includeGridReference}
-        onchange={() => settingsEdited = true}
-        class="w-4 h-4 accent-slate-900 text-slate-855 border-slate-300 rounded focus:ring-slate-500 focus:ring-1 cursor-pointer"
-      />
-      <span data-i18n-key="include-qds-label">{t("include-qds-label", "Include grid reference (QDS)")}</span>
-    </label>
-
-    <label class="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wider cursor-pointer">
-      <input
-        id="settings-islands"
-        type="checkbox"
-        bind:checked={workspaceStore.includeIslands}
-        onchange={() => settingsEdited = true}
-        class="w-4 h-4 accent-slate-900 text-slate-855 border-slate-300 rounded focus:ring-slate-500 focus:ring-1 cursor-pointer"
-      />
-      <span data-i18n-key="include-islands-label">{t("include-islands-label", "Include islands")}</span>
-    </label>
-  </div>
-
-  <!-- Collector Names Initials Period Setting -->
-  <div class="space-y-2 pt-2 border-t border-slate-100 bg-white rounded-none">
-    <div>
-      <span class="text-xs font-bold text-slate-700 uppercase tracking-wider">Collector names:</span>
-    </div>
-    
-    <div class="flex gap-4">
-      <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
-        <input
-          type="radio"
-          name="initials-require-periods"
-          value={true}
-          bind:group={workspaceStore.initialsRequirePeriods}
-          onchange={() => settingsEdited = true}
-          class="text-slate-800"
-        />
-        <span>{t("initials-with-periods", "with full stops")}</span>
-      </label>
-      <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
-        <input
-          type="radio"
-          name="initials-require-periods"
-          value={false}
-          bind:group={workspaceStore.initialsRequirePeriods}
-          onchange={() => settingsEdited = true}
-          class="text-slate-800"
-        />
-        <span>{t("initials-no-periods", "no full stops")}</span>
-      </label>
-    </div>
-    
-    <div class="text-xs text-slate-600 font-medium">
-      Example: <span class="font-mono bg-slate-100 px-1 py-0.5 rounded">{workspaceStore.initialsRequirePeriods ? "Jones, A.W.C." : "Jones, AWC"}</span>
-    </div>
-    
-    <div class="text-[10px] text-slate-500 italic">
-      captured collector names must have format [family name], [initials], with the comma.
-    </div>
-  </div>
-
-  <!-- Reference Dataset Setting -->
-  <div class="space-y-2 pt-2 border-t border-slate-100 bg-white rounded-none">
-    <div class="">
-      <h3 data-i18n-key="reference-dataset" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-        {t("reference-dataset", "Reference Dataset")}
-      </h3>
-    </div>
-
-    <!-- Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-3 border border-slate-200">
-      <div>
-        <div data-i18n-key="record-count-label" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-inter">
-          {t("record-count-label", "Total Records")}
-        </div>
-        <div class="text-lg font-bold text-slate-900 mt-0.5 font-outfit">
-          {loadingMetadata ? "..." : recordCount.toLocaleString()}
-        </div>
+          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all cursor-pointer"
+        >
+          <option value="">{t("select-country-default", "-- Select Home Country --")}</option>
+          {#each Object.keys(COUNTRY_DATA) as countryName}
+            <option value={countryName}>{countryName}</option>
+          {/each}
+        </select>
       </div>
-      <div>
-        <div data-i18n-key="countries-label" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-inter">
-          {t("countries-label", "Countries")}
-        </div>
-        <div class="text-xs font-medium text-slate-800 mt-1 max-h-24 overflow-y-auto font-inter">
-          {#if loadingMetadata}
-            ...
-          {:else if countries.length === 0}
-            <span data-i18n-key="no-countries">{t("no-countries", "None")}</span>
-          {:else}
-            <div class="flex flex-wrap gap-1 mt-0.5">
-              {#each countries as item}
-                <span class="bg-slate-200 text-slate-700 px-1.5 py-0.5 text-[10px] font-semibold">{item.country} ({item.count.toLocaleString()})</span>
-              {/each}
-            </div>
-          {/if}
-        </div>
+  
+      <!-- Working Collection Code -->
+      <div class="space-y-2 flex-1 sm:max-w-[280px]">
+        <label for="settings-collectionCode" data-i18n-key="working-collection-code" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">{t("working-collection-code", "Working Collection Code")}</label>
+        <input
+          id="settings-collectionCode"
+          type="text"
+          placeholder="e.g. TAN"
+          bind:value={workspaceStore.workingCollectionCode}
+          onchange={() => settingsEdited = true}
+          onkeyup={(e) => /^[a-zA-Z]$/.test(e.key) && (settingsEdited = true)}
+          class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+        />
       </div>
+    </div>
+  
+    <!-- Preferred Date Format Setting -->
+    <div class="space-y-2 pt-2 border-t border-slate-100">
       <div>
-        <div data-i18n-key="collections-label" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-inter">
-          {t("collections-label", "Reference Collections")}
-        </div>
-        <div class="text-xs font-medium text-slate-800 mt-1 max-h-24 overflow-y-auto font-inter">
-          {#if loadingMetadata}
-            ...
-          {:else if collectionCodes.length === 0}
-            <span data-i18n-key="no-collections">{t("no-collections", "None")}</span>
-          {:else}
-            <div class="flex flex-wrap gap-1 mt-0.5">
-              {#each collectionCodes as item}
-                <span class="bg-slate-200 text-slate-700 px-1.5 py-0.5 text-[10px] font-semibold">{item.code} ({item.count.toLocaleString()})</span>
-              {/each}
-            </div>
-          {/if}
-        </div>
+        <span data-i18n-key="preferred-date-format" class="text-xs font-bold text-slate-700 uppercase tracking-wider">{t("preferred-date-format", "Preferred Date Format")}</span>
+        <span data-i18n-key="preferred-date-format-sub" class="text-xs text-slate-500">{t("preferred-date-format-sub", "(used as the default format when parsing verbatim dates).")}</span>
+      </div>
+      
+      <div class="flex gap-4">
+        <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+          <input
+            type="radio"
+            name="preferred-date-format"
+            value="en-GB"
+            bind:group={workspaceStore.preferredDateFormat}
+            onchange={() => settingsEdited = true}
+            class="text-slate-800"
+          />
+          <span>dd/MM/yyyy (GB)</span>
+        </label>
+        <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+          <input
+            type="radio"
+            name="preferred-date-format"
+            value="en-US"
+            bind:group={workspaceStore.preferredDateFormat}
+            onchange={() => settingsEdited = true}
+            class="text-slate-800"
+          />
+          <span>M/d/yyyy (US)</span>
+        </label>
+      </div>
+    </div>
+  
+      <!-- Collector Names Initials Period Setting -->
+    <div class="space-y-2 pt-2 border-t border-slate-100 bg-white rounded-none">
+      <div>
+        <span class="text-xs font-bold text-slate-700 uppercase tracking-wider">Collector names:</span>
+      </div>
+      
+      <div class="flex gap-4">
+        <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+          <input
+            type="radio"
+            name="initials-require-periods"
+            value={true}
+            bind:group={workspaceStore.initialsRequirePeriods}
+            onchange={() => settingsEdited = true}
+            class="text-slate-800"
+          />
+          <span>{t("initials-with-periods", "with full stops")}</span>
+        </label>
+        <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+          <input
+            type="radio"
+            name="initials-require-periods"
+            value={false}
+            bind:group={workspaceStore.initialsRequirePeriods}
+            onchange={() => settingsEdited = true}
+            class="text-slate-800"
+          />
+          <span>{t("initials-no-periods", "no full stops")}</span>
+        </label>
+      </div>
+      
+      <div class="text-xs text-slate-600 font-medium">
+        Example: <span class="font-mono bg-slate-100 px-1 py-0.5 rounded">{workspaceStore.initialsRequirePeriods ? "Jones, A.W.C." : "Jones, AWC"}</span>
+      </div>
+      
+      <div class="text-[10px] text-slate-500 italic">
+        captured collector names must have format [family name], [initials], with the comma.
       </div>
     </div>
 
-    <!-- Action Button -->
-    <div class="flex flex-col sm:flex-row items-end sm:items-center justify-end gap-3 pt-2">
-      <button
-        type="button"
-        data-i18n-key="load-new-dataset"
-        onclick={handleOpenReferenceImportDialog}
-        class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors cursor-pointer font-inter"
-      >
-        {t("load-new-dataset", "Load New Dataset")}
-      </button>
-    </div>
-  </div>
-
-  <!-- WCVP Dataset Setting -->
-  <div class="space-y-2 pt-2 border-t border-slate-100 bg-white rounded-none">
-    <div class="">
-      <h3 data-i18n-key="wcvp-dataset" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-        {t("wcvp-dataset", "WCVP Dataset")}
-      </h3>
-    </div>
-
-    <!-- Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-3 border border-slate-200">
+    <!-- Format Choice -->
+    <div class="space-y-2 border-t border-slate-100">
       <div>
-        <div data-i18n-key="wcvp-version-label" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-inter">
-          {t("wcvp-version-label", "Current Version")}
-        </div>
-        <div class="text-lg font-bold text-slate-900 mt-0.5 font-outfit">
-          WCVP v{loadingWcvpMetadata ? "..." : wcvpVersion}
-        </div>
+        <span data-i18n-key="export-format" class="text-xs font-bold text-slate-700 uppercase tracking-wider">{t("export-format", "Export Format ")}</span>
+        <span data-i18n-key="export-format-sub" class="text-xs text-slate-500">{t("export-format-sub", "(files are exported as comma separated values -- CSV).")}</span>
       </div>
-      <div>
-        <div data-i18n-key="wcvp-count-label" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-inter">
-          {t("wcvp-count-label", "Total Taxa")}
-        </div>
-        <div class="text-lg font-bold text-slate-900 mt-0.5 font-outfit">
-          {loadingWcvpMetadata ? "..." : wcvpRecordCount.toLocaleString()}
-        </div>
+      
+      <div class="flex gap-4">
+        <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+          <input
+            type="radio"
+            name="export-format"
+            value="DwC"
+            bind:group={workspaceStore.exportFormat}
+            onchange={() => settingsEdited = true}
+            class="text-slate-800"
+          />
+          <span>Darwin Core</span>
+        </label>
+        <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+          <input
+            type="radio"
+            name="export-format"
+            value="BRAHMS"
+            bind:group={workspaceStore.exportFormat}
+            onchange={() => settingsEdited = true}
+            class="text-slate-800"
+          />
+          <span>BRAHMS7</span>
+        </label>
       </div>
     </div>
-
-    <!-- Action Button -->
-    <div class="flex flex-col sm:flex-row items-end sm:items-center justify-end gap-3 pt-2">
-      <button
-        type="button"
-        data-i18n-key="import-wcvp-btn"
-        onclick={handleOpenWcvpImportDialog}
-        class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors cursor-pointer font-inter"
-      >
-        {t("import-wcvp-btn", "Import/Update WCVP")}
-      </button>
+      
+    <!-- Grid Reference & Islands Setting -->
+    <div class="flex flex-col sm:flex-row sm:items-center gap-6 pt-2">
+      <label class="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wider cursor-pointer">
+        <input
+          id="settings-qds"
+          type="checkbox"
+          bind:checked={workspaceStore.includeGridReference}
+          onchange={() => settingsEdited = true}
+          class="w-4 h-4 accent-slate-900 text-slate-855 border-slate-300 rounded focus:ring-slate-500 focus:ring-1 cursor-pointer"
+        />
+        <span data-i18n-key="include-qds-label">{t("include-qds-label", "Include grid reference (QDS)")}</span>
+      </label>
+  
+      <label class="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wider cursor-pointer">
+        <input
+          id="settings-islands"
+          type="checkbox"
+          bind:checked={workspaceStore.includeIslands}
+          onchange={() => settingsEdited = true}
+          class="w-4 h-4 accent-slate-900 text-slate-855 border-slate-300 rounded focus:ring-slate-500 focus:ring-1 cursor-pointer"
+        />
+        <span data-i18n-key="include-islands-label">{t("include-islands-label", "Include islands")}</span>
+      </label>
+    </div>
+  
+    <!-- Reference Dataset -->
+    <div class="space-y-2 pt-2 border-t border-slate-100 bg-white rounded-none">
+      <div class="">
+        <h3 data-i18n-key="reference-dataset" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+          {t("reference-dataset", "Reference Dataset")}
+        </h3>
+      </div>
+  
+      <!-- Stats -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-3 border border-slate-200">
+        <div>
+          <div data-i18n-key="record-count-label" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-inter">
+            {t("record-count-label", "Total Records")}
+          </div>
+          <div class="text-lg font-bold text-slate-900 mt-0.5 font-outfit">
+            {loadingMetadata ? "..." : recordCount.toLocaleString()}
+          </div>
+        </div>
+        <div>
+          <div data-i18n-key="countries-label" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-inter">
+            {t("countries-label", "Countries")}
+          </div>
+          <div class="text-xs font-medium text-slate-800 mt-1 max-h-24 overflow-y-auto font-inter">
+            {#if loadingMetadata}
+              ...
+            {:else if countries.length === 0}
+              <span data-i18n-key="no-countries">{t("no-countries", "None")}</span>
+            {:else}
+              <div class="flex flex-wrap gap-1 mt-0.5">
+                {#each countries as item}
+                  <span class="bg-slate-200 text-slate-700 px-1.5 py-0.5 text-[10px] font-semibold">{item.country} ({item.count.toLocaleString()})</span>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        </div>
+        <div>
+          <div data-i18n-key="collections-label" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-inter">
+            {t("collections-label", "Reference Collections")}
+          </div>
+          <div class="text-xs font-medium text-slate-800 mt-1 max-h-24 overflow-y-auto font-inter">
+            {#if loadingMetadata}
+              ...
+            {:else if collectionCodes.length === 0}
+              <span data-i18n-key="no-collections">{t("no-collections", "None")}</span>
+            {:else}
+              <div class="flex flex-wrap gap-1 mt-0.5">
+                {#each collectionCodes as item}
+                  <span class="bg-slate-200 text-slate-700 px-1.5 py-0.5 text-[10px] font-semibold">{item.code} ({item.count.toLocaleString()})</span>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        </div>
+      </div>
+  
+      <!-- Action Button -->
+      <div class="flex flex-col sm:flex-row items-end sm:items-center justify-end gap-3 pt-2">
+        <button
+          type="button"
+          data-i18n-key="load-new-dataset"
+          onclick={handleOpenReferenceImportDialog}
+          class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors cursor-pointer font-inter"
+        >
+          {t("load-new-dataset", "Load New Dataset")}
+        </button>
+      </div>
+    </div>
+  
+    <!-- WCVP Dataset -->
+    <div class="space-y-2 pt-2 border-t border-slate-100 bg-white rounded-none">
+      <div class="">
+        <h3 data-i18n-key="wcvp-dataset" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+          {t("wcvp-dataset", "WCVP Dataset")}
+        </h3>
+      </div>
+  
+      <!-- Stats -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-3 border border-slate-200">
+        <div>
+          <div data-i18n-key="wcvp-version-label" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-inter">
+            {t("wcvp-version-label", "Current Version")}
+          </div>
+          <div class="text-lg font-bold text-slate-900 mt-0.5 font-outfit">
+            WCVP v{loadingWcvpMetadata ? "..." : wcvpVersion}
+          </div>
+        </div>
+        <div>
+          <div data-i18n-key="wcvp-count-label" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-inter">
+            {t("wcvp-count-label", "Total Taxa")}
+          </div>
+          <div class="text-lg font-bold text-slate-900 mt-0.5 font-outfit">
+            {loadingWcvpMetadata ? "..." : wcvpRecordCount.toLocaleString()}
+          </div>
+        </div>
+      </div>
+  
+      <!-- Action Button -->
+      <div class="flex flex-col sm:flex-row items-end sm:items-center justify-end gap-3 pt-2">
+        <button
+          type="button"
+          data-i18n-key="import-wcvp-btn"
+          onclick={handleOpenWcvpImportDialog}
+          class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors cursor-pointer font-inter"
+        >
+          {t("import-wcvp-btn", "Import/Update WCVP")}
+        </button>
+      </div>
+    </div>
+  
+    <!-- Database Backup Location Setting -->
+    <div class="space-y-2 pt-2 border-t border-slate-100">
+      <label for="settings-backup-location" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+        {t("backup-location-label", "Database Backup Location")}
+      </label>
+      <div class="flex gap-2">
+        <input
+          id="settings-backup-location"
+          type="text"
+          bind:value={workspaceStore.databaseBackupLocation}
+          onchange={() => settingsEdited = true}
+          class="flex-1 bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          placeholder="Database backup folder path"
+        />
+        <button
+          type="button"
+          onclick={handleChooseBackupDirectory}
+          class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 px-4 py-2 text-xs font-semibold rounded-none transition-colors"
+        >
+          {t("choose-folder-btn", "Choose Folder")}
+        </button>
+      </div>
+      <div class="flex justify-end gap-2 mt-2 pt-1">
+        <button
+          type="button"
+          onclick={onRestoreRequest}
+          class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors cursor-pointer"
+        >
+          {t("restore-backup-btn", "Restore Backup")}
+        </button>
+        <button
+          type="button"
+          onclick={handleManualBackup}
+          class="bg-slate-100 hover:bg-slate-200 text-slate-700  px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors cursor-pointer"
+        >
+          {t("backup-now-btn", "Back Up Now")}
+        </button>
+      </div>
+      {#if workspaceStore.manualBackupMessage}
+        <p class="text-xs text-green-700 font-medium mt-1.5 leading-relaxed">{workspaceStore.manualBackupMessage}</p>
+      {/if}
+      {#if workspaceStore.manualBackupError}
+        <p class="text-xs text-red-700 font-medium mt-1.5 leading-relaxed">{workspaceStore.manualBackupError}</p>
+      {/if}
     </div>
   </div>
 
-  <!-- Database Backup Location Setting -->
-  <div class="space-y-2 pt-2 border-t border-slate-100">
-    <label for="settings-backup-location" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-      {t("backup-location-label", "Database Backup Location")}
-    </label>
-    <div class="flex gap-2">
-      <input
-        id="settings-backup-location"
-        type="text"
-        bind:value={workspaceStore.databaseBackupLocation}
-        onchange={() => settingsEdited = true}
-        class="flex-1 bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
-        placeholder="Database backup folder path"
-      />
-      <button
-        type="button"
-        onclick={handleChooseBackupDirectory}
-        class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 px-4 py-2 text-xs font-semibold rounded-none transition-colors"
-      >
-        {t("choose-folder-btn", "Choose Folder")}
-      </button>
-    </div>
-    <div class="flex justify-end gap-2 mt-2 pt-1">
-      <button
-        type="button"
-        onclick={onRestoreRequest}
-        class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors cursor-pointer"
-      >
-        {t("restore-backup-btn", "Restore Backup")}
-      </button>
-      <button
-        type="button"
-        onclick={handleManualBackup}
-        class="bg-slate-100 hover:bg-slate-200 text-slate-700  px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-none transition-colors cursor-pointer"
-      >
-        {t("backup-now-btn", "Back Up Now")}
-      </button>
-    </div>
-    {#if workspaceStore.manualBackupMessage}
-      <p class="text-xs text-green-700 font-medium mt-1.5 leading-relaxed">{workspaceStore.manualBackupMessage}</p>
-    {/if}
-    {#if workspaceStore.manualBackupError}
-      <p class="text-xs text-red-700 font-medium mt-1.5 leading-relaxed">{workspaceStore.manualBackupError}</p>
-    {/if}
-  </div>
 
   <!-- Save settings button -->
   <div class="pt-4 border-t border-slate-100 flex justify-end">

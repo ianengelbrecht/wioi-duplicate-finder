@@ -495,7 +495,7 @@
         </div>
 
         <!-- Main Dashboard Tab Panels -->
-        <div class="md:col-span-2 bg-white border border-slate-300 p-6 flex flex-col min-h-0 overflow-y-auto">
+        <div class="md:col-span-2 bg-white border border-slate-300 p-6 flex flex-col min-h-0">
           {#if activeTab === "sessions"}
             <SessionsTab currentLanguage={currentLanguage} onSelectSession={selectSession} />
           {:else if activeTab === "settings"}
