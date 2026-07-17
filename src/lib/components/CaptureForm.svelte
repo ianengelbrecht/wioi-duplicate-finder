@@ -523,7 +523,8 @@
       // remove apostrophe before 2-digit year after start, space, slash, dash, comma
       .replace(/(^|[\s,/-])'(\d{2})(?=$|[\s,./-])/g, "$1$2");
 
-    let locale = eventDateLanguage === "FR" ? "fr-FR" : eventDateLanguage === "PT" ? "pt-PT" : "en-US";
+    let defaultLocale = workspaceStore.preferredDateFormat || "en-US";
+    let locale = eventDateLanguage === "FR" ? "fr-FR" : eventDateLanguage === "PT" ? "pt-PT" : defaultLocale;
 
     let { day, month, year } = parser.attempt(dateStr, locale);
     form.day = day ? String(day) : "";

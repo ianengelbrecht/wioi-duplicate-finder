@@ -7,6 +7,7 @@ export class WorkspaceStore {
   exportFormat = $state("DwC"); // "DwC" or "BRAHMS"
   workingCollectionCode = $state("RHOIO");
   homeCountry = $state("");
+  preferredDateFormat = $state("en-US");
 
   /** @type {boolean} */
   includeGridReference = $state(false);

@@ -136,6 +136,8 @@
   "application-settings": "Paramètres de l'application",
   "settings-description": "Configurez les données de référence et les paramètres pour votre herbier.",
   "working-collection-code": "Code de collection de travail",
+  "preferred-date-format": "Format de date préféré",
+  "preferred-date-format-sub": "(utilisé comme format par défaut lors de l'analyse des dates brutes).",
   "export-format-sub": "(les fichiers sont exportés sous forme de valeurs séparées par des virgules -- CSV).",
   "initials-with-periods": "avec des points",
   "initials-no-periods": "sans points",

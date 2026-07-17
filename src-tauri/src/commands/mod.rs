@@ -227,6 +227,7 @@ pub fn save_export_settings(
     backup_location: String,
     home_country: String,
     initials_require_periods: bool,
+    preferred_date_format: String,
 ) -> Result<(), String> {
     ExportService::save_export_settings(
         &app,
@@ -238,6 +239,7 @@ pub fn save_export_settings(
         &backup_location,
         &home_country,
         initials_require_periods,
+        &preferred_date_format,
     )
 }
 

@@ -236,7 +236,8 @@
         workspaceStore.includeIslands,
         workspaceStore.databaseBackupLocation.trim(),
         workspaceStore.homeCountry,
-        workspaceStore.initialsRequirePeriods
+        workspaceStore.initialsRequirePeriods,
+        workspaceStore.preferredDateFormat
       );
       settingsEdited = false;
       workspaceStore.settingsMessage = "Settings saved successfully!";
@@ -324,6 +325,39 @@
         onkeyup={(e) => /^[a-zA-Z]$/.test(e.key) && (settingsEdited = true)}
         class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
       />
+    </div>
+  </div>
+
+  <!-- Preferred Date Format Setting -->
+  <div class="space-y-2 pt-2 border-t border-slate-100">
+    <div>
+      <span data-i18n-key="preferred-date-format" class="text-xs font-bold text-slate-700 uppercase tracking-wider">{t("preferred-date-format", "Preferred Date Format")}</span>
+      <span data-i18n-key="preferred-date-format-sub" class="text-xs text-slate-500">{t("preferred-date-format-sub", "(used as the default format when parsing verbatim dates).")}</span>
+    </div>
+    
+    <div class="flex gap-4">
+      <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+        <input
+          type="radio"
+          name="preferred-date-format"
+          value="en-GB"
+          bind:group={workspaceStore.preferredDateFormat}
+          onchange={() => settingsEdited = true}
+          class="text-slate-800"
+        />
+        <span>dd/MM/yyyy (GB)</span>
+      </label>
+      <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+        <input
+          type="radio"
+          name="preferred-date-format"
+          value="en-US"
+          bind:group={workspaceStore.preferredDateFormat}
+          onchange={() => settingsEdited = true}
+          class="text-slate-800"
+        />
+        <span>M/d/yyyy (US)</span>
+      </label>
     </div>
   </div>
 

@@ -136,6 +136,8 @@
   "application-settings": "Configurações do Aplicativo",
   "settings-description": "Configure os dados de referência e as configurações do seu herbário.",
   "working-collection-code": "Código de Coleção de Trabalho",
+  "preferred-date-format": "Formato de data preferido",
+  "preferred-date-format-sub": "(usado como formato padrão ao analisar datas textuais).",
   "export-format-sub": "(os arquivos são exportados como valores separados por vírgula -- CSV).",
   "initials-with-periods": "com pontos finais",
   "initials-no-periods": "sem pontos finais",

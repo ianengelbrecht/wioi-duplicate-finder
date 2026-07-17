@@ -136,6 +136,8 @@
   "application-settings": "Application Settings",
   "settings-description": "Configure the reference data and settings for your herbarium.",
   "working-collection-code": "Working Collection Code",
+  "preferred-date-format": "Preferred Date Format",
+  "preferred-date-format-sub": "(used as the default format when parsing verbatim dates).",
   "export-format-sub": "(files are exported as comma separated values -- CSV).",
   "initials-with-periods": "with full stops",
   "initials-no-periods": "no full stops",

@@ -221,6 +221,7 @@
       workspaceStore.includeIslands = settings.includeIslands || false;
       workspaceStore.initialsRequirePeriods = settings.initialsRequirePeriods !== undefined ? settings.initialsRequirePeriods : true;
       workspaceStore.databaseBackupLocation = settings.backupLocation || workspaceStore.defaultBackupLocation;
+      workspaceStore.preferredDateFormat = settings.preferredDateFormat || "en-US";
     } catch (e) {
       console.error(e);
     }

@@ -924,7 +924,10 @@ fn run_migrations(conn: &mut Connection) -> Result<()> {
         .unwrap_or(false);
 
     if !cr_grid_exists {
-        let _ = conn.execute("ALTER TABLE captured_records ADD COLUMN gridReference TEXT", []);
+        let _ = conn.execute(
+            "ALTER TABLE captured_records ADD COLUMN gridReference TEXT",
+            [],
+        );
     }
 
     conn.execute(
@@ -949,6 +952,7 @@ fn run_migrations(conn: &mut Connection) -> Result<()> {
             backup_location TEXT NOT NULL DEFAULT '',
             home_country TEXT NOT NULL DEFAULT '',
             initials_require_periods INTEGER NOT NULL DEFAULT 1,
+            preferred_date_format TEXT NOT NULL DEFAULT 'en-US',
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
         );",
         [],
@@ -997,6 +1001,12 @@ fn run_migrations(conn: &mut Connection) -> Result<()> {
     if !es_col_exists(conn, "initials_require_periods") {
         let _ = conn.execute(
             "ALTER TABLE export_settings ADD COLUMN initials_require_periods INTEGER NOT NULL DEFAULT 1",
+            [],
+        );
+    }
+    if !es_col_exists(conn, "preferred_date_format") {
+        let _ = conn.execute(
+            "ALTER TABLE export_settings ADD COLUMN preferred_date_format TEXT NOT NULL DEFAULT 'en-US'",
             [],
         );
     }

@@ -76,6 +76,7 @@ pub struct ExportSettingsDto {
     pub backup_location: String,
     pub home_country: String,
     pub initials_require_periods: bool,
+    pub preferred_date_format: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

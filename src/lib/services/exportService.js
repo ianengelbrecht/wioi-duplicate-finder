@@ -11,7 +11,7 @@ export const exportService = {
   },
 
   /**
-   * Saves custom export settings (format, collection code, grid reference, islands settings, database backup folder, home country, initials require periods).
+   * Saves custom export settings (format, collection code, grid reference, islands settings, database backup folder, home country, initials require periods, preferred date format).
    * @param {number} userId 
    * @param {string} format DwC or BRAHMS
    * @param {string} collectionCode Collection code
@@ -20,9 +20,10 @@ export const exportService = {
    * @param {string} backupLocation Backup folder path
    * @param {string} homeCountry Selected home country
    * @param {boolean} initialsRequirePeriods Whether initials require periods
+   * @param {string} preferredDateFormat Preferred date format ('en-GB' or 'en-US')
    * @returns {Promise<void>}
    */
-  async saveExportSettings(userId, format, collectionCode, includeGridReference, includeIslands, backupLocation, homeCountry, initialsRequirePeriods) {
+  async saveExportSettings(userId, format, collectionCode, includeGridReference, includeIslands, backupLocation, homeCountry, initialsRequirePeriods, preferredDateFormat) {
     return await invoke("save_export_settings", {
       userId,
       format,
@@ -32,13 +33,14 @@ export const exportService = {
       backupLocation,
       homeCountry,
       initialsRequirePeriods,
+      preferredDateFormat,
     });
   },
 
   /**
    * Retrieves export settings.
    * @param {number} userId 
-   * @returns {Promise<{ format: string, collectionCode: string, includeGridReference: boolean, includeIslands: boolean, backupLocation: string }>}
+   * @returns {Promise<{ format: string, collectionCode: string, includeGridReference: boolean, includeIslands: boolean, backupLocation: string, homeCountry: string, initialsRequirePeriods: boolean, preferredDateFormat: string }>}
    */
   async getExportSettings(userId) {
     return await invoke("get_export_settings", { userId });

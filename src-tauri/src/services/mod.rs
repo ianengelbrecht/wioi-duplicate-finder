@@ -567,6 +567,7 @@ impl ExportService {
         backup_location: &str,
         home_country: &str,
         initials_require_periods: bool,
+        preferred_date_format: &str,
     ) -> Result<(), String> {
         let conn = get_connection(app)?;
         ExportRepository::save_export_settings(
@@ -579,6 +580,7 @@ impl ExportService {
             backup_location,
             home_country,
             initials_require_periods,
+            preferred_date_format,
         )
         .map_err(|e| e.to_string())
     }
@@ -595,6 +597,7 @@ impl ExportService {
                 backup_location: "".to_string(),
                 home_country: "".to_string(),
                 initials_require_periods: true,
+                preferred_date_format: "en-US".to_string(),
             }),
             Err(e) => Err(e.to_string()),
         }

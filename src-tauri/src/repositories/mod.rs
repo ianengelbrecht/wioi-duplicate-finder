@@ -867,6 +867,7 @@ impl ExportRepository {
         backup_location: &str,
         home_country: &str,
         initials_require_periods: bool,
+        preferred_date_format: &str,
     ) -> Result<(), Error> {
         conn.execute(
             "INSERT INTO export_settings (
@@ -877,9 +878,10 @@ impl ExportRepository {
                 include_islands, 
                 backup_location,
                 home_country,
-                initials_require_periods
+                initials_require_periods,
+                preferred_date_format
              ) 
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) 
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) 
              ON CONFLICT(user_id) DO UPDATE SET 
                 format=?2, 
                 collection_code=?3, 
@@ -887,7 +889,8 @@ impl ExportRepository {
                 include_islands=?5, 
                 backup_location=?6,
                 home_country=?7,
-                initials_require_periods=?8",
+                initials_require_periods=?8,
+                preferred_date_format=?9",
             params![
                 user_id,
                 format,
@@ -896,7 +899,8 @@ impl ExportRepository {
                 include_islands as i32,
                 backup_location,
                 home_country,
-                initials_require_periods as i32
+                initials_require_periods as i32,
+                preferred_date_format
             ],
         )?;
         Ok(())
@@ -907,7 +911,7 @@ impl ExportRepository {
         user_id: i32,
     ) -> Result<Option<ExportSettingsDto>, Error> {
         let mut stmt =
-            conn.prepare("SELECT format, collection_code, include_grid_reference, include_islands, backup_location, home_country, initials_require_periods FROM export_settings WHERE user_id = ?1")?;
+            conn.prepare("SELECT format, collection_code, include_grid_reference, include_islands, backup_location, home_country, initials_require_periods, preferred_date_format FROM export_settings WHERE user_id = ?1")?;
         let mut rows = stmt.query_map(params![user_id], |row| {
             let include_grid_ref_raw: i32 = row.get(2)?;
             let include_islands_raw: i32 = row.get(3)?;
@@ -920,6 +924,7 @@ impl ExportRepository {
                 backup_location: row.get(4)?,
                 home_country: row.get(5)?,
                 initials_require_periods: initials_require_periods_raw != 0,
+                preferred_date_format: row.get(7)?,
             })
         })?;
 
