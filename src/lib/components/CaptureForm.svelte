@@ -1507,7 +1507,7 @@
     <div class="flex gap-2 items-center">
       <button
         id="paste-json-button"
-        class="flex items-center gap-0 cursor-pointer disabled:cursor-default px-2 py-2 text-[10px] font-bold tracking-wider bg-slate-700 text-white hover:bg-slate-800 transition-colors rounded-none"
+        class="flex items-center gap-0 cursor-pointer disabled:cursor-default disabled:bg-slate-200 disabled:text-slate-400 px-2 py-2 text-[10px] font-bold tracking-wider bg-slate-700 text-white hover:bg-slate-800 transition-colors rounded-none"
         disabled={Boolean(form.id) || saving}
         onclick={handlePasteJson}
         title={t("paste-json-tooltip", "Paste DwC JSON")}
