@@ -37,4 +37,10 @@ desktop.ini
 # Secrets
 .tauri/
 
+# Data files
 *.csv
+
+# AI stuff
+# All of a sudden we have an antigravity directory
+src-tauri/target-antigravity/
+

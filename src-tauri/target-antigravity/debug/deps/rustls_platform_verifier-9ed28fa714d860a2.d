@@ -1,8 +1,0 @@
-C:\devprojects\clients\WIOI herbaria\duplicate-finder\src-tauri\target-antigravity\debug\deps\rustls_platform_verifier-9ed28fa714d860a2.d: C:\Users\ianic\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustls-platform-verifier-0.7.0\src\lib.rs C:\Users\ianic\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustls-platform-verifier-0.7.0\src\verification\mod.rs C:\Users\ianic\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustls-platform-verifier-0.7.0\src\verification\windows.rs C:\Users\ianic\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustls-platform-verifier-0.7.0\src\../README.md
-
-C:\devprojects\clients\WIOI herbaria\duplicate-finder\src-tauri\target-antigravity\debug\deps\librustls_platform_verifier-9ed28fa714d860a2.rmeta: C:\Users\ianic\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustls-platform-verifier-0.7.0\src\lib.rs C:\Users\ianic\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustls-platform-verifier-0.7.0\src\verification\mod.rs C:\Users\ianic\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustls-platform-verifier-0.7.0\src\verification\windows.rs C:\Users\ianic\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustls-platform-verifier-0.7.0\src\../README.md
-
-C:\Users\ianic\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustls-platform-verifier-0.7.0\src\lib.rs:
-C:\Users\ianic\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustls-platform-verifier-0.7.0\src\verification\mod.rs:
-C:\Users\ianic\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustls-platform-verifier-0.7.0\src\verification\windows.rs:
-C:\Users\ianic\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rustls-platform-verifier-0.7.0\src\../README.md:
