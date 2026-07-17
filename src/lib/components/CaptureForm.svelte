@@ -1549,6 +1549,7 @@
           placeholder={t("catalog-number-placeholder", "eg TAN123456")}
           bind:value={form.catalogNumber}
           class="w-full bg-white border border-slate-300 text-slate-800 text-sm px-3 py-2 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 rounded-none transition-all"
+          autocomplete="off"
         />
       </div>
       <div class="col-span-5">
