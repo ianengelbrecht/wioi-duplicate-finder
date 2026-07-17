@@ -95,6 +95,8 @@
   let lastSavedRecord = $state(/** @type {any} */ (null));
   /** @type {boolean} */
   let saving = $state(false);
+  /** @type {boolean} */
+  let showBarcodeWarningModal = $state(false);
 
   /** @type {string} */
   let statusMessageKey = $state("");
@@ -230,12 +232,33 @@
   });
 
   /**
+   * Checks if catalogNumber is already present in session records (except the current record).
+   * @returns {boolean}
+   */
+  function isCatalogNumberDuplicate() {
+    if (!form.catalogNumber) return false;
+    const barcode = form.catalogNumber.trim().toLowerCase();
+    if (!barcode) return false;
+
+    return workspaceStore.capturedRecords.some(r => {
+      if (form.id && r.id === form.id) return false;
+      return (r.catalogNumber || "").trim().toLowerCase() === barcode;
+    });
+  }
+
+  /**
    * Handle form submission: validate required fields and data formats, then save the record using the specimenService. Displays appropriate success or error messages based on the outcome.  
    * @param {Event|null} e
+   * @param {boolean} [bypassDuplicate=false]
    */
-  async function handleSave(e) {
+  async function handleSave(e, bypassDuplicate = false) {
     if (e) e.preventDefault();
     if (saving) return;
+
+    if (!bypassDuplicate && isCatalogNumberDuplicate()) {
+      showBarcodeWarningModal = true;
+      return;
+    }
 
     saving = true;
     statusMessageKey = "";
@@ -2517,6 +2540,64 @@
           class="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 border border-slate-200 transition-colors cursor-pointer rounded-none"
         >
           {t("close-btn", "Close")}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if showBarcodeWarningModal}
+  <div 
+    class="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
+    role="dialog"
+    aria-modal="true"
+    tabindex="-1"
+    onclick={(e) => { if (e.target === e.currentTarget) showBarcodeWarningModal = false; }}
+    onkeydown={(e) => { 
+      if (e.key === "Escape") {
+        e.preventDefault();
+        showBarcodeWarningModal = false; 
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        showBarcodeWarningModal = false;
+        handleSave(null, true);
+      }
+    }}
+  >
+    <div class="bg-white border border-slate-200 shadow-2xl max-w-sm w-full p-5 flex flex-col gap-4 rounded-none">
+      <div class="flex items-start gap-3">
+        <div class="p-2 bg-amber-50 text-amber-600 rounded-full shrink-0">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" class="w-5 h-5 text-amber-600">
+            <path d="M236.8,188.09,149.35,36.22a24.43,24.43,0,0,0-42.7,0L19.2,188.09a23.5,23.5,0,0,0,0,23.82,24,24,0,0,0,21.35,12.09H215.45a24,24,0,0,0,21.35-12.09A23.5,23.5,0,0,0,236.8,188.09ZM120,104a8,8,0,0,1,16,0v40a8,8,0,0,1-16,0Zm8,80a12,12,0,1,1,12-12A12,12,0,0,1,128,184Z"></path>
+          </svg>
+        </div>
+        <div class="space-y-2">
+          <h3 data-i18n-key="barcode-duplicate-warning-title" class="font-bold text-slate-800">{t("barcode-duplicate-warning-title", "Barcode Already Captured")}</h3>
+          <p data-i18n-key="barcode-duplicate-warning-desc" class="text-sm text-slate-500 leading-relaxed">
+            {t("barcode-duplicate-warning-desc", "This barcode number has already been captured in this session. Are you sure you want to save it again?")}
+          </p>
+        </div>
+      </div>
+      
+      <div class="flex justify-end gap-2 mt-2">
+        <button
+          type="button"
+          data-i18n-key="cancel-btn"
+          onclick={() => { showBarcodeWarningModal = false; }}
+          class="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 border border-slate-200 transition-colors cursor-pointer rounded-none"
+        >
+          {t("cancel-btn", "Cancel")}
+        </button>
+        <button
+          type="button"
+          data-i18n-key="save-anyway-btn"
+          onclick={() => {
+            showBarcodeWarningModal = false;
+            handleSave(null, true);
+          }}
+          class="px-3.5 py-1.5 text-xs font-semibold text-white bg-slate-800 hover:bg-slate-900 transition-colors cursor-pointer rounded-none"
+        >
+          {t("save-anyway-btn", "Save Anyway")}
         </button>
       </div>
     </div>

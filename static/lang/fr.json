@@ -62,6 +62,12 @@
   "cancel-btn": "Annuler",
   "delete-record-heading": "Supprimer l'enregistrement de spécimen",
   "delete-record-confirm": "Êtes-vous sûr de vouloir supprimer définitivement cet enregistrement saisi ?",
+  "duplicate-record-heading": "Dupliquer l'enregistrement du spécimen",
+  "duplicate-record-confirm": "Êtes-vous sûr de vouloir dupliquer cet enregistrement ? Le code-barres / numéro de catalogue sera effacé et le nouvel enregistrement sera chargé dans le formulaire de capture.",
+  "duplicate-btn": "Dupliquer",
+  "sort-asc-title": "Trier par ordre croissant",
+  "sort-desc-title": "Trier par ordre décroissant",
+  "sort-none-title": "Effacer le tri",
   "search-heading": "Recherche d'enregistrements en double",
   "search-collector-label": "Collecteur",
   "search-family-label": "Famille",
@@ -279,5 +285,8 @@
   "update-status-checking": "Recherche de mises à jour...",
   "update-status-uptodate": "à jour",
   "update-status-check-now": "Cliquez pour rechercher des mises à jour",
-  "profile-settings-heading": "Mon profil"
+  "profile-settings-heading": "Mon profil",
+  "barcode-duplicate-warning-title": "Code-barres déjà capturé",
+  "barcode-duplicate-warning-desc": "Ce numéro de code-barres a déjà été capturé dans cette session. Êtes-vous sûr de vouloir l'enregistrer à nouveau ?",
+  "save-anyway-btn": "Enregistrer quand même"
 }

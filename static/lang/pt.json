@@ -62,6 +62,12 @@
   "cancel-btn": "Cancelar",
   "delete-record-heading": "Excluir Registro de Espécime",
   "delete-record-confirm": "Tem certeza de que deseja excluir permanentemente este registro capturado?",
+  "duplicate-record-heading": "Duplicar Registro de Espécime",
+  "duplicate-record-confirm": "Tem certeza de que deseja duplicar este registro? O código de barras / número de catálogo será limpo e o novo registro será carregado no formulário de captura.",
+  "duplicate-btn": "Duplicar",
+  "sort-asc-title": "Ordenar de forma crescente",
+  "sort-desc-title": "Ordenar de forma decrescente",
+  "sort-none-title": "Limpar ordenação",
   "search-heading": "Busca de Registros Duplicados",
   "search-collector-label": "Coletor",
   "search-family-label": "Família",
@@ -280,5 +286,8 @@
   "update-status-checking": "Verificando atualizações...",
   "update-status-uptodate": "atualizado",
   "update-status-check-now": "Clique para verificar atualizações",
-  "profile-settings-heading": "Meu Perfil"
+  "profile-settings-heading": "Meu Perfil",
+  "barcode-duplicate-warning-title": "Código de Barras já Capturado",
+  "barcode-duplicate-warning-desc": "Este código de barras já foi capturado nesta sessão. Tem certeza de que deseja salvá-lo novamente?",
+  "save-anyway-btn": "Salvar de qualquer maneira"
 }

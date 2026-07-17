@@ -62,6 +62,12 @@
   "cancel-btn": "Cancel",
   "delete-record-heading": "Delete Specimen Record",
   "delete-record-confirm": "Are you sure you want to permanently delete this captured record?",
+  "duplicate-record-heading": "Duplicate Specimen Record",
+  "duplicate-record-confirm": "Are you sure you want to duplicate this record? The barcode/catalog number will be cleared and the new record will be loaded into the capture form.",
+  "duplicate-btn": "Duplicate",
+  "sort-asc-title": "Sort Ascending",
+  "sort-desc-title": "Sort Descending",
+  "sort-none-title": "Clear Sort",
   "search-heading": "Duplicate Record Search",
   "search-collector-label": "Collector",
   "search-family-label": "Family",
@@ -280,5 +286,8 @@
   "update-status-checking": "Checking for updates...",
   "update-status-uptodate": "up to date",
   "update-status-check-now": "Click to check for updates",
-  "profile-settings-heading": "My Profile"
+  "profile-settings-heading": "My Profile",
+  "barcode-duplicate-warning-title": "Barcode Already Captured",
+  "barcode-duplicate-warning-desc": "This barcode number has already been captured in this session. Are you sure you want to save it again?",
+  "save-anyway-btn": "Save Anyway"
 }

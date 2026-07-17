@@ -62,6 +62,12 @@
   "cancel-btn": "Hanafoana",
   "delete-record-heading": "Hamafa ny Santiona",
   "delete-record-confirm": "Tena te hamafa tanteraka ity santiona voatahiry ity ve ianao?",
+  "duplicate-record-heading": "Handika ny firaketana ny santionany",
+  "duplicate-record-confirm": "Tena te handika ity firaketana ity ve ianao? Hamafana ny barcode/laharan'ny katalaogy ary hampidirina ao amin'ny takelaka fangatahana ny firaketana vaovao.",
+  "duplicate-btn": "Handika",
+  "sort-asc-title": "Handamina miakatra",
+  "sort-desc-title": "Handamina midina",
+  "sort-none-title": "Hanafoana ny fandaminana",
   "search-heading": "Fikarohana Firaketana Mitovy",
   "search-collector-label": "Mpanangona",
   "search-family-label": "Fianakaviana",
@@ -280,5 +286,8 @@
   "update-status-checking": "Mitady fanavaozana...",
   "update-status-uptodate": "efa vaovao",
   "update-status-check-now": "Tsindrio raha hitady fanavaozana",
-  "profile-settings-heading": "Ny Mombamomba Ahy"
+  "profile-settings-heading": "Ny Mombamomba Ahy",
+  "barcode-duplicate-warning-title": "Efa voasoratra io kaody famantarana io",
+  "barcode-duplicate-warning-desc": "Efa voasoratra tao anatin'ity fizarana ity io kaody famantarana io. Te-hitahiry izany ihany ve ianao?",
+  "save-anyway-btn": "Hitahiry ihany"
 }
