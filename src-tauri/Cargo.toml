@@ -1,6 +1,6 @@
 [package]
 name = "RHOIO_Herbarium_Duplicate_Finder"
-version = "0.9.0"
+version = "0.9.1"
 description = "Find and reuse duplicate herbarium specimen data fast"
 authors = ["you"]
 edition = "2021"
