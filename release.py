@@ -601,7 +601,7 @@ def main() -> None:
     if args.bump == "minor":
         publish_release_notes(docs_release_version)
     
-    update_docs_release_json(docs_release_version)
+    update_docs_release_json(new_version)
 
     if args.data_also:
         update_docs_data_json(new_version)
