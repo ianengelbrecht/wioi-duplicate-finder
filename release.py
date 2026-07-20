@@ -138,6 +138,19 @@ def get_minor_release_version(version: str) -> str:
     major, minor, _patch = parse_version(version)
     return f"{major}.{minor}"
 
+def get_release_sidebar_order(version: str) -> int:
+    """
+    Return a sidebar order that sorts newer semantic versions first.
+
+    Examples:
+        0.9.0  -> -9000
+        0.9.1  -> -9001
+        0.10.0 -> -10000
+        1.0.0  -> -1000000
+    """
+    major, minor, patch = parse_version(version)
+    return -(major * 1_000_000 + minor * 1_000 + patch)
+
 # =============================================================================
 # VALIDATION
 # =============================================================================
@@ -330,7 +343,12 @@ def update_cargo_toml(version: str) -> None:
     CARGO_TOML.write_text(updated_text, encoding="utf-8")
 
 
-def update_release_frontmatter(text: str, title: str, path: Path) -> str:
+def update_release_frontmatter(
+    text: str,
+    title: str,
+    sidebar_order: int,
+    path: Path,
+) -> str:
     """Update the title and make a release page visible in the sidebar."""
     match = re.match(r"\A---\r?\n(.*?)\r?\n---(?=\r?\n|\Z)", text, re.DOTALL)
 
@@ -355,6 +373,11 @@ def update_release_frontmatter(text: str, title: str, path: Path) -> str:
         updated_frontmatter,
     ).rstrip()
 
+    updated_frontmatter += (
+        "\nsidebar:\n"
+        f"  order: {sidebar_order}"
+    )
+
     return (
         text[: match.start(1)]
         + updated_frontmatter
@@ -362,10 +385,17 @@ def update_release_frontmatter(text: str, title: str, path: Path) -> str:
     )
 
 
-def publish_release_notes(version: str) -> None:
+def publish_release_notes(
+    release_notes_version: str,
+    full_version: str,
+) -> None:
     """Version every next.md file and recreate an empty next.md template."""
     source_paths = get_release_notes_paths("next.md")
-    destination_paths = get_release_notes_paths(f"v{version}.md")
+    destination_paths = get_release_notes_paths(
+        f"v{release_notes_version}.md"
+    )
+
+    sidebar_order = get_release_sidebar_order(full_version)
 
     # Read and validate every file before changing any of them.
     updated_contents = {}
@@ -374,7 +404,8 @@ def publish_release_notes(version: str) -> None:
         text = source_path.read_text(encoding="utf-8")
         updated_contents[language] = update_release_frontmatter(
             text,
-            f"v{version}",
+            f"v{release_notes_version}",
+            sidebar_order,
             source_path,
         )
 
@@ -599,7 +630,10 @@ def main() -> None:
 
     # Documentation updates.
     if args.bump == "minor":
-        publish_release_notes(docs_release_version)
+        publish_release_notes(
+            docs_release_version,
+            new_version,
+        )
     
     update_docs_release_json(new_version)
 
